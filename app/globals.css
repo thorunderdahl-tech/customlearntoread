@@ -50,9 +50,9 @@ nav a:hover { color: var(--ink); }
   padding: clamp(56px, 9vw, 110px) clamp(20px, 5vw, 72px);
 }
 .hero-copy h1 {
-  font-size: clamp(3rem, 8vw, 6.4rem);
-  line-height: 0.92;
-  letter-spacing: -0.075em;
+  font-size: clamp(2.6rem, 7vw, 5.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
   margin: 0 0 24px;
   max-width: 900px;
 }
@@ -155,12 +155,22 @@ nav a:hover { color: var(--ink); }
 .pricing-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .levels-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
-.step-card, .price-card, .levels-grid article, .faq-list details, fieldset.card {
+.step-card, .price-card, .levels-grid article, .faq-list details, .card {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 24px;
   box-shadow: 0 8px 24px rgba(47,42,36,.06);
+}
+.card {
+  display: grid;
+  gap: 14px;
+}
+.card .legend {
+  font-weight: 900;
+  font-size: 1.2rem;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
 }
 .step-card .num {
   width: 44px; height: 44px;
@@ -211,8 +221,6 @@ h3 { margin: 18px 0 8px; font-size: 1.25rem; letter-spacing: -0.02em; }
 
 .form-section { background: var(--cream); }
 .intake-form { max-width: 920px; margin: 0 auto; display: grid; gap: 18px; }
-fieldset { border: 0; margin: 0; display: grid; gap: 14px; }
-legend { font-weight: 900; font-size: 1.2rem; margin-bottom: 12px; }
 label { display: grid; gap: 6px; color: var(--ink); font-weight: 700; font-size: 0.95rem; }
 label .hint { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
 input, textarea, select {

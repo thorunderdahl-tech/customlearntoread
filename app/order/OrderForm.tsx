@@ -116,8 +116,8 @@ export default function OrderForm() {
 
   return (
     <form className="intake-form" onSubmit={handleSubmit}>
-      <fieldset className="card">
-        <legend>1. Pick your book</legend>
+      <div className="card">
+        <h3 className="legend">1. Pick your book</h3>
         <div className="format-grid">
           {PRODUCTS.map((p) => (
             <label
@@ -142,10 +142,10 @@ export default function OrderForm() {
             </label>
           ))}
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset className="card">
-        <legend>2. Reader details</legend>
+      <div className="card">
+        <h3 className="legend">2. Reader details</h3>
         <label>
           Child&apos;s first name *
           <input
@@ -189,10 +189,10 @@ export default function OrderForm() {
             placeholder="he/him, she/her, they/them"
           />
         </label>
-      </fieldset>
+      </div>
 
-      <fieldset className="card">
-        <legend>3. Their look</legend>
+      <div className="card">
+        <h3 className="legend">3. Their look</h3>
         <label>
           Hair
           <input
@@ -246,10 +246,10 @@ export default function OrderForm() {
             placeholder="Hearing aid, wheelchair, limb difference, dimples, etc. — anything important to represent."
           />
         </label>
-      </fieldset>
+      </div>
 
-      <fieldset className="card">
-        <legend>4. Story themes</legend>
+      <div className="card">
+        <h3 className="legend">4. Story themes</h3>
         <label>
           Theme 1 *
           <input
@@ -284,10 +284,10 @@ export default function OrderForm() {
             placeholder="Favorite color: orange. Jersey #7. Dog is Biscuit. Grandma is 'Nana'. Etc."
           />
         </label>
-      </fieldset>
+      </div>
 
-      <fieldset className="card">
-        <legend>5. Parent contact</legend>
+      <div className="card">
+        <h3 className="legend">5. Parent contact</h3>
         <label>
           Your name *
           <input
@@ -349,7 +349,7 @@ export default function OrderForm() {
             custom book and will not be shared publicly. *
           </span>
         </label>
-      </fieldset>
+      </div>
 
       {error && <div className="notice error">{error}</div>}
 
@@ -384,3 +384,4 @@ export default function OrderForm() {
     </form>
   );
 }
+  

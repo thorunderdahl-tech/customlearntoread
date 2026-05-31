@@ -13,10 +13,10 @@ export default function OrderPage() {
         <h2>Tell us about your reader</h2>
         <p>
           We use these details to create their custom characters and stories.
-          Required fields are marked with *.
+          Required fields are marked with an asterisk (*).
         </p>
       </div>
-      <Suspense fallback={<p style={{ textAlign: "center" }}>Loading…</p>}>
+      <Suspense fallback={<p style={{ textAlign: "center" }}>Loading...</p>}>
         <OrderForm />
       </Suspense>
     </section>
