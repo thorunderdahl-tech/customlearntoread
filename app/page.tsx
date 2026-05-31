@@ -97,37 +97,17 @@ export default function Home() {
         </p>
       </section>
 
-      <section className="section origin muted">
-        <div className="origin-card">
+      <section className="section origin-teaser muted">
+        <div className="origin-teaser-card">
           <p className="eyebrow">Why we made this</p>
-          <h2>The book that finally got him to read.</h2>
-          <p>
-            My son was learning to read. The books we brought home were
-            technically right &mdash; but he didn&apos;t care.
+          <p className="teaser-body">
+            We built this because our son needed a book he actually wanted to
+            read. We turned it into a business so other kids could feel the
+            same way about a story.
           </p>
-          <p>
-            Bedtime was a different story. Every night we&apos;d make up little
-            adventures about the things he loved most &mdash; hockey, our dog,
-            dinosaurs, whatever was living in his imagination that week. He
-            was locked in.
-          </p>
-          <p>
-            One night, after another failed sight-words session, it hit me:
-            what if the story he needed wasn&apos;t just simple enough to read
-            &mdash; what if it was personal enough to matter?
-          </p>
-          <p>
-            So we made him a book about himself. His name, his world, the
-            things he loved on every page.
-          </p>
-          <p>
-            He read it proudly. Then he read it again. Then he read it to
-            anyone who walked through our door.
-          </p>
-          <p className="origin-close">
-            <strong>That&apos;s why we made this</strong> &mdash; to help kids
-            fall in love with books by seeing themselves inside the story.
-          </p>
+          <Link className="button secondary" href="/about">
+            Read our story &rarr;
+          </Link>
         </div>
       </section>
 

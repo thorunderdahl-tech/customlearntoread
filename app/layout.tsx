@@ -47,6 +47,7 @@ export default function RootLayout({
             <a href="/#how">How it works</a>
             <a href="/#formats">Formats</a>
             <a href="/#subscription">Book Club</a>
+            <a href="/about">About</a>
             <a href="/order">Order</a>
             <a href="/#faq">FAQ</a>
           </nav>
