@@ -22,7 +22,7 @@ export default function AboutPage() {
         <Image
           src="/family.jpg"
           width={1600}
-          height={1067}
+          height={1200}
           alt="Our family at the hockey rink"
           className="family-photo"
           priority

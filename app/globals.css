@@ -646,7 +646,7 @@ details[open] summary { margin-bottom: 8px; }
   display: block;
   object-fit: cover;
   background: var(--soft);
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 4 / 3;
 }
 .about-story { padding: clamp(40px, 6vw, 80px) clamp(20px, 5vw, 72px); background: var(--paper); border-block: 1px solid var(--line); }
 .story-body { max-width: 720px; margin: 0 auto; }
