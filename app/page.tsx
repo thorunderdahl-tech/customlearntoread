@@ -25,98 +25,11 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="hero-books" aria-label="Three sample personalized book covers">
-          {/* Book 1 — Mia Plays Soccer, Level 1 */}
-          <article className="book book-1">
-            <span className="book-label">Reading Level 1</span>
-            <div className="book-art" aria-hidden="true">
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <rect x="0" y="80" width="100" height="20" fill="#7da06a" opacity="0.55" />
-                <rect x="36" y="48" width="28" height="30" rx="5" fill="#d65a3e" />
-                <text x="50" y="68" fontSize="12" fontWeight="900" fill="#fff" textAnchor="middle">7</text>
-                <circle cx="50" cy="34" r="13" fill="#b88563" />
-                <path d="M37 30 Q36 16 50 14 Q64 16 63 30 Q60 22 54 22 Q56 26 50 26 Q44 26 46 22 Q40 22 37 30 Z" fill="#241510" />
-                <circle cx="45" cy="35" r="1.6" fill="#0d0905" />
-                <circle cx="55" cy="35" r="1.6" fill="#0d0905" />
-                <path d="M45 40 Q50 43 55 40" stroke="#3a1d10" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-                <rect x="40" y="78" width="6" height="14" rx="2" fill="#3a2818" />
-                <rect x="54" y="78" width="6" height="14" rx="2" fill="#3a2818" />
-                <circle cx="82" cy="86" r="10" fill="#fff" stroke="#1a1a1a" strokeWidth="1.4" />
-                <polygon points="82,78 87,83 85,89 79,89 77,83" fill="#1a1a1a" />
-              </svg>
-            </div>
-            <h3>Mia Plays Soccer</h3>
-          </article>
-
-          {/* Book 2 — Odin and His Best Dog, Level 2 */}
-          <article className="book book-2">
-            <span className="book-label">Reading Level 2</span>
-            <div className="book-art" aria-hidden="true">
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <rect x="0" y="86" width="100" height="14" fill="#b8c8ad" opacity="0.55" />
-                <rect x="20" y="48" width="26" height="34" rx="5" fill="#5b3a8a" />
-                <text x="33" y="68" fontSize="6" fontWeight="900" fill="#f7d58b" textAnchor="middle">MN</text>
-                <circle cx="33" cy="34" r="13" fill="#f1d4b6" />
-                <path d="M21 30 Q22 16 33 14 Q44 14 45 28 Q42 22 35 22 Q30 24 26 25 Q23 24 21 30 Z" fill="#dcb572" />
-                <circle cx="29" cy="35" r="1.5" fill="#0d0905" />
-                <circle cx="37" cy="35" r="1.5" fill="#0d0905" />
-                <path d="M28 40 Q33 43 38 40" stroke="#3a1d10" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-                <rect x="24" y="82" width="6" height="10" rx="2" fill="#1c1c1c" />
-                <rect x="38" y="82" width="6" height="10" rx="2" fill="#1c1c1c" />
-                <ellipse cx="74" cy="74" rx="20" ry="12" fill="#e6c89a" />
-                <circle cx="62" cy="70" r="6" fill="#e6c89a" />
-                <circle cx="86" cy="70" r="6" fill="#e6c89a" />
-                <circle cx="74" cy="66" r="6" fill="#e6c89a" />
-                <ellipse cx="88" cy="58" rx="10" ry="9" fill="#d4b27e" />
-                <ellipse cx="80" cy="52" rx="4" ry="6" fill="#a8814a" />
-                <ellipse cx="96" cy="52" rx="4" ry="6" fill="#a8814a" />
-                <circle cx="85" cy="58" r="1.1" fill="#0d0905" />
-                <circle cx="91" cy="58" r="1.1" fill="#0d0905" />
-                <ellipse cx="88" cy="62" rx="1.8" ry="1.2" fill="#0d0905" />
-                <rect x="62" y="82" width="4" height="8" rx="2" fill="#b89060" />
-                <rect x="82" y="82" width="4" height="8" rx="2" fill="#b89060" />
-              </svg>
-            </div>
-            <h3>Odin and His Best Dog</h3>
-          </article>
-
-          {/* Book 3 — Sam Can Read, Level 3, wheelchair */}
-          <article className="book book-3">
-            <span className="book-label">Reading Level 3</span>
-            <div className="book-art" aria-hidden="true">
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 18 L16 24 L22 24 L17 28 L19 34 L14 30 L9 34 L11 28 L6 24 L12 24 Z" fill="#f7d58b" />
-                <path d="M86 18 L88 24 L94 24 L89 28 L91 34 L86 30 L81 34 L83 28 L78 24 L84 24 Z" fill="#f7d58b" />
-                <path d="M85 50 L86.5 53.5 L90 54 L87.5 56.5 L88 60 L85 58 L82 60 L82.5 56.5 L80 54 L83.5 53.5 Z" fill="#f5b78d" />
-                <rect x="36" y="40" width="28" height="22" rx="5" fill="#3a8aa8" />
-                <circle cx="50" cy="28" r="12" fill="#5a3520" />
-                <path d="M38 25 Q39 14 50 13 Q61 14 62 25 Q58 22 50 22 Q42 22 38 25 Z" fill="#1a120c" />
-                <circle cx="46" cy="29" r="2.2" fill="#fff" />
-                <circle cx="54" cy="29" r="2.2" fill="#fff" />
-                <circle cx="46" cy="29" r="1.1" fill="#0d0905" />
-                <circle cx="54" cy="29" r="1.1" fill="#0d0905" />
-                <path d="M44 34 Q50 39 56 34 Q50 38 44 34 Z" fill="#a01030" />
-                <path d="M30 56 L70 56 L70 72 L50 70 L30 72 Z" fill="#fff" stroke="#3a2418" strokeWidth="1.2" />
-                <line x1="50" y1="56" x2="50" y2="70" stroke="#3a2418" strokeWidth="1" />
-                <line x1="35" y1="60" x2="46" y2="60" stroke="#999" strokeWidth="0.7" />
-                <line x1="35" y1="63" x2="46" y2="63" stroke="#999" strokeWidth="0.7" />
-                <line x1="35" y1="66" x2="46" y2="66" stroke="#999" strokeWidth="0.7" />
-                <line x1="54" y1="60" x2="65" y2="60" stroke="#999" strokeWidth="0.7" />
-                <line x1="54" y1="63" x2="65" y2="63" stroke="#999" strokeWidth="0.7" />
-                <line x1="54" y1="66" x2="65" y2="66" stroke="#999" strokeWidth="0.7" />
-                <line x1="34" y1="68" x2="28" y2="84" stroke="#222" strokeWidth="2.2" strokeLinecap="round" />
-                <line x1="66" y1="68" x2="72" y2="84" stroke="#222" strokeWidth="2.2" strokeLinecap="round" />
-                <line x1="28" y1="84" x2="72" y2="84" stroke="#222" strokeWidth="2.2" strokeLinecap="round" />
-                <circle cx="28" cy="88" r="9" fill="none" stroke="#222" strokeWidth="2.2" />
-                <circle cx="28" cy="88" r="2.6" fill="#222" />
-                <circle cx="72" cy="88" r="9" fill="none" stroke="#222" strokeWidth="2.2" />
-                <circle cx="72" cy="88" r="2.6" fill="#222" />
-              </svg>
-            </div>
-            <h3>Sam Can Read</h3>
-          </article>
+        <div className="hero-books" aria-label="Sample personalized book covers">
+          <img className="hero-book hero-book-1" src="/mia.png" alt="Sample book: Mia Plays Soccer (Reading Level 1)" />
+          <img className="hero-book hero-book-2" src="/Odin.png" alt="Sample book: Odin and His Best Dog (Reading Level 2)" />
+          <img className="hero-book hero-book-3" src="/Sam.png" alt="Sample book: Sam Can Read (Reading Level 3)" />
         </div>
-      </section>
 
       <p className="books-caption">
         Big text. Simple words. Their favorite thing.
