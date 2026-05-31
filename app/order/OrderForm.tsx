@@ -420,9 +420,6 @@ export default function OrderForm() {
                   required
                 />
               </label>
-              <button type="button" className="theme-ideas-link" onClick={() => setShowThemeIdeas(true)}>
-                Need ideas? &rarr; See custom theme inspiration
-              </button>
               <label>
                 Theme 2
                 <input
@@ -439,6 +436,9 @@ export default function OrderForm() {
                   onChange={(e) => update("theme_3", e.target.value)}
                 />
               </label>
+              <button type="button" className="theme-ideas-link" onClick={() => setShowThemeIdeas(true)}>
+                Need ideas? &rarr; See custom theme inspiration
+              </button>
               <label>
                 Other important things to note: favorite colors, numbers, pets, family members, sayings
                 <textarea
