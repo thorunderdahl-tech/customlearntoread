@@ -97,6 +97,41 @@ export default function Home() {
         </p>
       </section>
 
+      <section className="section origin muted">
+        <div className="origin-card">
+          <p className="eyebrow">Why we made this</p>
+          <h2>The book that finally got him to read.</h2>
+          <p>
+            My son was learning to read. The books we brought home were
+            technically right &mdash; but he didn&apos;t care.
+          </p>
+          <p>
+            Bedtime was a different story. Every night we&apos;d make up little
+            adventures about the things he loved most &mdash; hockey, our dog,
+            dinosaurs, whatever was living in his imagination that week. He
+            was locked in.
+          </p>
+          <p>
+            One night, after another failed sight-words session, it hit me:
+            what if the story he needed wasn&apos;t just simple enough to read
+            &mdash; what if it was personal enough to matter?
+          </p>
+          <p>
+            So we made him a book about himself. His name, his world, the
+            things he loved on every page.
+          </p>
+          <p>
+            He read it proudly. Then he read it again. Then he read it to
+            anyone who walked through our door.
+          </p>
+          <p className="origin-close">
+            <strong>That&apos;s why we made this</strong> &mdash; to help kids
+            fall in love with books by seeing themselves inside the story.
+          </p>
+        </div>
+      </section>
+
+
       <section id="how" className="section">
         <div className="section-heading">
           <p className="eyebrow">How it works</p>
@@ -243,6 +278,45 @@ export default function Home() {
           </article>
         </div>
       </section>
+
+      <section className="section peek-inside">
+        <div className="section-heading">
+          <p className="eyebrow">Peek inside</p>
+          <h2>Real pages from real books.</h2>
+          <p>Big text. Simple words. A hero they recognize as themselves.</p>
+        </div>
+        <div className="peek-grid">
+          <Image
+            className="peek-page"
+            src="/emma-sample-1.jpg"
+            width={1000}
+            height={1544}
+            alt="Sample interior page from Emma's personalized book"
+          />
+          <Image
+            className="peek-page"
+            src="/emma-sample-2.jpg"
+            width={1000}
+            height={1544}
+            alt="Sample interior page from Emma's personalized book"
+          />
+          <Image
+            className="peek-page"
+            src="/emma-sample-3.jpg"
+            width={1000}
+            height={1544}
+            alt="Sample interior page from Emma's personalized book"
+          />
+          <Image
+            className="peek-page"
+            src="/odin-sample.jpg"
+            width={1000}
+            height={1547}
+            alt="Sample interior page from Odin's personalized book"
+          />
+        </div>
+      </section>
+
 
       <section className="section testimonials">
         <div className="section-heading">
