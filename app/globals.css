@@ -306,7 +306,6 @@ details[open] summary { margin-bottom: 8px; }
   transform: translateY(-6px) rotate(0);
   box-shadow: 0 24px 48px rgba(47, 42, 36, 0.28), 0 6px 14px rgba(47, 42, 36, 0.14);
 }
-}
 .books-caption {
   text-align: center;
   font-weight: 700;
