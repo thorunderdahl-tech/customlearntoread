@@ -23,10 +23,13 @@ export default function AboutPage() {
           src="/family.jpg"
           width={1600}
           height={1067}
-          alt="The family behind CustomLearnToRead"
+          alt="Our family at the hockey rink"
           className="family-photo"
           priority
         />
+        <p className="photo-caption">
+          Us at the rink &mdash; where we spend most weekends. Two hockey players in the bunch. (Our goldendoodle was not invited.)
+        </p>
       </section>
 
       <section className="about-story">
@@ -73,7 +76,7 @@ export default function AboutPage() {
           </article>
           <article>
             <h3>One family at a time.</h3>
-            <p>Made by hand, in Minnesota. We read every email and care about every kid.</p>
+            <p>Made by a family of five in Minnesota - between hockey practices. We read every email and care about every kid.</p>
           </article>
         </div>
       </section>
