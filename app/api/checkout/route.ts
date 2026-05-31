@@ -4,7 +4,6 @@ import { productById } from "@/lib/products";
 
 export const runtime = "nodejs";
 
-// Stripe metadata values must be strings and capped at 500 chars each.
 function truncate(v: unknown, max = 480): string {
   const s = typeof v === "string" ? v : v == null ? "" : String(v);
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
@@ -44,8 +43,8 @@ export async function POST(req: NextRequest) {
     const isSubscription = product.cadence === "monthly";
     const isDigital = product.id === "digital";
 
-    // Personalization details — flatten into Stripe metadata so it shows up
-    // on the Payment / Subscription in the dashboard and in webhook events.
+    const photos = Array.isArray(body.photos) ? body.photos.filter((p: any) => typeof p === "string") : [];
+
     const metadata: Record<string, string> = {
       product_id: product.id,
       product_name: product.name,
@@ -68,6 +67,10 @@ export async function POST(req: NextRequest) {
       shipping_address: truncate(body.shipping_address),
       other_notes: truncate(body.other_notes),
     };
+    if (photos.length > 0) {
+      // Stripe metadata field max 500 chars; URLs typically ~80 each so 3 fits.
+      metadata.photos = truncate(photos.join(" "));
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: isSubscription ? "subscription" : "payment",
@@ -77,8 +80,6 @@ export async function POST(req: NextRequest) {
       cancel_url: `${siteUrl}/order/cancel`,
       allow_promotion_codes: true,
       metadata,
-      // For one-time physical orders, collect shipping address via Stripe too
-      // (it's also captured on the form, but Stripe-validated addresses help).
       ...(isDigital
         ? {}
         : {
@@ -86,8 +87,6 @@ export async function POST(req: NextRequest) {
               allowed_countries: ["US"],
             },
           }),
-      // Subscriptions: pass metadata to the Subscription object as well so it
-      // surfaces on recurring invoices.
       ...(isSubscription
         ? { subscription_data: { metadata } }
         : { payment_intent_data: { metadata } }),

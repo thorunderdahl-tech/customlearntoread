@@ -774,6 +774,216 @@ details[open] summary { margin-bottom: 8px; }
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ----- Batch 4b: multi-step form, progress bar, photo upload, order summary ----- */
+.order-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 28px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 40px);
+}
+.order-main { min-width: 0; }
+
+.progress-bar {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 0;
+  margin: 0 0 24px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 18px;
+  counter-reset: step;
+}
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-align: center;
+}
+.progress-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 60%;
+  right: -40%;
+  height: 2px;
+  background: var(--line);
+}
+.progress-step.done:not(:last-child)::after { background: var(--peach); }
+.progress-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--soft);
+  display: grid;
+  place-items: center;
+  font-weight: 850;
+  color: var(--muted);
+  border: 2px solid var(--soft);
+  z-index: 1;
+  font-size: 0.85rem;
+}
+.progress-step.current .progress-dot {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.progress-step.done .progress-dot {
+  background: var(--peach);
+  color: #fff;
+  border-color: var(--peach);
+}
+.progress-step.current,
+.progress-step.done { color: var(--ink); }
+.progress-label { display: block; line-height: 1.15; }
+
+.step-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.step-nav .button.secondary { background: var(--paper); }
+
+.photo-upload {
+  margin-top: 6px;
+  padding: 16px;
+  background: var(--cream);
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+}
+.photo-upload-label { font-weight: 800; color: var(--ink); margin: 0 0 4px; font-size: 0.95rem; }
+.photo-upload-hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 10px; }
+.photo-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.photo-thumb {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(47, 42, 36, 0.85);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  font-weight: 700;
+}
+.photo-add {
+  width: 110px;
+  height: 110px;
+  border-radius: 12px;
+  border: 2px dashed var(--peach);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: #fffdf9;
+  color: var(--ink);
+  text-align: center;
+  padding: 8px;
+  gap: 4px;
+}
+.photo-add:hover { background: #fff4e6; }
+.photo-add span:first-child {
+  font-size: 1.8rem;
+  font-weight: 300;
+  color: var(--peach);
+}
+.photo-add-text { font-size: 0.78rem; font-weight: 700; }
+
+.city-state-zip {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+
+.order-summary { display: block; }
+.order-summary-card {
+  position: sticky;
+  top: 90px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(47, 42, 36, 0.06);
+}
+.summary-eyebrow {
+  color: #8c5b37;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  margin: 0 0 6px;
+}
+.summary-product {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+.summary-price {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  margin: 0 0 2px;
+}
+.summary-billed { font-size: 0.85rem; font-weight: 700; color: var(--muted); }
+.summary-per { color: #8c5b37; font-weight: 800; font-size: 0.85rem; margin: 0 0 12px; }
+.order-summary-card hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 14px 0;
+}
+.summary-row {
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.summary-row strong { color: var(--ink); font-weight: 800; margin-right: 4px; }
+.summary-shipping {
+  margin-top: 10px;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: #2a6f3a;
+}
+
+@media (max-width: 900px) {
+  .order-layout { grid-template-columns: 1fr; }
+  .order-summary-card { position: static; }
+  .progress-step .progress-label { display: none; }
+  .progress-step:not(:last-child)::after { top: 14px; }
+  .city-state-zip { grid-template-columns: 1fr; }
+}
 @media (max-width: 900px) {
   .hero, .steps-grid, .pricing-grid, .levels-grid, .subscription-card { grid-template-columns: 1fr; }
   nav { display: none; }

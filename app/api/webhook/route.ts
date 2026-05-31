@@ -38,6 +38,7 @@ function buildOrderEmail(meta: Record<string, string>, opts: { orderType: string
     field("Special details", meta.special_details),
     field("Shipping address", meta.shipping_address),
     field("Other notes", meta.other_notes),
+    (meta.photos || "").trim() ? `<tr><td style="padding:6px 12px;font-weight:700;background:#f3eadb;border:1px solid #eadccb;vertical-align:top">Reference photos</td><td style="padding:6px 12px;border:1px solid #eadccb">${meta.photos.split(/\s+/).filter(Boolean).map((u: string) => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="display:inline-block;margin:4px 6px 0 0"><img src="${escapeHtml(u)}" alt="Reference photo" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid #eadccb" /></a>`).join("")}</td></tr>` : "",
   ].filter(Boolean).join("");
   return `<div style="font-family:Inter,system-ui,sans-serif;max-width:680px"><h2 style="font-size:22px;margin:0 0 12px">New order - ${escapeHtml(meta.product_name || "Custom book")}</h2><p style="color:#665d52;margin:0 0 18px">Charged successfully through Stripe.</p><table style="border-collapse:collapse;width:100%;font-size:14px">${rows}</table></div>`;
 }
