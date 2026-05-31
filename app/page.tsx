@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { PRODUCTS } from "@/lib/products";
+import { PRODUCTS, productById } from "@/lib/products";
 
 const productSchema = {
   "@context": "https://schema.org",
@@ -19,8 +19,13 @@ const productSchema = {
 };
 
 export default function Home() {
-  const oneTime = PRODUCTS.filter((p) => p.cadence === "one_time");
   const sub = PRODUCTS.find((p) => p.cadence === "monthly")!;
+  const single = productById("paperback_single")!;
+  const featuredOneTime = [
+    productById("digital")!,
+    productById("paperback_set")!,
+    productById("hardcover_set")!,
+  ];
 
   return (
     <>
@@ -28,13 +33,15 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
       />
+
       <section className="hero" id="top">
         <div className="hero-copy">
           <p className="eyebrow">Personalized books for beginning readers</p>
           <h1>Get early readers excited about books.</h1>
           <p className="subhead">
-            Their name. Their look. Their favorite things. A simple
-            learn-to-read story made just for them.
+            Personalized learn-to-read books your child will actually want to
+            read &mdash; made with their name, their look, and the things they
+            love.
           </p>
           <div className="cta-row">
             <Link className="button primary" href="/order">
@@ -80,11 +87,13 @@ export default function Home() {
       </section>
 
       <section className="promise">
+        <p className="eyebrow">More than a name on the cover</p>
         <h2>About them. For them. At their reading level.</h2>
         <p>
-          Beginning readers need confidence, repetition, and a reason to care.
-          We make simple personalized stories kids want to read again and
-          again.
+          Most personalized books just swap in your child&apos;s name. We build
+          the whole story around what they love &mdash; their best friend,
+          their dog, their soccer jersey number, the things only they care
+          about &mdash; and write it at the level they&apos;re ready for.
         </p>
       </section>
 
@@ -95,7 +104,14 @@ export default function Home() {
         </div>
         <div className="steps-grid">
           <article className="step-card">
-            <span className="num">1</span>
+            <div className="step-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 26 L6 6 L20 6 L26 12 L26 26 Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                <path d="M20 6 L20 12 L26 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                <line x1="11" y1="17" x2="21" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="11" y1="21" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
             <h3>Tell us about your reader</h3>
             <p>
               Name, appearance, reading level, favorite themes, and any details
@@ -103,12 +119,24 @@ export default function Home() {
             </p>
           </article>
           <article className="step-card">
-            <span className="num">2</span>
-            <h3>We make the story personal</h3>
+            <div className="step-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 4 L18 12 L26 14 L18 16 L16 24 L14 16 L6 14 L14 12 Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                <circle cx="24" cy="6" r="1.5" fill="currentColor"/>
+                <circle cx="6" cy="22" r="1.5" fill="currentColor"/>
+                <circle cx="26" cy="24" r="1" fill="currentColor"/>
+              </svg>
+            </div>
+            <h3>We write a story they&apos;ll love</h3>
             <p>The words stay simple. The pictures carry the magic.</p>
           </article>
           <article className="step-card">
-            <span className="num">3</span>
+            <div className="step-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 8 L16 6 L28 8 L28 26 L16 24 L4 26 Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                <line x1="16" y1="6" x2="16" y2="24" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+            </div>
             <h3>They read a book made for them</h3>
             <p>
               A confidence-building book they will want to read again and
@@ -122,20 +150,31 @@ export default function Home() {
         <div className="section-heading">
           <p className="eyebrow">Book options</p>
           <h2>Choose the format that works for your family</h2>
+          <p className="shipping-banner">
+            <span aria-hidden="true">&#10004;</span> Free US shipping on every paperback &amp; hardcover order
+          </p>
         </div>
-        <div className="pricing-grid">
-          {oneTime.map((p) => (
+        <div className="pricing-grid-3">
+          {featuredOneTime.map((p) => (
             <article
               key={p.id}
-              className={`price-card${p.popular ? " popular" : ""}`}
+              className={`price-card${p.popular ? " popular" : ""}${p.bestValue ? " best-value" : ""}`}
             >
               {p.popular && <p className="badge">Most popular</p>}
+              {p.bestValue && <p className="badge badge-gold">Best value</p>}
               <h3>{p.name}</h3>
               <p className="price">{p.priceLabel}</p>
+              {p.perBookLabel && <p className="per-book">{p.perBookLabel}</p>}
               <p>{p.blurb}</p>
             </article>
           ))}
         </div>
+        <p className="single-link">
+          Just want to try one book?{" "}
+          <Link href="/order">
+            <strong>Single paperback &mdash; {single.priceLabel}</strong>
+          </Link>
+        </p>
         <div style={{ textAlign: "center", marginTop: 28 }}>
           <Link className="button primary" href="/order">
             Start a one-time order
@@ -150,12 +189,12 @@ export default function Home() {
             <h2>A new personalized book every month.</h2>
             <p style={{ color: "var(--ink)", fontWeight: 600 }}>
               Each month, your child gets a brand-new paperback book starring
-              themselves - new themes, new adventures, same simple words that
-              build confidence.
+              themselves &mdash; new themes, new adventures, same simple words
+              that build confidence.
             </p>
             <ul>
               <li>1 new personalized paperback per month</li>
-              <li>Themes refresh - and reading level grows with them</li>
+              <li>Themes refresh &mdash; reading level grows with them</li>
               <li>Free shipping in the US</li>
               <li>Pause or cancel any time</li>
             </ul>
@@ -163,6 +202,7 @@ export default function Home() {
           <div className="price-tag">
             <p className="big-price">{sub.priceLabel}</p>
             <p className="per">billed monthly</p>
+            <p className="per-book" style={{ marginBottom: 14 }}>{sub.perBookLabel}</p>
             <Link className="button primary" href="/order?plan=subscription_monthly">
               Start the book club
             </Link>
@@ -174,23 +214,32 @@ export default function Home() {
         <div className="section-heading">
           <p className="eyebrow">Reading level approach</p>
           <h2>Built for confidence first</h2>
+          <p>Pick the level that matches your reader &mdash; or pick easier. Confidence comes before challenge.</p>
         </div>
         <div className="levels-grid">
-          <article>
-            <h3>Level 1</h3>
-            <p>One short sentence per page. Repetition. Very simple words.</p>
+          <article className="level-card">
+            <p className="level-tag">Level 1</p>
+            <h3>Brand-new reader</h3>
+            <p className="sample">&ldquo;Sam can run.&rdquo;</p>
+            <p>One short sentence per page. Big text. Lots of repetition.</p>
           </article>
-          <article>
-            <h3>Level 2</h3>
-            <p>Slightly longer patterns. More familiar action words.</p>
+          <article className="level-card">
+            <p className="level-tag">Level 2</p>
+            <h3>Very early reader</h3>
+            <p className="sample">&ldquo;Sam runs to the ball.&rdquo;</p>
+            <p>Simple action words. Predictable patterns. Confidence-building.</p>
           </article>
-          <article>
-            <h3>Level 3</h3>
-            <p>Simple story arc with more variety and practice words.</p>
+          <article className="level-card">
+            <p className="level-tag">Level 3</p>
+            <h3>Growing reader</h3>
+            <p className="sample">&ldquo;Sam sees the big red ball.&rdquo;</p>
+            <p>More story progression. More descriptive words. Still decodable.</p>
           </article>
-          <article>
-            <h3>Level 4</h3>
-            <p>More confident early-reader text with short paragraphs.</p>
+          <article className="level-card">
+            <p className="level-tag">Level 4</p>
+            <h3>Confident early reader</h3>
+            <p className="sample">&ldquo;Sam kicks the ball down the hill and laughs.&rdquo;</p>
+            <p>Short paragraphs. Wider vocabulary. More expressive story.</p>
           </article>
         </div>
       </section>
@@ -209,10 +258,29 @@ export default function Home() {
             </p>
           </details>
           <details>
+            <summary>What makes this different from other personalized books?</summary>
+            <p>
+              Most personalized books just insert your child&apos;s name into a
+              generic story. We build the whole story around what your child
+              actually loves &mdash; their dog, their grandpa, their soccer
+              jersey number &mdash; and write it at the reading level
+              they&apos;re ready for. Big text, simple words, a hero they
+              recognize as themselves.
+            </p>
+          </details>
+          <details>
+            <summary>What&apos;s the print quality?</summary>
+            <p>
+              Our paperbacks are professionally printed on thick matte paper
+              with full-color illustrations. Hardcover sets use heavier stock
+              and a sewn binding so they&apos;ll survive lots of re-reads.
+            </p>
+          </details>
+          <details>
             <summary>Can you use licensed characters?</summary>
             <p>
               No. We avoid trademarked characters, logos, and copyrighted
-              worlds. We can create an original story inspired by a child's
+              worlds. We can create an original story inspired by a child&apos;s
               interests.
             </p>
           </details>
@@ -220,7 +288,7 @@ export default function Home() {
             <summary>How does the monthly book club work?</summary>
             <p>
               Each month we ship a new personalized paperback book featuring
-              your child. You're billed monthly and can pause or cancel any
+              your child. You&apos;re billed monthly and can pause or cancel any
               time from your receipt email.
             </p>
           </details>
@@ -234,8 +302,16 @@ export default function Home() {
           <details>
             <summary>How long until I get my book?</summary>
             <p>
-              Most one-time orders ship within 7-10 business days. Digital PDFs
-              are emailed within 5 business days.
+              Most one-time paperback and hardcover orders ship within 7-10
+              business days. Digital PDFs are emailed within 5 business days.
+            </p>
+          </details>
+          <details>
+            <summary>What if we don&apos;t love it?</summary>
+            <p>
+              Tell us what to fix and we&apos;ll redo the book for free, or
+              refund you. We want kids excited about reading &mdash; not stuck
+              with a book that doesn&apos;t feel right.
             </p>
           </details>
         </div>

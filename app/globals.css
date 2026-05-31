@@ -318,6 +318,141 @@ details[open] summary { margin-bottom: 8px; }
   margin: 6px 0 0;
   font-size: 0.95rem;
 }
+
+/* ----- Batch 2: design refresh ----- */
+.button.primary:hover { background: #1d1915; box-shadow: 0 6px 18px rgba(245, 183, 141, 0.45); transform: translateY(-1px); }
+.button.secondary:hover { background: #fff4e6; border-color: var(--peach); }
+
+.promise .eyebrow { color: #8c5b37; }
+
+.step-icon {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: var(--soft);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  margin-bottom: 10px;
+}
+.step-icon svg { width: 30px; height: 30px; }
+
+.shipping-banner {
+  display: inline-block;
+  background: var(--sage);
+  color: var(--ink);
+  font-weight: 800;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  margin: 8px auto 0;
+}
+.shipping-banner span { color: #2a6f3a; margin-right: 6px; }
+
+.pricing-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.price-card.best-value { outline: 3px solid var(--gold); }
+.badge-gold { background: var(--gold); }
+.per-book {
+  color: #8c5b37;
+  font-weight: 800;
+  font-size: 0.92rem;
+  margin: 0 0 12px;
+  letter-spacing: 0.01em;
+}
+.single-link {
+  text-align: center;
+  font-size: 1rem;
+  color: var(--muted);
+  margin: 18px 0 0;
+}
+.single-link a { color: var(--ink); border-bottom: 2px solid var(--peach); padding-bottom: 1px; }
+.single-link a:hover { color: var(--peach); }
+
+.level-card { display: flex; flex-direction: column; align-items: flex-start; }
+.level-tag {
+  display: inline-block;
+  background: var(--peach);
+  color: var(--ink);
+  font-weight: 850;
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin: 0 0 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.level-card h3 { margin-top: 6px; }
+.level-card .sample {
+  font-style: italic;
+  color: var(--ink);
+  font-weight: 700;
+  background: var(--cream);
+  padding: 8px 12px;
+  border-radius: 12px;
+  border-left: 3px solid var(--peach);
+  margin: 6px 0 10px;
+  font-size: 0.98rem;
+}
+
+.site-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.footer-signup {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px 24px;
+  max-width: 540px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  box-shadow: 0 8px 24px rgba(47,42,36,.06);
+}
+.footer-signup .heading {
+  font-weight: 850;
+  color: var(--ink);
+  margin: 0;
+  font-size: 1.05rem;
+}
+.footer-signup .sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+}
+.footer-signup form { display: flex; gap: 8px; }
+.footer-signup input {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 10px 14px;
+  font: inherit;
+  background: #fffdf9;
+  color: var(--ink);
+}
+.footer-signup button {
+  border-radius: 999px;
+  padding: 10px 18px;
+  border: 0;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.footer-signup button:hover { background: #1d1915; }
+.footer-signup .msg { font-size: 0.85rem; margin: 4px 0 0; }
+.footer-signup .msg.success { color: #2a6f3a; }
+.footer-signup .msg.error { color: #a8302a; }
+
+.footer-social { color: var(--muted); font-size: 0.9rem; }
+.footer-social a { text-decoration: underline; margin: 0 6px; color: var(--ink); }
 @media (max-width: 900px) {
   .hero, .steps-grid, .pricing-grid, .levels-grid, .subscription-card { grid-template-columns: 1fr; }
   nav { display: none; }

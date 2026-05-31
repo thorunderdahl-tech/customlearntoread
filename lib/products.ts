@@ -12,9 +12,12 @@ export type Product = {
   blurb: string;
   priceCents: number;
   priceLabel: string;
+  perBookLabel?: string;
   cadence: "one_time" | "monthly";
   stripePriceEnvKey: string;
   popular?: boolean;
+  bestValue?: boolean;
+  bookCount?: number;
 };
 
 export const PRODUCTS: Product[] = [
@@ -26,6 +29,7 @@ export const PRODUCTS: Product[] = [
     priceLabel: "$19",
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_DIGITAL",
+    bookCount: 1,
   },
   {
     id: "paperback_single",
@@ -35,6 +39,7 @@ export const PRODUCTS: Product[] = [
     priceLabel: "$34",
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_PAPERBACK_SINGLE",
+    bookCount: 1,
   },
   {
     id: "paperback_set",
@@ -42,9 +47,11 @@ export const PRODUCTS: Product[] = [
     blurb: "Three personalized stories with repeated words and familiar themes.",
     priceCents: 8900,
     priceLabel: "$89",
+    perBookLabel: "$29.67 per book",
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_PAPERBACK_SET",
     popular: true,
+    bookCount: 3,
   },
   {
     id: "hardcover_set",
@@ -52,8 +59,11 @@ export const PRODUCTS: Product[] = [
     blurb: "A polished keepsake gift version for families and grandparents.",
     priceCents: 12900,
     priceLabel: "$129",
+    perBookLabel: "$43 per book",
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_HARDCOVER_SET",
+    bestValue: true,
+    bookCount: 3,
   },
   {
     id: "subscription_monthly",
@@ -62,6 +72,7 @@ export const PRODUCTS: Product[] = [
       "One new personalized paperback book every month. Cancel any time. Themes change as your reader grows.",
     priceCents: 2400,
     priceLabel: "$24/mo",
+    perBookLabel: "Just $24 per book",
     cadence: "monthly",
     stripePriceEnvKey: "STRIPE_PRICE_SUBSCRIPTION_MONTHLY",
   },
