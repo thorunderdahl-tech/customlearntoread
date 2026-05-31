@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     const isDigital = product.id === "digital";
 
     const photos = Array.isArray(body.photos) ? body.photos.filter((p: any) => typeof p === "string") : [];
+    const themePhotos = Array.isArray(body.theme_photos) ? body.theme_photos.filter((p: any) => typeof p === "string") : [];
 
     const metadata: Record<string, string> = {
       product_id: product.id,
@@ -71,6 +72,9 @@ export async function POST(req: NextRequest) {
       // Stripe metadata field max 500 chars; URLs typically ~80 each so 3 fits.
       metadata.photos = truncate(photos.join(" "));
     }
+    if (themePhotos.length > 0) {
+      metadata.theme_photos = truncate(themePhotos.join(" "));
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: isSubscription ? "subscription" : "payment",
@@ -92,12 +96,4 @@ export async function POST(req: NextRequest) {
         : { payment_intent_data: { metadata } }),
     });
 
-    return NextResponse.json({ url: session.url });
-  } catch (err: any) {
-    console.error("checkout error", err);
-    return NextResponse.json(
-      { error: err?.message || "Checkout failed" },
-      { status: 500 },
-    );
-  }
-}
+    ret

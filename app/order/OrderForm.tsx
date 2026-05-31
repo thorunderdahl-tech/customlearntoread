@@ -20,6 +20,7 @@ type FormState = {
   clothing: string;
   look_notes: string;
   photos: string[];
+  theme_photos: string[];
   theme_1: string;
   theme_2: string;
   theme_3: string;
@@ -56,6 +57,7 @@ const initial: FormState = {
   clothing: "",
   look_notes: "",
   photos: [],
+  theme_photos: [],
   theme_1: "",
   theme_2: "",
   theme_3: "",
@@ -87,6 +89,7 @@ export default function OrderForm() {
   const [showThemeIdeas, setShowThemeIdeas] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const themeFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const plan = params.get("plan");
@@ -121,29 +124,30 @@ export default function OrderForm() {
     return data.secure_url as string;
   }
 
-  async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null, target: "photos" | "theme_photos" = "photos") {
     if (!files || files.length === 0) return;
     setError(null);
     setUploading(true);
     try {
-      const remaining = 3 - state.photos.length;
+      const remaining = 3 - state[target].length;
       const toUpload = Array.from(files).slice(0, remaining);
       const urls: string[] = [];
       for (const file of toUpload) {
         const url = await uploadPhoto(file);
         urls.push(url);
       }
-      setState((s) => ({ ...s, photos: [...s.photos, ...urls] }));
+      setState((s) => ({ ...s, [target]: [...s[target], ...urls] }));
     } catch (e: any) {
       setError(e?.message || "Photo upload failed.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (themeFileInputRef.current) themeFileInputRef.current.value = "";
     }
   }
 
-  function removePhoto(idx: number) {
-    setState((s) => ({ ...s, photos: s.photos.filter((_, i) => i !== idx) }));
+  function removePhoto(idx: number, target: "photos" | "theme_photos" = "photos") {
+    setState((s) => ({ ...s, [target]: s[target].filter((_, i) => i !== idx) }));
   }
 
   function validateStep(s: number): string | null {
@@ -439,6 +443,35 @@ export default function OrderForm() {
               <button type="button" className="theme-ideas-link" onClick={() => setShowThemeIdeas(true)}>
                 Need ideas? &rarr; See custom theme inspiration
               </button>
+
+              <div className="photo-upload">
+                <p className="photo-upload-label">Theme reference photos (optional, up to 3)</p>
+                <p className="photo-upload-hint">If one of your themes is a real pet, stuffed animal, person, or place, upload a photo so we can draw the actual one your child loves — not a generic version.</p>
+                <div className="photo-thumbs">
+                  {state.theme_photos.map((url, i) => (
+                    <div key={url} className="photo-thumb">
+                      <Image src={url} width={140} height={140} alt={`Theme reference photo ${i + 1}`} unoptimized />
+                      <button type="button" className="photo-remove" onClick={() => removePhoto(i, "theme_photos")} aria-label={`Remove theme photo ${i + 1}`}>&times;</button>
+                    </div>
+                  ))}
+                  {state.theme_photos.length < 3 && (
+                    <label className="photo-add">
+                      <input
+                        ref={themeFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => handleFiles(e.target.files, "theme_photos")}
+                        style={{ display: "none" }}
+                        disabled={uploading}
+                      />
+                      <span aria-hidden="true">{uploading ? "..." : "+"}</span>
+                      <span className="photo-add-text">{uploading ? "Uploading..." : "Add photo"}</span>
+                    </label>
+                  )}
+                </div>
+              </div>
+
               <label>
                 Other important things to note: favorite colors, numbers, pets, family members, sayings
                 <textarea
@@ -612,39 +645,4 @@ export default function OrderForm() {
 
           {showThemeIdeas && (
             <div className="modal-overlay" onClick={() => setShowThemeIdeas(false)} role="dialog" aria-modal="true" aria-label="Custom theme ideas">
-              <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-                <button type="button" className="modal-close" onClick={() => setShowThemeIdeas(false)} aria-label="Close">&times;</button>
-                <h3 className="modal-title">Custom theme inspiration</h3>
-                <p className="modal-sub">A few of our favorites &mdash; but anything your child loves works.</p>
-                <Image src="/theme-ideas.webp" width={1200} height={900} alt="Examples of custom story themes for personalized books" className="modal-image" />
-              </div>
-            </div>
-          )}
-        </form>
-      </main>
-
-      <aside className="order-summary" aria-label="Order summary">
-        <div className="order-summary-card">
-          <p className="summary-eyebrow">Your order</p>
-          <h3 className="summary-product">{product.name}</h3>
-          <p className="summary-price">{product.priceLabel}{isSubscription && <span className="summary-billed"> billed monthly</span>}</p>
-          {product.perBookLabel && <p className="summary-per">{product.perBookLabel}</p>}
-          <hr />
-          {state.child_name && (
-            <p className="summary-row"><strong>For:</strong> {state.child_name}{state.child_age && `, age ${state.child_age}`}</p>
-          )}
-          {state.reading_level && step >= 2 && (
-            <p className="summary-row"><strong>Level:</strong> {state.reading_level.split(" — ")[0]}</p>
-          )}
-          {state.theme_1 && (
-            <p className="summary-row"><strong>Themes:</strong> {[state.theme_1, state.theme_2, state.theme_3].filter(Boolean).join(", ")}</p>
-          )}
-          {state.photos.length > 0 && (
-            <p className="summary-row"><strong>Photos:</strong> {state.photos.length} attached</p>
-          )}
-          {!isDigital && <p className="summary-shipping"><span aria-hidden="true">&#10004;</span> Free US shipping</p>}
-        </div>
-      </aside>
-    </div>
-  );
-}
+              <div className="modal-card" onClick={(e) => 

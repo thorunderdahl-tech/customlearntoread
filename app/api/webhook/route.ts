@@ -38,7 +38,8 @@ function buildOrderEmail(meta: Record<string, string>, opts: { orderType: string
     field("Special details", meta.special_details),
     field("Shipping address", meta.shipping_address),
     field("Other notes", meta.other_notes),
-    (meta.photos || "").trim() ? `<tr><td style="padding:6px 12px;font-weight:700;background:#f3eadb;border:1px solid #eadccb;vertical-align:top">Reference photos</td><td style="padding:6px 12px;border:1px solid #eadccb">${meta.photos.split(/\s+/).filter(Boolean).map((u: string) => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="display:inline-block;margin:4px 6px 0 0"><img src="${escapeHtml(u)}" alt="Reference photo" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid #eadccb" /></a>`).join("")}</td></tr>` : "",
+    (meta.photos || "").trim() ? `<tr><td style="padding:6px 12px;font-weight:700;background:#f3eadb;border:1px solid #eadccb;vertical-align:top">Child reference photos</td><td style="padding:6px 12px;border:1px solid #eadccb">${meta.photos.split(/\s+/).filter(Boolean).map((u: string) => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="display:inline-block;margin:4px 6px 0 0"><img src="${escapeHtml(u)}" alt="Child reference photo" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid #eadccb" /></a>`).join("")}</td></tr>` : "",
+    (meta.theme_photos || "").trim() ? `<tr><td style="padding:6px 12px;font-weight:700;background:#f3eadb;border:1px solid #eadccb;vertical-align:top">Theme reference photos</td><td style="padding:6px 12px;border:1px solid #eadccb">${meta.theme_photos.split(/\s+/).filter(Boolean).map((u: string) => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="display:inline-block;margin:4px 6px 0 0"><img src="${escapeHtml(u)}" alt="Theme reference photo" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid #eadccb" /></a>`).join("")}</td></tr>` : "",
   ].filter(Boolean).join("");
   return `<div style="font-family:Inter,system-ui,sans-serif;max-width:680px"><h2 style="font-size:22px;margin:0 0 12px">New order - ${escapeHtml(meta.product_name || "Custom book")}</h2><p style="color:#665d52;margin:0 0 18px">Charged successfully through Stripe.</p><table style="border-collapse:collapse;width:100%;font-size:14px">${rows}</table></div>`;
 }
@@ -118,17 +119,4 @@ export async function POST(req: NextRequest) {
         if (resendKey && ownerEmail) {
           const resend = new Resend(resendKey);
           await resend.emails.send({
-            from: fromEmail,
-            to: ownerEmail,
-            subject: `Monthly book club renewal - ${meta.child_name || "subscriber"}`,
-            html: buildOrderEmail(meta, { orderType: "Monthly subscription renewal", amount: `$${((invoice.amount_paid || 0) / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || ""}`, stripeId: sub.id }),
-          });
-        }
-      }
-    }
-    return NextResponse.json({ received: true });
-  } catch (err: any) {
-    console.error("webhook handler error", err);
-    return NextResponse.json({ error: err?.message || "Handler error" }, { status: 500 });
-  }
-}
+            f
