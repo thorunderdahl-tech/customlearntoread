@@ -30,6 +30,7 @@ export default function Home() {
           <img className="hero-book hero-book-2" src="/Odin.png" alt="Sample book: Odin and His Best Dog (Reading Level 2)" />
           <img className="hero-book hero-book-3" src="/Sam.png" alt="Sample book: Sam Can Read (Reading Level 3)" />
         </div>
+      </section>
 
       <p className="books-caption">
         Big text. Simple words. Their favorite thing.
@@ -195,7 +196,4 @@ export default function Home() {
             </p>
           </details>
         </div>
-      </section>
-    </>
-  );
-}
+      </section
