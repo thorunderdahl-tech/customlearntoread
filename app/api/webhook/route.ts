@@ -119,7 +119,9 @@ export async function POST(req: NextRequest) {
         if (resendKey && ownerEmail) {
           const resend = new Resend(resendKey);
           await resend.emails.send({
-            f            subject: `Thanks - we got your order for ${meta.child_name || "your reader"}`,
+            from: fromEmail,
+            to: meta.parent_email,
+            subject: `Thanks - we got your order for ${meta.child_name || "your reader"}`,
             html: buildCustomerEmail(meta.child_name || "", meta.product_name || "Custom book", isSub),
           });
         }
