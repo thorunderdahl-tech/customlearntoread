@@ -1,5 +1,22 @@
 import Link from "next/link";
+import Image from "next/image";
 import { PRODUCTS } from "@/lib/products";
+
+const productSchema = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  name: "Personalized Learn-to-Read Books",
+  description:
+    "Personalized learn-to-read books featuring your child by name and likeness. Made for beginning readers.",
+  brand: { "@type": "Brand", name: "CustomLearnToRead" },
+  offers: PRODUCTS.map((p) => ({
+    "@type": "Offer",
+    name: p.name,
+    priceCurrency: "USD",
+    price: (p.priceCents / 100).toFixed(2),
+    availability: "https://schema.org/InStock",
+  })),
+};
 
 export default function Home() {
   const oneTime = PRODUCTS.filter((p) => p.cadence === "one_time");
@@ -7,6 +24,10 @@ export default function Home() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+      />
       <section className="hero" id="top">
         <div className="hero-copy">
           <p className="eyebrow">Personalized books for beginning readers</p>
@@ -25,16 +46,38 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="hero-books" aria-label="Sample personalized book covers">
-          <img className="hero-book hero-book-1" src="/mia.png" alt="Sample book: Mia Plays Soccer (Reading Level 1)" />
-          <img className="hero-book hero-book-2" src="/Odin.png" alt="Sample book: Odin and His Best Dog (Reading Level 2)" />
-          <img className="hero-book hero-book-3" src="/Sam.png" alt="Sample book: Sam Can Read (Reading Level 3)" />
+        <div className="hero-books-wrap">
+          <div className="hero-books" aria-label="Sample personalized book covers">
+            <Image
+              className="hero-book hero-book-1"
+              src="/mia.png"
+              width={1009}
+              height={1559}
+              alt="Sample personalized book: Mia Plays Soccer (Reading Level 1)"
+              priority
+            />
+            <Image
+              className="hero-book hero-book-2"
+              src="/Odin.png"
+              width={1009}
+              height={1559}
+              alt="Sample personalized book: Odin and His Best Dog (Reading Level 2)"
+              priority
+            />
+            <Image
+              className="hero-book hero-book-3"
+              src="/Sam.png"
+              width={1009}
+              height={1559}
+              alt="Sample personalized book: Sam Can Read (Reading Level 3)"
+              priority
+            />
+          </div>
+          <p className="books-caption">
+            Big text. Simple words. Their favorite thing.
+          </p>
         </div>
       </section>
-
-      <p className="books-caption">
-        Big text. Simple words. Their favorite thing.
-      </p>
 
       <section className="promise">
         <h2>About them. For them. At their reading level.</h2>
@@ -107,12 +150,12 @@ export default function Home() {
             <h2>A new personalized book every month.</h2>
             <p style={{ color: "var(--ink)", fontWeight: 600 }}>
               Each month, your child gets a brand-new paperback book starring
-              themselves — new themes, new adventures, same simple words that
+              themselves - new themes, new adventures, same simple words that
               build confidence.
             </p>
             <ul>
               <li>1 new personalized paperback per month</li>
-              <li>Themes refresh — and reading level grows with them</li>
+              <li>Themes refresh - and reading level grows with them</li>
               <li>Free shipping in the US</li>
               <li>Pause or cancel any time</li>
             </ul>

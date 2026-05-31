@@ -306,13 +306,17 @@ details[open] summary { margin-bottom: 8px; }
   transform: translateY(-6px) rotate(0);
   box-shadow: 0 24px 48px rgba(47, 42, 36, 0.28), 0 6px 14px rgba(47, 42, 36, 0.14);
 }
+.hero-books-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .books-caption {
   text-align: center;
   font-weight: 700;
   color: var(--muted);
-  margin: -16px auto 0;
-  padding: 0 clamp(20px, 5vw, 72px) 12px;
-  font-size: 1rem;
+  margin: 6px 0 0;
+  font-size: 0.95rem;
 }
 @media (max-width: 900px) {
   .hero, .steps-grid, .pricing-grid, .levels-grid, .subscription-card { grid-template-columns: 1fr; }
