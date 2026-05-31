@@ -379,4 +379,14 @@ export default function OrderForm() {
       </div>
       <ul className="trust-row" aria-label="Trust signals">
         <li><span aria-hidden="true">&#128274;</span> Secure Stripe checkout</li>
-        <li><span aria-hidden="true">&#128179;</span> Visa, 
+        <li><span aria-hidden="true">&#128179;</span> Visa, MC, Amex, Apple Pay</li>
+        <li><span aria-hidden="true">&#9993;</span> Email support, real replies</li>
+        <li><span aria-hidden="true">&#8617;</span> Free reprint or refund if it&apos;s not right</li>
+      </ul>
+      <p style={{ textAlign: "center", fontSize: ".85rem", marginTop: 6 }}>
+        Payment is processed securely by Stripe. We never see your card
+        details.
+      </p>
+    </form>
+  );
+}
