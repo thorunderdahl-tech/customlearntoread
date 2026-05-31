@@ -377,11 +377,6 @@ export default function OrderForm() {
             : "Continue to secure checkout"}
         </button>
       </div>
-      <p style={{ textAlign: "center", fontSize: ".85rem", marginTop: 6 }}>
-        Payment is processed securely by Stripe. We never see your card
-        details.
-      </p>
-    </form>
-  );
-}
-  
+      <ul className="trust-row" aria-label="Trust signals">
+        <li><span aria-hidden="true">&#128274;</span> Secure Stripe checkout</li>
+        <li><span aria-hidden="true">&#128179;</span> Visa, 

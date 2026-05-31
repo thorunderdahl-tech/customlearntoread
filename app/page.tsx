@@ -244,6 +244,35 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="section testimonials">
+        <div className="section-heading">
+          <p className="eyebrow">Loved by parents</p>
+          <h2>What families are saying</h2>
+        </div>
+        <figure className="featured-quote">
+          <p className="quote-mark" aria-hidden="true">&ldquo;</p>
+          <blockquote>
+            She loves it. They&apos;re amazing. Thank you!!!
+          </blockquote>
+          <figcaption>
+            &mdash; A dad in Minnesota, on his daughter&apos;s custom book
+          </figcaption>
+        </figure>
+      </section>
+
+      <section className="section guarantee muted">
+        <div className="guarantee-card">
+          <h3>Not in love with your book? We&apos;ll make it right.</h3>
+          <p>
+            Every book is custom-made, so if something&apos;s off &mdash; a
+            name spelled wrong, a theme that didn&apos;t land, art that
+            doesn&apos;t feel right &mdash; just reply to your order email.
+            We&apos;ll redo it for free or refund you. We want kids excited
+            about reading, not stuck with a book that doesn&apos;t feel right.
+          </p>
+        </div>
+      </section>
+
       <section id="faq" className="section">
         <div className="section-heading">
           <p className="eyebrow">FAQ</p>
