@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { PRODUCTS, type ProductId } from "@/lib/products";
 
 type FormState = {
@@ -55,6 +56,7 @@ export default function OrderForm() {
   const [state, setState] = useState<FormState>(initial);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showThemeIdeas, setShowThemeIdeas] = useState(false);
 
   // Preselect product from query string (?plan=subscription_monthly)
   useEffect(() => {
@@ -152,7 +154,7 @@ export default function OrderForm() {
             type="text"
             value={state.child_name}
             onChange={(e) => update("child_name", e.target.value)}
-            placeholder="Odin"
+            placeholder="First name"
             required
           />
         </label>
@@ -162,7 +164,7 @@ export default function OrderForm() {
             type="text"
             value={state.child_age}
             onChange={(e) => update("child_age", e.target.value)}
-            placeholder="5"
+            placeholder=""
             required
           />
         </label>
@@ -172,11 +174,11 @@ export default function OrderForm() {
             value={state.reading_level}
             onChange={(e) => update("reading_level", e.target.value)}
           >
-            <option>Level 1 — brand-new reader</option>
-            <option>Level 2 — very early reader</option>
-            <option>Level 3 — growing reader</option>
-            <option>Level 4 — more confident reader</option>
-            <option>Not sure — please pick for me</option>
+            <option>Level 1 — brand-new reader (1 short sentence per page, lots of repetition)</option>
+            <option>Level 2 — very early reader (simple patterns, familiar action words)</option>
+            <option>Level 3 — growing reader (short story arc, more variety)</option>
+            <option>Level 4 — more confident reader (short paragraphs, wider vocab)</option>
+            <option>Not sure — pick the best fit for me</option>
           </select>
           <span className="hint">When in doubt, choose the easier one.</span>
         </label>
@@ -226,7 +228,7 @@ export default function OrderForm() {
             type="text"
             value={state.glasses}
             onChange={(e) => update("glasses", e.target.value)}
-            placeholder="Round glasses, bow in hair, freckles..."
+            placeholder="Round glasses, bow in hair, favorite hat, freckles..."
           />
         </label>
         <label>
@@ -243,7 +245,7 @@ export default function OrderForm() {
           <textarea
             value={state.look_notes}
             onChange={(e) => update("look_notes", e.target.value)}
-            placeholder="Hearing aid, wheelchair, limb difference, dimples, etc. — anything important to represent."
+            placeholder="Anything that helps us draw them. Examples: a hearing aid or cochlear implant, a wheelchair or walker, freckles or dimples, a favorite color shirt they wear all the time, a stuffed animal that goes everywhere with them, missing front teeth - whatever makes them them."
           />
         </label>
       </div>
@@ -260,6 +262,7 @@ export default function OrderForm() {
             required
           />
         </label>
+        <button type="button" className="theme-ideas-link" onClick={() => setShowThemeIdeas(true)}>Need ideas? &rarr; See custom theme inspiration</button>
         <label>
           Theme 2
           <input
@@ -277,7 +280,7 @@ export default function OrderForm() {
           />
         </label>
         <label>
-          Favorite colors, numbers, pets, family members, sayings
+          Other important things to note: favorite colors, numbers, pets, family members, sayings
           <textarea
             value={state.special_details}
             onChange={(e) => update("special_details", e.target.value)}
@@ -345,8 +348,9 @@ export default function OrderForm() {
             style={{ width: "auto", marginTop: 4 }}
           />
           <span>
-            I understand details about my child will only be used to create this
-            custom book and will not be shared publicly. *
+            We have kids too, and privacy matters. The details you share are used
+            only to make your child&apos;s book - nothing is shared publicly.
+            Any photos you upload are deleted after your first book is delivered. *
           </span>
         </label>
       </div>
@@ -387,6 +391,16 @@ export default function OrderForm() {
         Payment is processed securely by Stripe. We never see your card
         details.
       </p>
+      {showThemeIdeas && (
+        <div className="modal-overlay" onClick={() => setShowThemeIdeas(false)} role="dialog" aria-modal="true" aria-label="Custom theme ideas">
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close" onClick={() => setShowThemeIdeas(false)} aria-label="Close">&times;</button>
+            <h3 className="modal-title">Custom theme inspiration</h3>
+            <p className="modal-sub">A few of our favorites &mdash; but anything your child loves works.</p>
+            <Image src="/theme-ideas.webp" width={1200} height={900} alt="Examples of custom story themes for personalized books" className="modal-image" />
+          </div>
+        </div>
+      )}
     </form>
   );
 }
