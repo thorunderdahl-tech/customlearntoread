@@ -196,4 +196,7 @@ export default function Home() {
             </p>
           </details>
         </div>
-      </section
+      </section>
+    </>
+  );
+}
