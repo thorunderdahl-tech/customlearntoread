@@ -107,29 +107,9 @@ export async function POST(req: NextRequest) {
         console.warn("RESEND_API_KEY / OWNER_EMAIL not configured - skipping email. Order metadata:", meta);
       }
     }
-    if (event.type === "invoice.paid") {
+    if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice & Record<string, any>;
       const subId: string | null = (typeof invoice.subscription === "string" ? invoice.subscription : null) || invoice.parent?.subscription_details?.subscription || null;
-      if (invoice.billing_reason === "subscription_cycle" && subId) {
-        const sub = await stripe.subscriptions.retrieve(subId);
-        const meta = (sub.metadata || {}) as Record<string, string>;
-        const resendKey = process.env.RESEND_API_KEY;
-        const ownerEmail = process.env.OWNER_EMAIL;
-        const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";
-        if (resendKey && ownerEmail) {
-          const resend = new Resend(resendKey);
-          await resend.emails.send({
-            from: fromEmail,
-            to: meta.parent_email,
-            subject: `Thanks - we got your order for ${meta.child_name || "your reader"}`,
-            html: buildCustomerEmail(meta.child_name || "", meta.product_name || "Custom book", isSub),
-          });
-        }
-      }
-    }
-    if (event.type === "invoice.payment_succeeded") {
-      const invoice = event.data.object as Stripe.Invoice & Record<string, any>;
-      const subId = (invoice as any).subscription as string | undefined;
       if (invoice.billing_reason === "subscription_cycle" && subId) {
         const sub = await stripe.subscriptions.retrieve(subId);
         const meta = (sub.metadata || {}) as Record<string, string>;
