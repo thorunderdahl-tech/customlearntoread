@@ -473,11 +473,13 @@ export default function OrderForm() {
               </div>
 
               <label>
-                Other important things to note: favorite colors, numbers, pets, family members, sayings
+                Other Important Things to Note (Optional)
+                <span className="hint">Share any details that support the themes you selected above (favorite colors, jersey numbers, pet names, etc.). Please don&apos;t use this section to add additional themes&mdash;we&apos;ll focus the story on the themes you&apos;ve already chosen.</span>
                 <textarea
                   value={state.special_details}
                   onChange={(e) => update("special_details", e.target.value)}
-                  placeholder="Favorite color: orange. Jersey #7. Dog is Biscuit. Grandma is 'Nana'. Etc."
+                  rows={5}
+                  placeholder={"Good examples:\n• Hockey theme → Favorite team: Minnesota Wild, jersey number: 55\n• Dog theme → Dog's name: Bella, loves tennis balls\n• Grandparent theme → Grandma's nickname is Nana, she uses a walker"}
                 />
               </label>
             </div>
