@@ -645,4 +645,41 @@ export default function OrderForm() {
 
           {showThemeIdeas && (
             <div className="modal-overlay" onClick={() => setShowThemeIdeas(false)} role="dialog" aria-modal="true" aria-label="Custom theme ideas">
-              <div className="modal-card" onClick={(e) => 
+              <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="modal-close" onClick={() => setShowThemeIdeas(false)} aria-label="Close">&times;</button>
+                <h3 style={{ marginTop: 0 }}>Custom theme ideas</h3>
+                <p style={{ color: "var(--muted)", marginBottom: 16 }}>Here are some examples of themes other families have used. Mix and match — or invent your own.</p>
+                <Image src="/theme-ideas.webp" width={1200} height={900} alt="Examples of custom story themes for personalized books" className="modal-image" />
+                <button type="button" className="button primary" onClick={() => setShowThemeIdeas(false)} style={{ marginTop: 16 }}>Got it</button>
+              </div>
+            </div>
+          )}
+        </form>
+      </main>
+
+      <aside className="order-summary" aria-label="Order summary">
+        <div className="order-summary-card">
+          <p className="summary-eyebrow">Your order</p>
+          <h3 className="summary-product">{product.name}</h3>
+          <p className="summary-price">{product.priceLabel}</p>
+          {product.cadence === "monthly" && <p className="summary-billed">Billed monthly · cancel any time</p>}
+          {product.perBookLabel && <p className="summary-per">{product.perBookLabel}</p>}
+          <hr />
+          {state.child_name && (
+            <p className="summary-row"><strong>For:</strong> {state.child_name}{state.child_age && `, age ${state.child_age}`}</p>
+          )}
+          {state.reading_level && step >= 2 && (
+            <p className="summary-row"><strong>Level:</strong> {state.reading_level.split(" — ")[0]}</p>
+          )}
+          {state.theme_1 && (
+            <p className="summary-row"><strong>Themes:</strong> {[state.theme_1, state.theme_2, state.theme_3].filter(Boolean).join(", ")}</p>
+          )}
+          {(state.photos.length + state.theme_photos.length) > 0 && (
+            <p className="summary-row"><strong>Photos:</strong> {state.photos.length + state.theme_photos.length} attached</p>
+          )}
+          {!isDigital && <p className="summary-shipping"><span aria-hidden="true">&#10004;</span> Free US shipping</p>}
+        </div>
+      </aside>
+    </div>
+  );
+}

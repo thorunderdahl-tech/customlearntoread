@@ -119,4 +119,36 @@ export async function POST(req: NextRequest) {
         if (resendKey && ownerEmail) {
           const resend = new Resend(resendKey);
           await resend.emails.send({
-            f
+            f            subject: `Thanks - we got your order for ${meta.child_name || "your reader"}`,
+            html: buildCustomerEmail(meta.child_name || "", meta.product_name || "Custom book", isSub),
+          });
+        }
+      }
+    }
+    if (event.type === "invoice.payment_succeeded") {
+      const invoice = event.data.object as Stripe.Invoice & Record<string, any>;
+      const subId = (invoice as any).subscription as string | undefined;
+      if (invoice.billing_reason === "subscription_cycle" && subId) {
+        const sub = await stripe.subscriptions.retrieve(subId);
+        const meta = (sub.metadata || {}) as Record<string, string>;
+        const resendKey = process.env.RESEND_API_KEY;
+        const ownerEmail = process.env.OWNER_EMAIL;
+        const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";
+        if (resendKey && ownerEmail) {
+          const resend = new Resend(resendKey);
+          await resend.emails.send({
+            from: fromEmail,
+            to: ownerEmail,
+            reply_to: meta.parent_email || undefined,
+            subject: `Monthly book cycle - ${meta.child_name || "subscriber"} (${meta.product_name || ""})`,
+            html: buildOrderEmail(meta, { orderType: "Monthly cycle renewal", amount: invoice.amount_paid ? `$${(invoice.amount_paid / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || ""}` : "-", stripeId: invoice.id || sub.id }),
+          });
+        }
+      }
+    }
+    return NextResponse.json({ received: true });
+  } catch (err: any) {
+    console.error("webhook handler error", err);
+    return NextResponse.json({ error: err?.message || "Handler error" }, { status: 500 });
+  }
+}

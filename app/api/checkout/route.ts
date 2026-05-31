@@ -69,7 +69,6 @@ export async function POST(req: NextRequest) {
       other_notes: truncate(body.other_notes),
     };
     if (photos.length > 0) {
-      // Stripe metadata field max 500 chars; URLs typically ~80 each so 3 fits.
       metadata.photos = truncate(photos.join(" "));
     }
     if (themePhotos.length > 0) {
@@ -96,4 +95,12 @@ export async function POST(req: NextRequest) {
         : { payment_intent_data: { metadata } }),
     });
 
-    ret
+    return NextResponse.json({ url: session.url });
+  } catch (err: any) {
+    console.error("checkout error", err);
+    return NextResponse.json(
+      { error: err?.message || "Checkout failed" },
+      { status: 500 },
+    );
+  }
+}
