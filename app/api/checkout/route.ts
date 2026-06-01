@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { productById } from "@/lib/products";
+import {
+  createOrderRecord,
+  orderToAirtableFields,
+  airtableConfigured,
+} from "@/lib/airtable";
 
 export const runtime = "nodejs";
 
@@ -73,6 +78,27 @@ export async function POST(req: NextRequest) {
     }
     if (themePhotos.length > 0) {
       metadata.theme_photos = truncate(themePhotos.join(" "));
+    }
+
+    // Save the FULL, untruncated order to Airtable before payment so nothing
+    // is ever lost (Stripe metadata caps each value at 500 chars). We stash the
+    // returned record id in metadata so the webhook can flip its status to Paid.
+    if (airtableConfigured()) {
+      try {
+        const recordId = await createOrderRecord({
+          ...orderToAirtableFields({
+            ...body,
+            product_name: product.name,
+            photos,
+            theme_photos: themePhotos,
+          }),
+          Status: "Pending payment",
+        });
+        if (recordId) metadata.airtable_record_id = recordId;
+      } catch (e) {
+        // Don't block checkout if Airtable is down — the order email is the backup.
+        console.error("airtable create failed (continuing to checkout)", e);
+      }
     }
 
     const session = await stripe.checkout.sessions.create({
