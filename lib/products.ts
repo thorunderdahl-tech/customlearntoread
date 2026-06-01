@@ -18,6 +18,8 @@ export type Product = {
   popular?: boolean;
   bestValue?: boolean;
   bookCount?: number;
+  includes?: string[];
+  gift?: string;
 };
 
 export const PRODUCTS: Product[] = [
@@ -30,6 +32,11 @@ export const PRODUCTS: Product[] = [
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_DIGITAL",
     bookCount: 1,
+    includes: [
+      "Fully personalized story & art",
+      "Written at your child's reading level",
+      "Emailed within 5 business days",
+    ],
   },
   {
     id: "paperback_single",
@@ -40,6 +47,11 @@ export const PRODUCTS: Product[] = [
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_PAPERBACK_SINGLE",
     bookCount: 1,
+    includes: [
+      "One fully personalized paperback",
+      "Thick matte paper, full-color art",
+      "Free US shipping",
+    ],
   },
   {
     id: "paperback_set",
@@ -52,6 +64,12 @@ export const PRODUCTS: Product[] = [
     stripePriceEnvKey: "STRIPE_PRICE_PAPERBACK_SET",
     popular: true,
     bookCount: 3,
+    includes: [
+      "3 fully personalized paperbacks",
+      "Themes & reading level build together",
+      "Thick matte paper, full-color art",
+      "Free US shipping",
+    ],
   },
   {
     id: "hardcover_set",
@@ -64,6 +82,13 @@ export const PRODUCTS: Product[] = [
     stripePriceEnvKey: "STRIPE_PRICE_HARDCOVER_SET",
     bestValue: true,
     bookCount: 3,
+    gift: "The keepsake gift — perfect for grandparents & birthdays",
+    includes: [
+      "3 fully personalized hardcovers",
+      "Sewn binding, heavier stock — built to last",
+      "Gift-ready with a dedication page",
+      "Free US shipping",
+    ],
   },
   {
     id: "subscription_monthly",
