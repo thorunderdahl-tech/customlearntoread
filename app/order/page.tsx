@@ -13,12 +13,7 @@ export default function OrderPage() {
         <h2>Tell us about your reader</h2>
         <p>
           We use these details to create their custom characters and stories.
-          Required fields are marked with an asterisk (*).
+          It only takes a few minutes &mdash; and you&apos;ll get a preview
+          before anything ships. Required fields are marked with an asterisk (*).
         </p>
-      </div>
-      <Suspense fallback={<p style={{ textAlign: "center" }}>Loading...</p>}>
-        <OrderForm />
-      </Suspense>
-    </section>
-  );
-}
+        <ul className="order-reassure" aria-label="Why
