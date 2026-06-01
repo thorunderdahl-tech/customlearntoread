@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { Resend } from "resend";
 import type Stripe from "stripe";
+import { updateOrderRecord } from "@/lib/airtable";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +83,21 @@ export async function POST(req: NextRequest) {
         meta.shipping_address = [stripeShipping.name, a.line1, a.line2, `${a.city || ""}, ${a.state || ""} ${a.postal_code || ""}`, a.country].filter(Boolean).join("\n");
       }
       const amount = full.amount_total ? `$${(full.amount_total / 100).toFixed(2)} ${full.currency?.toUpperCase() || ""}` : "-";
+
+      // Mark the Airtable order Paid (created at checkout time with full details).
+      if (meta.airtable_record_id) {
+        try {
+          await updateOrderRecord(meta.airtable_record_id, {
+            Status: "Paid",
+            Amount: amount,
+            "Stripe ID": full.id,
+            "Shipping address": meta.shipping_address || "",
+          });
+        } catch (e) {
+          console.error("airtable update (paid) failed", e);
+        }
+      }
+
       const resendKey = process.env.RESEND_API_KEY;
       const ownerEmail = process.env.OWNER_EMAIL;
       const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";
