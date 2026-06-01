@@ -51,6 +51,11 @@ export default function Home() {
               See how it works
             </a>
           </div>
+          <ul className="hero-trust" aria-label="Why families love us">
+            <li><span aria-hidden="true">&#10084;</span> Loved by families</li>
+            <li><span aria-hidden="true">&#128230;</span> Free US shipping</li>
+            <li><span aria-hidden="true">&#8617;</span> Love-it guarantee</li>
+          </ul>
         </div>
 
         <div className="hero-books-wrap">
@@ -85,6 +90,13 @@ export default function Home() {
           </p>
         </div>
       </section>
+
+      <ul className="cred-row" aria-label="What makes us different">
+        <li><span aria-hidden="true">&#10022;</span> Family-run in Minnesota</li>
+        <li><span aria-hidden="true">&#10022;</span> Original stories &amp; art</li>
+        <li><span aria-hidden="true">&#10022;</span> Built for confidence first</li>
+        <li><span aria-hidden="true">&#10022;</span> Privacy-first with kids&apos; details</li>
+      </ul>
 
       <section className="promise">
         <p className="eyebrow">More than a name on the cover</p>
@@ -180,7 +192,18 @@ export default function Home() {
               <h3>{p.name}</h3>
               <p className="price">{p.priceLabel}</p>
               {p.perBookLabel && <p className="per-book">{p.perBookLabel}</p>}
+              {p.gift && <p className="gift-line"><span aria-hidden="true">&#127873;</span> {p.gift}</p>}
               <p>{p.blurb}</p>
+              {p.includes && (
+                <ul className="includes-list">
+                  {p.includes.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+              <Link className={`button ${p.popular ? "primary" : "secondary"} card-cta`} href="/order">
+                Create my book
+              </Link>
             </article>
           ))}
         </div>
@@ -192,7 +215,7 @@ export default function Home() {
         </p>
         <div style={{ textAlign: "center", marginTop: 28 }}>
           <Link className="button primary" href="/order">
-            Start a one-time order
+            Create my book
           </Link>
         </div>
       </section>
@@ -295,23 +318,54 @@ export default function Home() {
             alt="Sample interior page from Odin's personalized book"
           />
         </div>
+        <div style={{ textAlign: "center", marginTop: 32 }}>
+          <Link className="button primary" href="/order">
+            Create my book
+          </Link>
+          <p className="cta-microcopy">
+            Takes about 3 minutes &middot; Preview before it ships &middot; Love-it guarantee
+          </p>
+        </div>
       </section>
 
 
       <section className="section testimonials">
         <div className="section-heading">
-          <p className="eyebrow">Loved by parents</p>
-          <h2>What families are saying</h2>
+          <p className="eyebrow">Loved by families</p>
+          <h2>The moment it clicks</h2>
+          <p>Early notes from the families who&apos;ve read our books.</p>
         </div>
-        <figure className="featured-quote">
-          <p className="quote-mark" aria-hidden="true">&ldquo;</p>
-          <blockquote>
-            She loves it. They&apos;re amazing. Thank you!!!
-          </blockquote>
-          <figcaption>
-            &mdash; A dad in Minnesota, on his daughter&apos;s custom book
-          </figcaption>
-        </figure>
+        <div className="quotes-grid">
+          <figure className="quote-card">
+            <blockquote>
+              She loves it. They&apos;re amazing. Thank you!!!
+            </blockquote>
+            <figcaption>
+              <span className="quote-name">A dad in Minnesota</span>
+              <span className="quote-detail">on his daughter&apos;s custom book</span>
+            </figcaption>
+          </figure>
+          {/* TODO: Thor — paste your second real family quote + attribution here */}
+          <figure className="quote-card">
+            <blockquote>
+              [Your second family quote goes here.]
+            </blockquote>
+            <figcaption>
+              <span className="quote-name">Family name</span>
+              <span className="quote-detail">on their child&apos;s book</span>
+            </figcaption>
+          </figure>
+          {/* TODO: Thor — paste your third real family quote + attribution here */}
+          <figure className="quote-card">
+            <blockquote>
+              [Your third family quote goes here.]
+            </blockquote>
+            <figcaption>
+              <span className="quote-name">Family name</span>
+              <span className="quote-detail">on their child&apos;s book</span>
+            </figcaption>
+          </figure>
+        </div>
       </section>
 
       <section className="section guarantee muted">
@@ -337,68 +391,4 @@ export default function Home() {
             <summary>Can I include a favorite sport, pet, or stuffed animal?</summary>
             <p>
               Yes. Favorite activities, pets, stuffed animals, family members,
-              colors, and numbers are exactly what make the book exciting.
-            </p>
-          </details>
-          <details>
-            <summary>What makes this different from other personalized books?</summary>
-            <p>
-              Most personalized books just insert your child&apos;s name into a
-              generic story. We build the whole story around what your child
-              actually loves &mdash; their dog, their grandpa, their soccer
-              jersey number &mdash; and write it at the reading level
-              they&apos;re ready for. Big text, simple words, a hero they
-              recognize as themselves.
-            </p>
-          </details>
-          <details>
-            <summary>What&apos;s the print quality?</summary>
-            <p>
-              Our paperbacks are professionally printed on thick matte paper
-              with full-color illustrations. Hardcover sets use heavier stock
-              and a sewn binding so they&apos;ll survive lots of re-reads.
-            </p>
-          </details>
-          <details>
-            <summary>Can you use licensed characters?</summary>
-            <p>
-              No. We avoid trademarked characters, logos, and copyrighted
-              worlds. We can create an original story inspired by a child&apos;s
-              interests.
-            </p>
-          </details>
-          <details>
-            <summary>How does the monthly book club work?</summary>
-            <p>
-              Each month we ship a new personalized paperback book featuring
-              your child. You&apos;re billed monthly and can pause or cancel any
-              time from your receipt email.
-            </p>
-          </details>
-          <details>
-            <summary>What if I don&apos;t know the reading level?</summary>
-            <p>
-              When in doubt, choose the easier level. Confidence matters most
-              for a brand-new reader.
-            </p>
-          </details>
-          <details>
-            <summary>How long until I get my book?</summary>
-            <p>
-              Most one-time paperback and hardcover orders ship within 7-10
-              business days. Digital PDFs are emailed within 5 business days.
-            </p>
-          </details>
-          <details>
-            <summary>What if we don&apos;t love it?</summary>
-            <p>
-              Tell us what to fix and we&apos;ll redo the book for free, or
-              refund you. We want kids excited about reading &mdash; not stuck
-              with a book that doesn&apos;t feel right.
-            </p>
-          </details>
-        </div>
-      </section>
-    </>
-  );
-}
+              colors, and numbers are exactly what make the

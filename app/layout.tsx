@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import FooterSignup from "./components/FooterSignup";
+import SiteHeader from "./components/SiteHeader";
 import "./globals.css";
 
 const siteUrl =
@@ -39,20 +40,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <header className="site-header">
-          <a className="logo" href="/">
-            CustomLearnToRead
-          </a>
-          <nav>
-            <a href="/#how">How it works</a>
-            <a href="/#formats">Formats</a>
-            <a href="/#subscription">Book Club</a>
-            <a href="/about">About</a>
-            <a href="/order">Order</a>
-            <a href="/#faq">FAQ</a>
-          </nav>
-        </header>
+        <SiteHeader />
         <main>{children}</main>
+        <a className="mobile-cta button primary" href="/order">
+          Create my book
+        </a>
         <footer className="site-footer">
           <FooterSignup />
           <p>CustomLearnToRead &mdash; Personalized beginning-reader books.</p>
