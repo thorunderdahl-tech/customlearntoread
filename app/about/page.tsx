@@ -84,7 +84,7 @@ export default function AboutPage() {
       <section className="about-cta">
         <h2>Ready to make one for your reader?</h2>
         <Link className="button primary" href="/order">
-          Create your custom book
+          Create my book
         </Link>
       </section>
     </>
