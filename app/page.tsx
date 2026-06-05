@@ -345,26 +345,27 @@ export default function Home() {
               <span className="quote-detail">on his daughter&apos;s custom book</span>
             </figcaption>
           </figure>
-          {/* TODO: Thor — paste your second real family quote + attribution here */}
-          <figure className="quote-card">
-            <blockquote>
-              [Your second family quote goes here.]
-            </blockquote>
-            <figcaption>
-              <span className="quote-name">Family name</span>
-              <span className="quote-detail">on their child&apos;s book</span>
-            </figcaption>
-          </figure>
-          {/* TODO: Thor — paste your third real family quote + attribution here */}
-          <figure className="quote-card">
-            <blockquote>
-              [Your third family quote goes here.]
-            </blockquote>
-            <figcaption>
-              <span className="quote-name">Family name</span>
-              <span className="quote-detail">on their child&apos;s book</span>
-            </figcaption>
-          </figure>
+          {/*
+            Two more quote cards go here once real family quotes are ready.
+            Copy the figure block above and replace the blockquote + names.
+            Saved templates (paste back in and fill the brackets):
+
+            <figure className="quote-card">
+              <blockquote>[Your second family quote goes here.]</blockquote>
+              <figcaption>
+                <span className="quote-name">Family name</span>
+                <span className="quote-detail">on their child's book</span>
+              </figcaption>
+            </figure>
+
+            <figure className="quote-card">
+              <blockquote>[Your third family quote goes here.]</blockquote>
+              <figcaption>
+                <span className="quote-name">Family name</span>
+                <span className="quote-detail">on their child's book</span>
+              </figcaption>
+            </figure>
+          */}
         </div>
       </section>
 
@@ -391,4 +392,68 @@ export default function Home() {
             <summary>Can I include a favorite sport, pet, or stuffed animal?</summary>
             <p>
               Yes. Favorite activities, pets, stuffed animals, family members,
-              colors, and numbers are exactly what make the
+              colors, and numbers are exactly what make the book exciting.
+            </p>
+          </details>
+          <details>
+            <summary>What makes this different from other personalized books?</summary>
+            <p>
+              Most personalized books just insert your child&apos;s name into a
+              generic story. We build the whole story around what your child
+              actually loves &mdash; their dog, their grandpa, their soccer
+              jersey number &mdash; and write it at the reading level
+              they&apos;re ready for. Big text, simple words, a hero they
+              recognize as themselves.
+            </p>
+          </details>
+          <details>
+            <summary>What&apos;s the print quality?</summary>
+            <p>
+              Our paperbacks are professionally printed on thick matte paper
+              with full-color illustrations. Hardcover sets use heavier stock
+              and a sewn binding so they&apos;ll survive lots of re-reads.
+            </p>
+          </details>
+          <details>
+            <summary>Can you use licensed characters?</summary>
+            <p>
+              No. We avoid trademarked characters, logos, and copyrighted
+              worlds. We can create an original story inspired by a child&apos;s
+              interests.
+            </p>
+          </details>
+          <details>
+            <summary>How does the monthly book club work?</summary>
+            <p>
+              Each month we ship a new personalized paperback book featuring
+              your child. You&apos;re billed monthly and can pause or cancel any
+              time from your receipt email.
+            </p>
+          </details>
+          <details>
+            <summary>What if I don&apos;t know the reading level?</summary>
+            <p>
+              When in doubt, choose the easier level. Confidence matters most
+              for a brand-new reader.
+            </p>
+          </details>
+          <details>
+            <summary>How long until I get my book?</summary>
+            <p>
+              Most one-time paperback and hardcover orders ship within 7-10
+              business days. Digital PDFs are emailed within 5 business days.
+            </p>
+          </details>
+          <details>
+            <summary>What if we don&apos;t love it?</summary>
+            <p>
+              Tell us what to fix and we&apos;ll redo the book for free, or
+              refund you. We want kids excited about reading &mdash; not stuck
+              with a book that doesn&apos;t feel right.
+            </p>
+          </details>
+        </div>
+      </section>
+    </>
+  );
+}
