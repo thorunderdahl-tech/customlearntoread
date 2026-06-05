@@ -16,4 +16,22 @@ export default function OrderPage() {
           It only takes a few minutes &mdash; and you&apos;ll get a preview
           before anything ships. Required fields are marked with an asterisk (*).
         </p>
-        <ul className="order-reassure" aria-label="Why
+        <ul className="order-reassure" aria-label="Why families trust us">
+          <li><span aria-hidden="true">&#10004;</span> Preview before it ships</li>
+          <li><span aria-hidden="true">&#128230;</span> Free US shipping</li>
+          <li><span aria-hidden="true">&#8617;</span> Love-it guarantee</li>
+        </ul>
+      </div>
+      <Suspense
+        fallback={
+          <div className="form-loading">
+            <span className="spinner" aria-hidden="true" />
+            Loading your order form&hellip;
+          </div>
+        }
+      >
+        <OrderForm />
+      </Suspense>
+    </section>
+  );
+}
