@@ -2,6 +2,7 @@
 export type ProductId =
   | "digital"
   | "paperback_single"
+  | "hardcover_single"
   | "paperback_set"
   | "hardcover_set"
   | "subscription_monthly";
@@ -50,6 +51,23 @@ export const PRODUCTS: Product[] = [
     includes: [
       "One fully personalized paperback",
       "Thick matte paper, full-color art",
+      "Free US shipping",
+    ],
+  },
+  {
+    id: "hardcover_single",
+    name: "Single Hardcover",
+    blurb: "One personalized hardcover — a keepsake single, built to last.",
+    priceCents: 5400,
+    priceLabel: "$54",
+    cadence: "one_time",
+    stripePriceEnvKey: "STRIPE_PRICE_HARDCOVER_SINGLE",
+    bookCount: 1,
+    gift: "A keepsake single — gift-ready with a dedication page",
+    includes: [
+      "One fully personalized hardcover",
+      "Sewn binding, heavier stock — built to last",
+      "Gift-ready with a dedication page",
       "Free US shipping",
     ],
   },
