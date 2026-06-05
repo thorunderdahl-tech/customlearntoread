@@ -102,3 +102,50 @@ export function orderToAirtableFields(o: Record<string, any>): Fields {
     "Theme photos": themePhotos.join("\n"),
   };
 }
+
+/** Fulfillment pipeline stages, in order. Status is a single-select in Airtable;
+ * typecast:true auto-creates any option that doesn't exist yet. */
+export const FULFILLMENT_STATUSES = [
+  "Pending payment",
+  "Paid",
+  "Designing",
+  "Printing",
+  "Shipped",
+  "Delivered",
+  "Cancelled",
+] as const;
+
+export interface AirtableOrder {
+  id: string;
+  createdTime: string;
+  fields: Record<string, any>;
+}
+
+/** Fetch every order row (handles pagination), newest first. */
+export async function listOrders(): Promise<AirtableOrder[]> {
+  const c = cfg();
+  if (!c) return [];
+  const records: AirtableOrder[] = [];
+  let offset: string | undefined;
+  do {
+    const url = new URL(`${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}`);
+    url.searchParams.set("pageSize", "100");
+    if (offset) url.searchParams.set("offset", offset);
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${c.apiKey}` },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Airtable list failed (${res.status}): ${text}`);
+    }
+    const data = (await res.json()) as {
+      records: AirtableOrder[];
+      offset?: string;
+    };
+    records.push(...data.records);
+    offset = data.offset;
+  } while (offset);
+  records.sort((a, b) => (a.createdTime < b.createdTime ? 1 : -1));
+  return records;
+}
