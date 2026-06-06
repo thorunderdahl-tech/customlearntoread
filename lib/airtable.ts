@@ -16,6 +16,49 @@ export function airtableConfigured(): boolean {
 
 type Fields = Record<string, unknown>;
 
+const UNKNOWN_FIELD_RE = /Unknown field name:\s*"?([^"]+?)"?\s*$/i;
+
+/**
+ * Write to Airtable, gracefully dropping any column that doesn't exist in the
+ * table yet. New fields (e.g. "Add-ons", "Recovery sent") may not have been
+ * added to the base; rather than fail the whole record, we strip the unknown
+ * field and retry so the rest of the order still saves.
+ */
+async function writeWithFieldFallback(
+  url: string,
+  method: "POST" | "PATCH",
+  apiKey: string,
+  fields: Fields,
+): Promise<Response> {
+  const working: Fields = { ...fields };
+  // At most one retry per field, plus a safety bound.
+  for (let attempt = 0; attempt <= Object.keys(fields).length + 1; attempt++) {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields: working, typecast: true }),
+    });
+    if (res.ok) return res;
+    if (res.status === 422) {
+      const text = await res.text().catch(() => "");
+      const match = text.match(UNKNOWN_FIELD_RE);
+      const missing = match?.[1];
+      if (missing && missing in working) {
+        delete working[missing];
+        console.warn(`Airtable: column "${missing}" not found — saving without it.`);
+        continue;
+      }
+      throw new Error(`Airtable ${method} failed (422): ${text}`);
+    }
+    const text = await res.text().catch(() => "");
+    throw new Error(`Airtable ${method} failed (${res.status}): ${text}`);
+  }
+  throw new Error("Airtable write failed after stripping unknown fields");
+}
+
 /**
  * Create a new order row. Returns the Airtable record id, or null if Airtable
  * isn't configured. Throws on a real API error so callers can log it.
@@ -23,21 +66,12 @@ type Fields = Record<string, unknown>;
 export async function createOrderRecord(fields: Fields): Promise<string | null> {
   const c = cfg();
   if (!c) return null;
-  const res = await fetch(
+  const res = await writeWithFieldFallback(
     `${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${c.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ fields, typecast: true }),
-    },
+    "POST",
+    c.apiKey,
+    fields,
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Airtable create failed (${res.status}): ${text}`);
-  }
   const data = (await res.json()) as { id: string };
   return data.id;
 }
@@ -49,21 +83,12 @@ export async function updateOrderRecord(
 ): Promise<void> {
   const c = cfg();
   if (!c) return;
-  const res = await fetch(
+  await writeWithFieldFallback(
     `${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}/${recordId}`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${c.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ fields, typecast: true }),
-    },
+    "PATCH",
+    c.apiKey,
+    fields,
   );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Airtable update failed (${res.status}): ${text}`);
-  }
 }
 
 /** Maps a raw order (full, untruncated) to Airtable column names. */
