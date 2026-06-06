@@ -45,6 +45,9 @@ const config = {
   cronSchedule: process.env.CRON_SCHEDULE || '* * * * *',
   dataDir: process.env.DATA_DIR || path.join(__dirname, '..', 'data'),
   databaseUrl: process.env.DATABASE_URL || null,
+  // Force SSL for Postgres (Railway's public proxy needs it). Auto-on when the
+  // URL already carries sslmode=require.
+  pgSsl: process.env.PGSSL === 'true',
 
   instagram: {
     userId: process.env.IG_USER_ID || null,

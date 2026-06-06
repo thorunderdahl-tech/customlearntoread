@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "post-now": "node src/post-now.js"
+    "post-now": "node src/post-now.js",
+    "migrate": "node src/migrate.js"
   },
   "engines": {
     "node": ">=18"
