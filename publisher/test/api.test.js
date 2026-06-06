@@ -6,8 +6,10 @@ const path = require('node:path');
 
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'pub-api-'));
 process.env.DATA_DIR = DATA_DIR;
+process.env.UPLOADS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'pub-api-up-'));
 process.env.API_KEY = 'secret';
 delete process.env.DATABASE_URL;
+delete process.env.ANTHROPIC_API_KEY;
 fs.writeFileSync(path.join(DATA_DIR, 'calendar.json'), '[]');
 fs.writeFileSync(path.join(DATA_DIR, 'content.json'), '[]');
 
@@ -67,6 +69,44 @@ test('GET /insights returns a feed shape', async () => {
   const feed = await (await fetch(`${base}/insights`, { headers: KEY })).json();
   assert.ok(Array.isArray(feed.items));
   assert.equal(typeof feed.count, 'number');
+});
+
+test('GET / serves the Studio UI (no auth)', async () => {
+  const res = await fetch(`${base}/`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(await res.text(), /Studio/);
+});
+
+test('POST /captions/generate returns captions', async () => {
+  const res = await fetch(`${base}/captions/generate`, {
+    method: 'POST', headers: KEY, body: JSON.stringify({ childName: 'Lily', theme: 'ocean', count: 2 }),
+  });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.captions.length, 2);
+});
+
+test('POST /render returns a media url', async () => {
+  const res = await fetch(`${base}/render`, {
+    method: 'POST', headers: KEY, body: JSON.stringify({ childName: 'Sam', theme: 'dino' }),
+  });
+  const body = await res.json();
+  assert.equal(res.status, 201);
+  assert.ok(body.url.includes('/media/'));
+});
+
+test('media upload then fetch round-trips', async () => {
+  const up = await fetch(`${base}/media/upload?filename=t.png`, {
+    method: 'POST', headers: { 'X-API-Key': 'secret', 'Content-Type': 'image/png' }, body: Buffer.from('PNGBYTES'),
+  });
+  const saved = await up.json();
+  assert.equal(up.status, 201);
+  assert.equal(saved.mediaType, 'IMAGE');
+  // Media is public — no key needed to fetch.
+  const got = await fetch(`${base}/media/${saved.filename}`);
+  assert.equal(got.status, 200);
+  assert.equal(await got.text(), 'PNGBYTES');
 });
 
 test('failures + retry round-trip', async () => {

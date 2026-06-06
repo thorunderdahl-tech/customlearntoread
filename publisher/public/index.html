@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Custom Learn to Read — Studio</title>
+<style>
+  :root {
+    --cream:#FBF3E4; --card:#FFFDF8; --ink:#3A405A; --muted:#7A7E92;
+    --gold:#E4B363; --rose:#C1666B; --line:#EADFC8; --good:#3F8F5B; --bad:#C1666B;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--cream); color:var(--ink);
+    font-family:'Helvetica Neue',Arial,sans-serif; }
+  h1,h2,h3 { font-family:Georgia,'Times New Roman',serif; }
+  header { display:flex; align-items:center; gap:16px; padding:18px 28px;
+    background:var(--card); border-bottom:3px solid var(--gold); }
+  header h1 { margin:0; font-size:22px; color:var(--rose); }
+  .badge { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:bold; }
+  .badge.dry { background:#FCEFD2; color:#8A6D2F; }
+  .badge.live { background:#DDF1E3; color:var(--good); }
+  .spacer { flex:1; }
+  header input { padding:7px 10px; border:1px solid var(--line); border-radius:8px; width:230px; }
+  nav { display:flex; gap:6px; padding:14px 28px 0; }
+  nav button { border:none; background:transparent; padding:10px 18px; font-size:15px;
+    cursor:pointer; color:var(--muted); border-radius:10px 10px 0 0; }
+  nav button.active { background:var(--card); color:var(--ink); font-weight:bold;
+    box-shadow:0 -2px 0 var(--gold) inset; }
+  main { padding:24px 28px; max-width:1000px; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:20px; margin-bottom:18px; }
+  label { display:block; font-size:13px; font-weight:bold; color:var(--muted);
+    margin:12px 0 5px; }
+  input[type=text], textarea, select, input[type=datetime-local] {
+    width:100%; padding:10px; border:1px solid var(--line); border-radius:8px;
+    font-size:14px; background:#fff; font-family:inherit; }
+  textarea { min-height:80px; resize:vertical; }
+  .row { display:flex; gap:14px; } .row > * { flex:1; }
+  button.act { background:var(--rose); color:#fff; border:none; padding:11px 18px;
+    border-radius:10px; font-size:14px; font-weight:bold; cursor:pointer; }
+  button.act.gold { background:var(--gold); color:#3A2E12; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink);
+    padding:9px 14px; border-radius:8px; cursor:pointer; font-size:13px; }
+  .caption-card { border:1px solid var(--line); border-radius:10px; padding:12px;
+    margin:8px 0; cursor:pointer; font-size:14px; line-height:1.4; }
+  .caption-card:hover { border-color:var(--gold); background:#FFFBF0; }
+  .preview { margin-top:12px; }
+  .preview img { max-width:240px; border:1px solid var(--line); border-radius:10px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th,td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-size:12px; text-transform:uppercase; }
+  .pill { font-size:12px; padding:3px 9px; border-radius:999px; font-weight:bold; }
+  .pill.scheduled { background:#FCEFD2; color:#8A6D2F; }
+  .pill.posted { background:#DDF1E3; color:var(--good); }
+  .pill.failed { background:#F6DADB; color:var(--bad); }
+  .muted { color:var(--muted); font-size:13px; }
+  .toast { position:fixed; bottom:20px; right:20px; background:var(--ink); color:#fff;
+    padding:12px 18px; border-radius:10px; opacity:0; transition:opacity .25s; max-width:340px; }
+  .toast.show { opacity:1; }
+  .toast.err { background:var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>📖 Custom Learn to Read — Studio</h1>
+  <span id="mode" class="badge dry">checking…</span>
+  <div class="spacer"></div>
+  <input id="apikey" type="text" placeholder="API key (if required)" />
+</header>
+<nav>
+  <button data-tab="compose" class="active">Compose</button>
+  <button data-tab="calendar">Calendar</button>
+  <button data-tab="insights">Insights</button>
+  <button data-tab="failures">Failures</button>
+</nav>
+<main>
+  <!-- COMPOSE -->
+  <section id="compose" class="panel active">
+    <div class="card">
+      <h2 style="margin-top:0">1 · Brief</h2>
+      <div class="row">
+        <div><label>Child's name</label><input id="childName" type="text" placeholder="Emma"/></div>
+        <div><label>Theme</label><input id="theme" type="text" placeholder="space adventure"/></div>
+      </div>
+      <div class="row">
+        <div><label>Channel</label>
+          <select id="channel"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option></select>
+        </div>
+        <div><label>Publish at</label><input id="publishAt" type="datetime-local"/></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">2 · Copy</h2>
+      <button class="act gold" id="genBtn">✨ Generate captions</button>
+      <span class="muted" id="genNote"></span>
+      <div id="captionOptions"></div>
+      <label>Caption</label>
+      <textarea id="caption" placeholder="Pick a generated caption above, or write your own…"></textarea>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">3 · Media</h2>
+      <div class="row">
+        <button class="act gold" id="renderBtn">🎨 Render book page</button>
+        <label class="ghost" style="text-align:center;cursor:pointer;line-height:1.6">
+          ⬆️ Upload image/video<input id="file" type="file" accept="image/*,video/*" style="display:none"/>
+        </label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <div><label>Media URL</label><input id="mediaUrl" type="text" placeholder="https://…"/></div>
+        <div><label>Media type</label>
+          <select id="mediaType"><option>IMAGE</option><option>VIDEO</option><option>REELS</option></select>
+        </div>
+      </div>
+      <div class="preview" id="mediaPreview"></div>
+    </div>
+
+    <button class="act" id="scheduleBtn">✅ Approve &amp; schedule</button>
+  </section>
+
+  <!-- CALENDAR -->
+  <section id="calendar" class="panel">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px">
+        <h2 style="margin:0">Calendar</h2><div class="spacer" style="flex:1"></div>
+        <button class="ghost" id="refreshCal">↻ Refresh</button>
+        <button class="act gold" id="runDue">▶ Run due now</button>
+      </div>
+      <table style="margin-top:14px"><thead><tr>
+        <th>When</th><th>Channel</th><th>Theme</th><th>Status</th><th>Attempts</th>
+      </tr></thead><tbody id="calBody"></tbody></table>
+    </div>
+  </section>
+
+  <!-- INSIGHTS -->
+  <section id="insights" class="panel">
+    <div class="card">
+      <div style="display:flex;align-items:center"><h2 style="margin:0">Insights</h2>
+        <div class="spacer" style="flex:1"></div><button class="ghost" id="refreshIns">↻ Refresh</button></div>
+      <div id="insBody" class="muted" style="margin-top:12px">No posted entries yet.</div>
+    </div>
+  </section>
+
+  <!-- FAILURES -->
+  <section id="failures" class="panel">
+    <div class="card">
+      <div style="display:flex;align-items:center"><h2 style="margin:0">Dead-letter</h2>
+        <div class="spacer" style="flex:1"></div><button class="ghost" id="refreshFail">↻ Refresh</button></div>
+      <table style="margin-top:14px"><thead><tr><th>ID</th><th>Channel</th><th>Error</th><th></th></tr></thead>
+        <tbody id="failBody"></tbody></table>
+    </div>
+  </section>
+</main>
+<div id="toast" class="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const keyInput = $('apikey');
+keyInput.value = localStorage.getItem('clr_api_key') || '';
+keyInput.addEventListener('change', () => localStorage.setItem('clr_api_key', keyInput.value.trim()));
+
+function toast(msg, isErr) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast show' + (isErr ? ' err' : '');
+  setTimeout(() => { t.className = 'toast'; }, 3200);
+}
+
+async function api(method, pathname, body, raw) {
+  const headers = {};
+  const key = keyInput.value.trim();
+  if (key) headers['X-API-Key'] = key;
+  let payload = body;
+  if (body && !raw) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+  const res = await fetch(pathname, { method, headers, body: payload });
+  if (res.status === 401) { toast('Unauthorized — enter your API key (top right).', true); throw new Error('401'); }
+  const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
+  if (!res.ok) { toast(data.error || ('Error ' + res.status), true); throw new Error(data.error || res.status); }
+  return data;
+}
+
+// Tabs
+document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('nav button').forEach((x) => x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
+  b.classList.add('active'); $(b.dataset.tab).classList.add('active');
+  if (b.dataset.tab === 'calendar') loadCalendar();
+  if (b.dataset.tab === 'insights') loadInsights();
+  if (b.dataset.tab === 'failures') loadFailures();
+}));
+
+// Health / mode badge
+api('GET', '/health').then((h) => {
+  const el = $('mode');
+  el.textContent = h.dryRun ? 'DRY-RUN' : 'LIVE';
+  el.className = 'badge ' + (h.dryRun ? 'dry' : 'live');
+}).catch(() => {});
+
+// Generate captions
+$('genBtn').addEventListener('click', async () => {
+  const opts = $('captionOptions'); opts.innerHTML = '<p class="muted">Generating…</p>';
+  try {
+    const r = await api('POST', '/captions/generate', {
+      childName: $('childName').value, theme: $('theme').value, channel: $('channel').value, count: 3,
+    });
+    $('genNote').textContent = r.generated ? ' via ' + r.model : ' (templated — set ANTHROPIC_API_KEY for AI)';
+    opts.innerHTML = '';
+    r.captions.forEach((c) => {
+      const d = document.createElement('div');
+      d.className = 'caption-card'; d.textContent = c;
+      d.addEventListener('click', () => { $('caption').value = c; toast('Caption selected'); });
+      opts.appendChild(d);
+    });
+  } catch (e) { opts.innerHTML = ''; }
+});
+
+// Render
+$('renderBtn').addEventListener('click', async () => {
+  try {
+    const r = await api('POST', '/render', { childName: $('childName').value, theme: $('theme').value });
+    $('mediaUrl').value = r.url; $('mediaType').value = r.mediaType;
+    showPreview(r.url, 'image'); toast('Rendered ' + r.format.toUpperCase());
+  } catch (e) {}
+});
+
+// Upload
+$('file').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const headers = { 'Content-Type': f.type || 'application/octet-stream' };
+    const key = keyInput.value.trim(); if (key) headers['X-API-Key'] = key;
+    const res = await fetch('/media/upload?filename=' + encodeURIComponent(f.name), { method: 'POST', headers, body: f });
+    const r = await res.json();
+    if (!res.ok) { toast(r.error || 'upload failed', true); return; }
+    $('mediaUrl').value = r.url; $('mediaType').value = r.mediaType;
+    showPreview(r.url, f.type.startsWith('video') ? 'video' : 'image'); toast('Uploaded');
+  } catch (err) { toast('upload failed', true); }
+});
+
+function showPreview(url, kind) {
+  $('mediaPreview').innerHTML = kind === 'video'
+    ? '<video src="' + url + '" controls style="max-width:240px;border-radius:10px"></video>'
+    : '<img src="' + url + '" alt="preview"/>';
+}
+
+// Schedule
+$('scheduleBtn').addEventListener('click', async () => {
+  const publishAtRaw = $('publishAt').value;
+  if (!$('caption').value || !$('mediaUrl').value || !publishAtRaw) {
+    return toast('Need a caption, media URL, and publish time.', true);
+  }
+  try {
+    await api('POST', '/studio/schedule', {
+      content: { caption: $('caption').value, mediaUrl: $('mediaUrl').value, mediaType: $('mediaType').value },
+      channel: $('channel').value,
+      publishAt: new Date(publishAtRaw).toISOString(),
+      theme: $('theme').value,
+    });
+    toast('Scheduled! 🎉');
+  } catch (e) {}
+});
+
+// Calendar
+async function loadCalendar() {
+  try {
+    const rows = await api('GET', '/calendar');
+    $('calBody').innerHTML = rows.map((e) => `<tr>
+      <td>${new Date(e.publishAt).toLocaleString()}</td>
+      <td>${e.channel}</td><td>${e.theme || ''}</td>
+      <td><span class="pill ${e.status}">${e.status}</span></td>
+      <td>${e.attempts || 0}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No entries.</td></tr>';
+  } catch (e) {}
+}
+$('refreshCal').addEventListener('click', loadCalendar);
+$('runDue').addEventListener('click', async () => {
+  try { const r = await api('POST', '/run'); toast('Ran ' + r.ran + ' due entr' + (r.ran === 1 ? 'y' : 'ies')); loadCalendar(); } catch (e) {}
+});
+
+// Insights
+async function loadInsights() {
+  try {
+    const f = await api('GET', '/insights');
+    $('insBody').innerHTML = f.count ? f.items.map((i) => `<div class="caption-card">
+      <b>${i.channel}</b> · ${i.theme || ''} · <span class="muted">${i.remoteId}</span><br/>
+      <span class="muted">${JSON.stringify(i.metrics)}</span></div>`).join('')
+      : '<span class="muted">No posted entries yet.' + (f.dryRun ? ' (Metrics are stubbed in dry-run.)' : '') + '</span>';
+  } catch (e) {}
+}
+$('refreshIns').addEventListener('click', loadInsights);
+
+// Failures
+async function loadFailures() {
+  try {
+    const rows = await api('GET', '/failures');
+    $('failBody').innerHTML = rows.map((e) => `<tr><td>${e.id}</td><td>${e.channel}</td>
+      <td class="muted">${e.error || ''}</td>
+      <td><button class="ghost" onclick="retry('${e.id}')">↻ Requeue</button></td></tr>`).join('')
+      || '<tr><td colspan="4" class="muted">No dead-lettered posts. 🎉</td></tr>';
+  } catch (e) {}
+}
+$('refreshFail').addEventListener('click', loadFailures);
+async function retry(id) { try { await api('POST', '/retry', { id }); toast('Requeued ' + id); loadFailures(); } catch (e) {} }
+</script>
+</body>
+</html>

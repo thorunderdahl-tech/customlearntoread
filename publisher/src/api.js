@@ -19,12 +19,19 @@
 // `X-API-Key: <key>` or `Authorization: Bearer <key>`.
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
 const logger = require('./logger');
 const store = require('./store');
 const analytics = require('./analytics');
+const captions = require('./captions');
+const mediaStore = require('./media');
+const render = require('./render');
 const { runDuePosts } = require('./scheduler');
+
+const UI_PATH = path.join(__dirname, '..', 'public', 'index.html');
 
 class HttpError extends Error {
   constructor(statusCode, message) {
@@ -48,6 +55,20 @@ function readJsonBody(req) {
         reject(new HttpError(400, 'invalid JSON body'));
       }
     });
+    req.on('error', reject);
+  });
+}
+
+function readRawBody(req, limit = 50 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limit) reject(new HttpError(413, 'payload too large'));
+      else chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
 }
@@ -96,7 +117,48 @@ async function handle(req, res, send) {
     return send(200, { status: 'ok', dryRun: config.dryRun, time: new Date().toISOString() });
   }
 
+  // The Studio command-center UI (no auth — it's just the shell; data calls authenticate).
+  if (method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
+    let html;
+    try {
+      html = fs.readFileSync(UI_PATH);
+    } catch {
+      return send(404, { error: 'UI not found' });
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(html);
+  }
+
+  // Public media (Instagram/TikTok fetch these without our API key).
+  if (method === 'GET' && pathname.startsWith('/media/')) {
+    const full = mediaStore.resolvePath(pathname.slice('/media/'.length));
+    if (!full || !fs.existsSync(full)) return send(404, { error: 'not found' });
+    res.writeHead(200, { 'Content-Type': mediaStore.contentTypeFor(full) });
+    return res.end(fs.readFileSync(full));
+  }
+
   if (!authorized(req)) return send(401, { error: 'unauthorized' });
+
+  // --- AI caption drafting ---
+  if (method === 'POST' && pathname === '/captions/generate') {
+    const body = await readJsonBody(req);
+    return send(200, await captions.generateCaptions(body));
+  }
+
+  // --- Media upload (raw binary body; ?filename= + Content-Type) ---
+  if (method === 'POST' && pathname === '/media/upload') {
+    const { searchParams } = new URL(req.url, 'http://localhost');
+    const buffer = await readRawBody(req);
+    if (!buffer.length) throw new HttpError(400, 'empty upload');
+    const saved = mediaStore.save(searchParams.get('filename') || 'upload', buffer, req.headers['content-type']);
+    return send(201, saved);
+  }
+
+  // --- Render a personalized book page ---
+  if (method === 'POST' && pathname === '/render') {
+    const body = await readJsonBody(req);
+    return send(201, await render.renderBookPage(body));
+  }
 
   if (method === 'POST' && pathname === '/run') {
     const results = await runDuePosts();

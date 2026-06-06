@@ -26,9 +26,27 @@ npm start                 # starts scheduler + health server on :3000
 > built-in `http`; `node-cron` and `pg` are lazy-required only when actually used), so
 > `npm run post-now` works even before `npm install`.
 
+## Command center
+A self-contained Studio UI is served at **`GET /`** (open `http://localhost:3000`). It walks
+the full workflow — brief → generate/edit caption → render or upload media → approve & schedule —
+and has tabs for the calendar (with "run due now"), insights, and the dead-letter (with requeue).
+It talks to the same-origin API and stores the API key in the browser's localStorage.
+
+## Content creation workflow
+1. **Caption** (`POST /captions/generate`) — drafts captions with Claude (`@anthropic-ai/sdk`,
+   model `CAPTION_MODEL`, default `claude-opus-4-8`). Falls back to templated captions when
+   `ANTHROPIC_API_KEY` is unset. Independent of `DRY_RUN` (which only gates publishing).
+2. **Media** — either `POST /render` (personalized SVG book page, rasterized to PNG if `sharp`
+   is installed) or `POST /media/upload` (raw binary). Both store the asset and return a public
+   URL served at `GET /media/<file>` (this is the `mediaUrl` Instagram/TikTok fetch).
+3. **Schedule** (`POST /studio/schedule`) — approves the copy + media and creates the calendar entry.
+
 ## Architecture
 - `src/index.js` — entry: starts the shared API/health server + the cron scheduler.
-- `src/api.js` — HTTP API for the Studio (calendar/content/schedule/insights/failures/retry).
+- `src/api.js` — HTTP API + serves the Studio UI (`public/index.html`) and `/media/*`.
+- `src/captions.js` — AI caption drafting (Anthropic SDK, lazy-loaded) + template fallback.
+- `src/media.js` — local-disk media hosting (swap for S3/R2 in prod); served at `/media/<file>`.
+- `src/render.js` — personalized book-page renderer (SVG, optional PNG via `sharp`).
 - `src/scheduler.js` — finds due entries, dispatches them, and handles retry/backoff + dead-letter.
 - `src/publishers/` — one module per channel (`instagram.js`, `tiktok.js`) + a router `index.js`.
 - `src/auth.js` — OAuth token storage + refresh for both platforms.
@@ -60,6 +78,8 @@ Until those land, keep `DRY_RUN=true`.
 - [x] Thin **shared API** (`api.js`) so the browser Studio writes approved copy + schedule here.
 - [x] `analytics.js` exposes an **Insights feed** (`GET /insights`) keyed to posted entries.
 - [x] **Retry/backoff + dead-letter** for failed posts (`scheduler.js`).
+- [x] **AI caption generation** (`captions.js`), **media hosting** (`media.js`), and a
+      **book-page renderer** (`render.js`) — wired into a **command-center UI** at `/`.
 
 ### Shared API (for the browser Studio)
 All JSON. If `API_KEY` is set it's required on every route except `/health`
@@ -78,6 +98,11 @@ the allowed browser origin.
 | `GET  /insights`     | analytics feed for the Insights tab |
 | `GET  /failures`     | dead-lettered entries (status `failed`) |
 | `POST /retry`        | requeue a dead-lettered entry (`{ id }`) |
+| `GET  /`             | the Studio command-center UI (no auth) |
+| `POST /captions/generate` | draft captions (`{ childName, theme, channel?, count? }`) |
+| `POST /render`       | render a personalized book page (`{ childName, theme }`) |
+| `POST /media/upload` | store a raw binary upload (`?filename=`, body = bytes) |
+| `GET  /media/<file>` | serve a stored asset (no auth — platforms fetch it) |
 
 ### Retry / dead-letter
 On failure an entry is rescheduled with exponential backoff

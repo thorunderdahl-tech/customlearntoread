@@ -5,3 +5,6 @@ node_modules
 # Runtime state (regenerated; never commit real tokens)
 data/log.json
 data/tokens.json
+
+# Uploaded / rendered media
+uploads/

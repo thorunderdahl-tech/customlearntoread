@@ -19,6 +19,13 @@ In **dry-run** (the default) nothing is posted — the intended API calls are lo
 due entries stay `scheduled` so you can re-run. Flip `DRY_RUN=false` only after you've
 manually posted one test on each platform with approved apps + tokens.
 
+## Studio command center
+Open **`http://localhost:3000`** for the UI: brief → generate/edit a caption → render or upload
+media → approve & schedule, plus calendar, insights, and dead-letter tabs. Caption drafting uses
+Claude when `ANTHROPIC_API_KEY` is set (model `CAPTION_MODEL`, default `claude-opus-4-8`), and
+falls back to templates otherwise. Rendered/uploaded media is served at `/media/<file>` as the
+public `mediaUrl` the platforms fetch.
+
 ## Endpoints (shared Studio API)
 - `GET /health` — liveness + current `dryRun` flag (no auth).
 - `POST /run` — process all currently-due entries on demand.

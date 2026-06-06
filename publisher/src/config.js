@@ -44,6 +44,10 @@ const config = {
   port: num(process.env.PORT, 3000),
   cronSchedule: process.env.CRON_SCHEDULE || '* * * * *',
   dataDir: process.env.DATA_DIR || path.join(__dirname, '..', 'data'),
+  uploadsDir: process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads'),
+  // Base URL the public media files are reachable at (Instagram/TikTok fetch them).
+  // On Railway, set this to the service's public domain.
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL || `http://localhost:${num(process.env.PORT, 3000)}`).replace(/\/$/, ''),
   databaseUrl: process.env.DATABASE_URL || null,
   // Force SSL for Postgres (Railway's public proxy needs it). Auto-on when the
   // URL already carries sslmode=require.
@@ -62,6 +66,14 @@ const config = {
     clientSecret: process.env.TIKTOK_CLIENT_SECRET || null,
     accessToken: process.env.TIKTOK_ACCESS_TOKEN || null,
     refreshToken: process.env.TIKTOK_REFRESH_TOKEN || null,
+  },
+
+  // AI caption generation. Real captions require ANTHROPIC_API_KEY; without it
+  // the service falls back to deterministic templated captions so the workflow
+  // still runs end-to-end. Independent of DRY_RUN (DRY_RUN gates publishing).
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || null,
+    model: process.env.CAPTION_MODEL || 'claude-opus-4-8',
   },
 
   poll: {
