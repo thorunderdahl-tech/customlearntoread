@@ -14,7 +14,7 @@
     font-family:'Helvetica Neue',Arial,sans-serif; }
   h1,h2,h3 { font-family:Georgia,'Times New Roman',serif; }
   header { display:flex; align-items:center; gap:16px; padding:18px 28px;
-    background:var(--card); border-bottom:3px solid var(--gold); }
+    background:var(--card); border-bottom:3px solid var(--gold); flex-wrap:wrap; }
   header h1 { margin:0; font-size:22px; color:var(--rose); }
   .badge { font-size:12px; padding:4px 10px; border-radius:999px; font-weight:bold; }
   .badge.dry { background:#FCEFD2; color:#8A6D2F; }
@@ -60,6 +60,27 @@
     padding:12px 18px; border-radius:10px; opacity:0; transition:opacity .25s; max-width:340px; }
   .toast.show { opacity:1; }
   .toast.err { background:var(--bad); }
+
+  /* Mobile */
+  @media (max-width:640px) {
+    header { padding:14px 16px; gap:10px; }
+    header h1 { font-size:18px; flex:1 1 100%; }
+    header input { width:100%; flex:1 1 100%; }
+    nav { padding:10px 10px 0; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    nav button { padding:10px 14px; white-space:nowrap; font-size:14px; }
+    main { padding:16px 14px; }
+    .card { padding:16px; border-radius:12px; }
+    .row { flex-direction:column; gap:0; }
+    button.act, button.act.gold { width:100%; margin-top:8px; padding:14px; font-size:15px; }
+    button.ghost { padding:12px 14px; }
+    label.ghost { display:block; }
+    .preview img, .preview video { max-width:100%; }
+    table { font-size:13px; } th,td { padding:8px 5px; }
+    .toast { left:14px; right:14px; bottom:14px; max-width:none; }
+  }
+  @media (hover:none) {
+    .caption-card { padding:14px; } /* easier tap target on touch */
+  }
 </style>
 </head>
 <body>
