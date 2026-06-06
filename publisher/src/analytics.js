@@ -5,6 +5,7 @@
 
 const config = require('./config');
 const logger = require('./logger');
+const store = require('./store');
 
 async function getInstagramInsights(mediaId, accessToken = config.instagram.accessToken) {
   if (config.dryRun) {
@@ -39,4 +40,36 @@ async function getTikTokVideoMetrics(videoId, accessToken = config.tiktok.access
   return json.data;
 }
 
-module.exports = { getInstagramInsights, getTikTokVideoMetrics };
+// Build the feed the Studio's Insights tab reads: metrics for every posted
+// entry, keyed back to its calendar entry. Per-item errors are captured inline
+// so one bad fetch doesn't sink the whole feed.
+async function getInsightsFeed() {
+  const calendar = await store.getCalendar();
+  const posted = calendar.filter((e) => e.status === 'posted' && e.remoteId);
+
+  const items = [];
+  for (const e of posted) {
+    let metrics;
+    try {
+      metrics =
+        e.channel === 'instagram'
+          ? await getInstagramInsights(e.remoteId)
+          : await getTikTokVideoMetrics(e.remoteId);
+    } catch (err) {
+      metrics = { error: err.message };
+    }
+    items.push({
+      entryId: e.id,
+      channel: e.channel,
+      contentId: e.contentId,
+      theme: e.theme,
+      remoteId: e.remoteId,
+      postedAt: e.postedAt,
+      metrics,
+    });
+  }
+
+  return { generatedAt: new Date().toISOString(), dryRun: config.dryRun, count: items.length, items };
+}
+
+module.exports = { getInsightsFeed, getInstagramInsights, getTikTokVideoMetrics };

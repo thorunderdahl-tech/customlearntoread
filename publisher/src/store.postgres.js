@@ -37,8 +37,13 @@ CREATE TABLE IF NOT EXISTS calendar_entries (
   theme TEXT,
   posted_at TIMESTAMPTZ,
   remote_id TEXT,
-  error TEXT
+  error TEXT,
+  attempts INT NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMPTZ
 );
+-- Forward-compat for tables created before retry support was added.
+ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
+ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS post_log (
   id BIGSERIAL PRIMARY KEY,
   entry_id TEXT,
@@ -73,6 +78,8 @@ function rowToEntry(r) {
   if (r.posted_at) entry.postedAt = r.posted_at.toISOString();
   if (r.remote_id) entry.remoteId = r.remote_id;
   if (r.error) entry.error = r.error;
+  if (r.attempts) entry.attempts = r.attempts;
+  if (r.next_attempt_at) entry.nextAttemptAt = r.next_attempt_at.toISOString();
   return entry;
 }
 
@@ -103,10 +110,49 @@ async function updateEntryStatus(id, status, meta = {}) {
         SET status = $2,
             posted_at = COALESCE($3, posted_at),
             remote_id = COALESCE($4, remote_id),
-            error = $5
+            error = $5,
+            attempts = COALESCE($6, attempts),
+            next_attempt_at = $7
       WHERE id = $1`,
-    [id, status, meta.postedAt || null, meta.remoteId || null, meta.error || null]
+    [
+      id,
+      status,
+      meta.postedAt || null,
+      meta.remoteId || null,
+      meta.error || null,
+      meta.attempts === undefined ? null : meta.attempts,
+      meta.nextAttemptAt || null,
+    ]
   );
+}
+
+async function upsertContent(content) {
+  await query(
+    `INSERT INTO content (id, caption, media_url, media_type)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (id) DO UPDATE
+       SET caption = EXCLUDED.caption,
+           media_url = EXCLUDED.media_url,
+           media_type = EXCLUDED.media_type`,
+    [content.id, content.caption || null, content.mediaUrl || null, content.mediaType || null]
+  );
+  return getContent(content.id);
+}
+
+async function upsertEntry(entry) {
+  await query(
+    `INSERT INTO calendar_entries (id, channel, content_id, publish_at, status, theme)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (id) DO UPDATE
+       SET channel = EXCLUDED.channel,
+           content_id = EXCLUDED.content_id,
+           publish_at = EXCLUDED.publish_at,
+           status = EXCLUDED.status,
+           theme = EXCLUDED.theme`,
+    [entry.id, entry.channel, entry.contentId || null, entry.publishAt || null, entry.status || 'scheduled', entry.theme || null]
+  );
+  const { rows } = await query('SELECT * FROM calendar_entries WHERE id = $1', [entry.id]);
+  return rowToEntry(rows[0]);
 }
 
 async function appendLog(record) {
@@ -116,6 +162,22 @@ async function appendLog(record) {
      VALUES ($1, $2, $3, $4, $5)`,
     [entryId || null, channel || null, status || null, detail ? JSON.stringify(detail) : null, error || null]
   );
+}
+
+async function getLog(limit = 500) {
+  const { rows } = await query(
+    'SELECT * FROM post_log ORDER BY id DESC LIMIT $1',
+    [limit]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    entryId: r.entry_id,
+    channel: r.channel,
+    status: r.status,
+    detail: r.detail,
+    error: r.error,
+    at: r.created_at ? r.created_at.toISOString() : null,
+  }));
 }
 
 async function getTokens(platform) {
@@ -180,7 +242,10 @@ module.exports = {
   getContentMap,
   getContent,
   updateEntryStatus,
+  upsertContent,
+  upsertEntry,
   appendLog,
+  getLog,
   getTokens,
   saveTokens,
   seed,

@@ -71,6 +71,19 @@ const config = {
 
   // Refresh a token if it expires within this many seconds.
   tokenRefreshSkewSeconds: num(process.env.TOKEN_REFRESH_SKEW_SECONDS, 86400),
+
+  // Shared API for the browser Studio. If apiKey is set it's required on every
+  // route except /health (sent as X-API-Key or Authorization: Bearer).
+  apiKey: process.env.API_KEY || null,
+  corsOrigin: process.env.CORS_ORIGIN || '*',
+
+  // Retry/backoff for failed posts. After maxAttempts the entry is dead-lettered
+  // (status "failed"). Backoff is baseMs * 2^(attempt-1), capped at maxMs.
+  retry: {
+    maxAttempts: num(process.env.RETRY_MAX_ATTEMPTS, 5),
+    baseMs: num(process.env.RETRY_BASE_MS, 60000),
+    maxMs: num(process.env.RETRY_MAX_MS, 3600000),
+  },
 };
 
 module.exports = config;

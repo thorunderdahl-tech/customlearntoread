@@ -2,35 +2,18 @@
 
 // Entry point: a tiny HTTP health server + the in-process cron scheduler.
 
-const http = require('http');
 const config = require('./config');
 const logger = require('./logger');
 const store = require('./store');
 const { runDuePosts } = require('./scheduler');
+const { createServer } = require('./api');
 
 function startServer() {
-  const server = http.createServer(async (req, res) => {
-    const send = (code, payload) => {
-      res.writeHead(code, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(payload));
-    };
-
-    if (req.method === 'GET' && req.url === '/health') {
-      return send(200, { status: 'ok', dryRun: config.dryRun, time: new Date().toISOString() });
-    }
-    if (req.method === 'POST' && req.url === '/run') {
-      try {
-        const results = await runDuePosts();
-        return send(200, { ran: results.length, results });
-      } catch (err) {
-        logger.error('Manual /run failed', err.message);
-        return send(500, { error: err.message });
-      }
-    }
-    return send(404, { error: 'not found' });
+  const server = createServer();
+  server.listen(config.port, () => {
+    logger.info(`API + health server listening on :${config.port}`);
+    if (!config.apiKey) logger.warn('API_KEY not set — write endpoints are open. Set API_KEY in production.');
   });
-
-  server.listen(config.port, () => logger.info(`Health server listening on :${config.port}`));
   return server;
 }
 

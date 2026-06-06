@@ -54,7 +54,30 @@ async function updateEntryStatus(id, status, meta = {}) {
   if (meta.remoteId) entry.remoteId = meta.remoteId;
   if (meta.error) entry.error = meta.error;
   else delete entry.error;
+  if (meta.attempts !== undefined) entry.attempts = meta.attempts;
+  // nextAttemptAt is only kept while a retry is pending; cleared otherwise.
+  if (meta.nextAttemptAt) entry.nextAttemptAt = meta.nextAttemptAt;
+  else delete entry.nextAttemptAt;
   writeJson(CALENDAR(), cal);
+}
+
+async function upsertContent(content) {
+  const list = readJson(CONTENT(), []);
+  const i = list.findIndex((c) => c.id === content.id);
+  if (i >= 0) list[i] = { ...list[i], ...content };
+  else list.push(content);
+  writeJson(CONTENT(), list);
+  return i >= 0 ? list[i] : content;
+}
+
+async function upsertEntry(entry) {
+  const cal = readJson(CALENDAR(), []);
+  const i = cal.findIndex((e) => e.id === entry.id);
+  const merged = i >= 0 ? { ...cal[i], ...entry } : { status: 'scheduled', ...entry };
+  if (i >= 0) cal[i] = merged;
+  else cal.push(merged);
+  writeJson(CALENDAR(), cal);
+  return merged;
 }
 
 async function appendLog(record) {
@@ -75,13 +98,20 @@ async function saveTokens(platform, tokens) {
   return all[platform];
 }
 
+async function getLog() {
+  return readJson(LOG(), []);
+}
+
 module.exports = {
   init,
   getCalendar,
   getContentMap,
   getContent,
   updateEntryStatus,
+  upsertContent,
+  upsertEntry,
   appendLog,
+  getLog,
   getTokens,
   saveTokens,
 };

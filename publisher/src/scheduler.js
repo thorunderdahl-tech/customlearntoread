@@ -9,17 +9,22 @@ const store = require('./store');
 const { getPublisher } = require('./publishers');
 
 function isDue(entry, now) {
-  return entry.status === 'scheduled' && new Date(entry.publishAt).getTime() <= now;
+  if (entry.status !== 'scheduled') return false;
+  if (new Date(entry.publishAt).getTime() > now) return false;
+  // Respect backoff: don't retry before nextAttemptAt.
+  if (entry.nextAttemptAt && new Date(entry.nextAttemptAt).getTime() > now) return false;
+  return true;
+}
+
+function backoffMs(attempt) {
+  const { baseMs, maxMs } = config.retry;
+  return Math.min(maxMs, baseMs * 2 ** (attempt - 1));
 }
 
 async function dispatch(entry) {
   const content = await store.getContent(entry.contentId);
   if (!content) {
-    const error = `No content found for contentId "${entry.contentId}"`;
-    logger.error(`Entry ${entry.id}: ${error}`);
-    await store.updateEntryStatus(entry.id, 'failed', { error });
-    await store.appendLog({ entryId: entry.id, channel: entry.channel, status: 'failed', error });
-    return { entry, status: 'failed', error };
+    return handleFailure(entry, `No content found for contentId "${entry.contentId}"`);
   }
 
   try {
@@ -36,16 +41,32 @@ async function dispatch(entry) {
     await store.updateEntryStatus(entry.id, 'posted', {
       postedAt: new Date().toISOString(),
       remoteId: result.remoteId,
+      attempts: 0, // reset so a re-used id starts fresh
     });
     await store.appendLog({ entryId: entry.id, channel: entry.channel, status: 'posted', detail: result });
     logger.info(`Entry ${entry.id} [${entry.channel}] -> posted (${result.remoteId})`);
     return { entry, status: 'posted', result };
   } catch (err) {
-    logger.error(`Entry ${entry.id} [${entry.channel}] failed: ${err.message}`);
-    await store.updateEntryStatus(entry.id, 'failed', { error: err.message });
-    await store.appendLog({ entryId: entry.id, channel: entry.channel, status: 'failed', error: err.message });
-    return { entry, status: 'failed', error: err.message };
+    return handleFailure(entry, err.message);
   }
+}
+
+// Reschedule with exponential backoff, or dead-letter once attempts are exhausted.
+async function handleFailure(entry, error) {
+  const attempts = (entry.attempts || 0) + 1;
+
+  if (attempts < config.retry.maxAttempts) {
+    const nextAttemptAt = new Date(Date.now() + backoffMs(attempts)).toISOString();
+    await store.updateEntryStatus(entry.id, 'scheduled', { attempts, nextAttemptAt, error });
+    await store.appendLog({ entryId: entry.id, channel: entry.channel, status: 'retry-scheduled', error, detail: { attempts, nextAttemptAt } });
+    logger.warn(`Entry ${entry.id} [${entry.channel}] failed (attempt ${attempts}/${config.retry.maxAttempts}); retry at ${nextAttemptAt}: ${error}`);
+    return { entry, status: 'retry-scheduled', attempts, nextAttemptAt, error };
+  }
+
+  await store.updateEntryStatus(entry.id, 'failed', { attempts, error });
+  await store.appendLog({ entryId: entry.id, channel: entry.channel, status: 'dead-letter', error, detail: { attempts } });
+  logger.error(`Entry ${entry.id} [${entry.channel}] dead-lettered after ${attempts} attempts: ${error}`);
+  return { entry, status: 'failed', attempts, error };
 }
 
 async function runDuePosts({ now = Date.now() } = {}) {
@@ -63,4 +84,4 @@ async function runDuePosts({ now = Date.now() } = {}) {
   return results;
 }
 
-module.exports = { runDuePosts, dispatch, isDue };
+module.exports = { runDuePosts, dispatch, isDue, backoffMs };

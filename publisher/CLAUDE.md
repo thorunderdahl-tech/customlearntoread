@@ -27,8 +27,9 @@ npm start                 # starts scheduler + health server on :3000
 > `npm run post-now` works even before `npm install`.
 
 ## Architecture
-- `src/index.js` — entry: tiny HTTP health server + starts the cron scheduler.
-- `src/scheduler.js` — finds entries where `status==="scheduled"` and `publishAt <= now`, dispatches them.
+- `src/index.js` — entry: starts the shared API/health server + the cron scheduler.
+- `src/api.js` — HTTP API for the Studio (calendar/content/schedule/insights/failures/retry).
+- `src/scheduler.js` — finds due entries, dispatches them, and handles retry/backoff + dead-letter.
 - `src/publishers/` — one module per channel (`instagram.js`, `tiktok.js`) + a router `index.js`.
 - `src/auth.js` — OAuth token storage + refresh for both platforms.
 - `src/store.js` — persistence selector: JSON files by default, Postgres when `DATABASE_URL` is set.
@@ -51,14 +52,38 @@ Content: `{ id, caption, mediaUrl, mediaType: "IMAGE"|"REELS"|"VIDEO" }`
    pass **audit** (unaudited apps can only post `SELF_ONLY`), verify the domain for PULL_FROM_URL.
 Until those land, keep `DRY_RUN=true`.
 
-## Status of the "Next tasks" checklist
+## Status of the "Next tasks" checklist — all done
 - [x] Instagram video/REELS container **status polling** before publish (`instagram.js`).
 - [x] TikTok publish **status polling** via `/v2/post/publish/status/fetch/` (`tiktok.js`).
 - [x] OAuth token refresh for both platforms (`auth.js`).
 - [x] `store.js` supports **Postgres** (set `DATABASE_URL`) as well as JSON files.
-- [ ] Build a thin **shared API** so the browser Studio writes approved copy + schedule here.
-- [ ] Wire `analytics.js` results back into a feed the Studio's Insights tab can read.
-- [ ] Add a retry/backoff + dead-letter for failed posts.
+- [x] Thin **shared API** (`api.js`) so the browser Studio writes approved copy + schedule here.
+- [x] `analytics.js` exposes an **Insights feed** (`GET /insights`) keyed to posted entries.
+- [x] **Retry/backoff + dead-letter** for failed posts (`scheduler.js`).
+
+### Shared API (for the browser Studio)
+All JSON. If `API_KEY` is set it's required on every route except `/health`
+(send `X-API-Key: <key>` or `Authorization: Bearer <key>`). `CORS_ORIGIN` controls
+the allowed browser origin.
+
+| Method & path        | Purpose |
+|----------------------|---------|
+| `GET  /health`       | liveness + `dryRun` flag (no auth) |
+| `POST /run`          | process all currently-due entries now |
+| `GET  /calendar`     | list calendar entries |
+| `POST /calendar`     | upsert a calendar entry |
+| `GET  /content`      | list approved copy |
+| `POST /content`      | upsert content |
+| `POST /studio/schedule` | approve copy + schedule it in one call (`{ content:{…}, channel, publishAt, theme }`) |
+| `GET  /insights`     | analytics feed for the Insights tab |
+| `GET  /failures`     | dead-lettered entries (status `failed`) |
+| `POST /retry`        | requeue a dead-lettered entry (`{ id }`) |
+
+### Retry / dead-letter
+On failure an entry is rescheduled with exponential backoff
+(`RETRY_BASE_MS * 2^(attempt-1)`, capped at `RETRY_MAX_MS`); `nextAttemptAt` gates when
+it's eligible again. After `RETRY_MAX_ATTEMPTS` it's dead-lettered (status `failed`),
+surfaced at `GET /failures`, and requeueable via `POST /retry`.
 
 ## Deploy (Railway)
 - Push to GitHub, create a Railway project from the repo, set **root directory** to `publisher/`.
