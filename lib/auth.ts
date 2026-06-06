@@ -66,7 +66,9 @@ export function checkPassword(
   expected: string | undefined | null,
 ): boolean {
   if (!input || !expected) return false;
-  return safeEqual(input, expected);
+  // Trim both sides so a stray trailing space/newline (a common paste artifact
+  // when setting the env var) can't lock the owner out.
+  return safeEqual(input.trim(), expected.trim());
 }
 
 /** The signing secret: a dedicated secret, or fall back to the password. */
