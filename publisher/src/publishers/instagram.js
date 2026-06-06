@@ -44,6 +44,36 @@ async function createContainer({ content, accessToken }) {
   return json.id; // container id
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Poll a container until it finishes processing. status_code is one of:
+// IN_PROGRESS | FINISHED | ERROR | EXPIRED | PUBLISHED. Only FINISHED is
+// safe to publish; ERROR/EXPIRED are terminal failures.
+async function pollContainerStatus({ containerId, accessToken }) {
+  const { intervalMs, maxAttempts } = config.poll;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const url = graphUrl(`${containerId}?fields=status_code,status&access_token=${accessToken}`);
+    const res = await fetch(url);
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(`IG container status check failed (${res.status}): ${JSON.stringify(json)}`);
+    }
+
+    const code = json.status_code;
+    logger.info(`instagram container ${containerId} status=${code} (attempt ${attempt}/${maxAttempts})`);
+
+    if (code === 'FINISHED' || code === 'PUBLISHED') return code;
+    if (code === 'ERROR' || code === 'EXPIRED') {
+      throw new Error(`IG container ${containerId} ${code}: ${json.status || 'no detail'}`);
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(
+    `IG container ${containerId} not ready after ${maxAttempts} attempts ` +
+      `(~${(maxAttempts * intervalMs) / 1000}s)`
+  );
+}
+
 async function publishContainer({ containerId, accessToken }) {
   const params = new URLSearchParams({
     access_token: accessToken,
@@ -75,12 +105,16 @@ async function publish({ content }) {
 
   const containerId = await createContainer({ content, accessToken });
 
-  // TODO(Task 1): for video/REELS, poll container status_code until FINISHED
-  // before publishing, otherwise media_publish can fail with "media not ready".
+  // Video/REELS containers process asynchronously; publishing before the
+  // container is FINISHED fails with "media not ready". Images are ready
+  // immediately, so skip the poll for them.
+  if (content.mediaType !== 'IMAGE') {
+    await pollContainerStatus({ containerId, accessToken });
+  }
 
   const mediaId = await publishContainer({ containerId, accessToken });
   logger.info(`instagram published ${content.id} -> media ${mediaId}`);
   return { channel: 'instagram', contentId: content.id, containerId, remoteId: mediaId };
 }
 
-module.exports = { publish, createContainer, publishContainer };
+module.exports = { publish, createContainer, pollContainerStatus, publishContainer };
