@@ -1,0 +1,7 @@
+node_modules
+.env
+*.log
+
+# Runtime state (regenerated; never commit real tokens)
+data/log.json
+data/tokens.json

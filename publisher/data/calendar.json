@@ -1,0 +1,18 @@
+[
+  {
+    "id": "post-001",
+    "channel": "instagram",
+    "contentId": "ig-emma-launch",
+    "publishAt": "2026-01-01T09:00:00.000Z",
+    "status": "scheduled",
+    "theme": "personalized-name-book"
+  },
+  {
+    "id": "post-002",
+    "channel": "tiktok",
+    "contentId": "tt-odin-adventure",
+    "publishAt": "2026-01-02T15:00:00.000Z",
+    "status": "scheduled",
+    "theme": "adventure-reader"
+  }
+]
