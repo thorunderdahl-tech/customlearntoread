@@ -253,6 +253,26 @@ textarea { resize: vertical; min-height: 80px; }
 .format-option .desc { color: var(--muted); font-size: 0.88rem; font-weight: 500; }
 .format-option .price-row { display: flex; justify-content: space-between; margin-top: 8px; font-weight: 850; }
 
+/* Order bumps / add-ons on the final step */
+.addons { border: 2px dashed var(--peach); border-radius: 16px; padding: 16px; background: #fff7ee; display: grid; gap: 10px; }
+.addons-title { font-weight: 850; color: var(--ink); margin: 0; font-size: 1.05rem; }
+.addons-sub { color: var(--muted); margin: -6px 0 2px; font-size: 0.85rem; }
+.addon-option { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--paper); cursor: pointer; transition: border-color .15s, background .15s; }
+.addon-option:hover { border-color: var(--peach); }
+.addon-option.checked { border-color: var(--peach); background: #fff4e6; }
+.addon-option input { width: auto; margin: 3px 0 0; flex: none; }
+.addon-body { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.addon-name { font-weight: 800; color: var(--ink); }
+.addon-blurb { color: var(--muted); font-size: 0.85rem; }
+.addon-price { font-weight: 850; color: #8c5b37; white-space: nowrap; }
+.summary-addon { display: flex; justify-content: space-between; gap: 12px; }
+.summary-addon-price { white-space: nowrap; }
+.summary-total { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+
+.name-grid { max-width: 900px; margin: 0 auto; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.name-grid a { display: block; padding: 10px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; font-weight: 700; transition: border-color .15s, background .15s; }
+.name-grid a:hover { border-color: var(--peach); background: #fff4e6; }
+
 .faq-list { max-width: 900px; margin: 0 auto; display: grid; gap: 12px; }
 summary { cursor: pointer; font-weight: 850; }
 details[open] summary { margin-bottom: 8px; }

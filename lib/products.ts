@@ -123,3 +123,58 @@ export const PRODUCTS: Product[] = [
 
 export const productById = (id: string): Product | undefined =>
   PRODUCTS.find((p) => p.id === id);
+
+export const productByName = (name: string): Product | undefined =>
+  PRODUCTS.find((p) => p.name === name);
+
+// ── Checkout add-ons (order bumps) ───────────────────────────────────────────
+// Optional extras offered on the final order step. Priced inline at checkout via
+// Stripe `price_data`, so no extra Stripe Price IDs are needed. All add-ons are
+// one-time charges and only appear for one-time orders (not the monthly club).
+export type AddOnId = "rush" | "extra_character" | "gift_wrap";
+
+export type AddOn = {
+  id: AddOnId;
+  name: string;
+  blurb: string;
+  priceCents: number;
+  priceLabel: string;
+  /** Hide for the digital PDF (nothing to wrap / ship). */
+  physicalOnly?: boolean;
+};
+
+export const ADDONS: AddOn[] = [
+  {
+    id: "rush",
+    name: "Rush production",
+    blurb: "Jump to the front of the queue — your book is designed first.",
+    priceCents: 1500,
+    priceLabel: "+$15",
+  },
+  {
+    id: "extra_character",
+    name: "Add a 2nd character",
+    blurb: "Write in a sibling, friend, or pet as a second star of the story.",
+    priceCents: 1200,
+    priceLabel: "+$12",
+  },
+  {
+    id: "gift_wrap",
+    name: "Gift wrap + handwritten note",
+    blurb: "Gift-wrapped with a handwritten card — birthday & grandparent ready.",
+    priceCents: 600,
+    priceLabel: "+$6",
+    physicalOnly: true,
+  },
+];
+
+export const addOnById = (id: string): AddOn | undefined =>
+  ADDONS.find((a) => a.id === id);
+
+/** Add-ons available for a given product (filters out physical-only on digital,
+ * and hides all add-ons for the subscription). */
+export function addOnsFor(product: Product): AddOn[] {
+  if (product.cadence === "monthly") return [];
+  const isDigital = product.id === "digital";
+  return ADDONS.filter((a) => !(a.physicalOnly && isDigital));
+}

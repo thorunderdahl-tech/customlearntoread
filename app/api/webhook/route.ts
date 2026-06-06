@@ -18,6 +18,7 @@ function escapeHtml(s: string) {
 function buildOrderEmail(meta: Record<string, string>, opts: { orderType: string; amount: string; stripeId: string }) {
   const rows = [
     field("Product", meta.product_name),
+    field("Add-ons", meta.add_ons),
     field("Order type", opts.orderType),
     field("Amount", opts.amount),
     field("Stripe ID", opts.stripeId),

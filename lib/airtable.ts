@@ -96,10 +96,42 @@ export function orderToAirtableFields(o: Record<string, any>): Fields {
     "Theme 2": o.theme_2 || "",
     "Theme 3": o.theme_3 || "",
     "Special details": o.special_details || "",
+    "Add-ons": o.add_ons || "",
     "Shipping address": o.shipping_address || "",
     "Other notes": o.other_notes || "",
     "Reference photos": photos.join("\n"),
     "Theme photos": themePhotos.join("\n"),
+  };
+}
+
+/** Inverse of orderToAirtableFields: rebuild the raw order body (the shape the
+ * checkout route expects) from a stored Airtable row. Used to resume an
+ * abandoned checkout from the recovery email. */
+export function airtableFieldsToOrder(f: Record<string, any>): Record<string, any> {
+  const lines = (v: any): string[] =>
+    typeof v === "string" ? v.split(/\s+/).filter(Boolean) : [];
+  return {
+    product_name: f["Product"] || "",
+    parent_name: f["Parent name"] || "",
+    parent_email: f["Parent email"] || "",
+    child_name: f["Child name"] || "",
+    child_age: f["Age"] || "",
+    reading_level: f["Reading level"] || "",
+    pronouns: f["Pronouns"] || "",
+    hair: f["Hair"] || "",
+    eyes: f["Eyes"] || "",
+    skin_tone: f["Skin tone"] || "",
+    glasses: f["Glasses / accessories"] || "",
+    clothing: f["Clothing"] || "",
+    look_notes: f["Look notes"] || "",
+    theme_1: f["Theme 1"] || "",
+    theme_2: f["Theme 2"] || "",
+    theme_3: f["Theme 3"] || "",
+    special_details: f["Special details"] || "",
+    shipping_address: f["Shipping address"] || "",
+    other_notes: f["Other notes"] || "",
+    photos: lines(f["Reference photos"]),
+    theme_photos: lines(f["Theme photos"]),
   };
 }
 
@@ -119,6 +151,22 @@ export interface AirtableOrder {
   id: string;
   createdTime: string;
   fields: Record<string, any>;
+}
+
+/** Fetch a single order row by record id, or null if not found / not configured. */
+export async function getOrderRecord(recordId: string): Promise<AirtableOrder | null> {
+  const c = cfg();
+  if (!c) return null;
+  const res = await fetch(
+    `${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}/${recordId}`,
+    { headers: { Authorization: `Bearer ${c.apiKey}` }, cache: "no-store" },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Airtable get failed (${res.status}): ${text}`);
+  }
+  return (await res.json()) as AirtableOrder;
 }
 
 /** Fetch every order row (handles pagination), newest first. */

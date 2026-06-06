@@ -116,6 +116,45 @@ emailed. You can read them in the Stripe dashboard under Payments / Subscription
 Edit `lib/products.ts` to change prices, names, or copy. If you change a price,
 also update the matching Stripe Price (or create a new one and swap the ID).
 
+## Revenue features
+
+### Checkout add-ons (order bumps)
+
+The final order step offers optional paid extras — Rush production, a 2nd
+character, gift wrap. They're priced inline at checkout (Stripe `price_data`),
+so **no extra Stripe Price IDs are needed**. Edit them in the `ADDONS` array in
+`lib/products.ts`. Selected add-ons show up on the owner order email and in
+Airtable (add an **Add-ons** column to your Orders table).
+
+### Abandoned-order recovery
+
+Every order is written to Airtable as **Pending payment** before the customer is
+sent to Stripe; the webhook flips it to **Paid**. Anything left at Pending
+payment is an abandoned checkout. An hourly Vercel Cron (`vercel.json` →
+`/api/cron/abandoned`) emails those customers a one-click link to finish, with a
+discount code.
+
+Set up:
+
+1. Add a **Recovery sent** column (single line text) to your Airtable Orders table.
+2. Create a **promotion code** in Stripe (e.g. `COMEBACK10`) — customers enter it
+   on the Stripe checkout page (`allow_promotion_codes` is already on).
+3. Set env vars: `CRON_SECRET` (any random string — Vercel sends it to the cron
+   automatically), `RECOVERY_PROMO_CODE`, `RECOVERY_DISCOUNT_LABEL`.
+
+The "finish my order" link hits `/api/resume?id=<record>`, which rebuilds a fresh
+Stripe Checkout session from the saved order — the customer doesn't re-enter
+anything. Recovery emails go out once per order, only between 1 and 48 hours old.
+
+### Programmatic SEO landing pages
+
+`/personalized-book-for/[name]` renders a name-targeted landing page ("A book
+where Emma is the hero") for every name in `lib/names.ts`, plus any name typed
+directly. These rank for "personalized book for &lt;name&gt;" searches and funnel
+to the order form with the child's name pre-filled. The index at
+`/personalized-book-for` links them all; every page is in the sitemap. Add or
+remove names by editing `POPULAR_NAMES` in `lib/names.ts`.
+
 ## What's not included (intentionally)
 
 - **No admin dashboard.** Orders come to you as emails; Stripe is your source of truth.
