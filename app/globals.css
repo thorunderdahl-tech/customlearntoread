@@ -688,7 +688,7 @@ details[open] summary { margin-bottom: 8px; }
   line-height: 1.1;
   margin: 0 0 22px;
 }
-@media (max-width: 700px) {
+@media (max-width: 860px) {
   .values-grid { grid-template-columns: 1fr; }
 }
 
@@ -988,9 +988,13 @@ details[open] summary { margin-bottom: 8px; }
   .city-state-zip { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
-  .hero, .steps-grid, .pricing-grid, .levels-grid, .subscription-card { grid-template-columns: 1fr; }
+  .hero, .steps-grid, .pricing-grid, .pricing-grid-3, .subscription-card { grid-template-columns: 1fr; }
+  .levels-grid { grid-template-columns: 1fr 1fr; }
   .hero-card { transform: none; }
   .book-cover { min-height: 320px; }
+}
+@media (max-width: 520px) {
+  .levels-grid { grid-template-columns: 1fr; }
 }
 
 /* ===== Polish batch: typography, header, trust, formats, testimonials, order ===== */
