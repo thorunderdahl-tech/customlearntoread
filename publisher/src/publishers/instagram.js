@@ -11,6 +11,7 @@
 
 const config = require('../config');
 const logger = require('../logger');
+const auth = require('../auth');
 
 const graphUrl = (segment) =>
   `https://graph.facebook.com/${config.instagram.graphVersion}/${segment}`;
@@ -98,10 +99,10 @@ async function publish({ content }) {
     return { dryRun: true, channel: 'instagram', contentId: content.id };
   }
 
-  const accessToken = config.instagram.accessToken;
-  if (!accessToken || !config.instagram.userId) {
-    throw new Error('Instagram not configured: set IG_USER_ID and IG_ACCESS_TOKEN');
+  if (!config.instagram.userId) {
+    throw new Error('Instagram not configured: set IG_USER_ID');
   }
+  const accessToken = await auth.getValidToken('instagram');
 
   const containerId = await createContainer({ content, accessToken });
 

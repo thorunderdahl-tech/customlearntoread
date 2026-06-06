@@ -11,6 +11,7 @@
 
 const config = require('../config');
 const logger = require('../logger');
+const auth = require('../auth');
 
 const API = 'https://open.tiktokapis.com/v2';
 
@@ -95,10 +96,7 @@ async function publish({ content }) {
     return { dryRun: true, channel: 'tiktok', contentId: content.id };
   }
 
-  const accessToken = config.tiktok.accessToken;
-  if (!accessToken) {
-    throw new Error('TikTok not configured: set TIKTOK_ACCESS_TOKEN');
-  }
+  const accessToken = await auth.getValidToken('tiktok');
 
   const publishId = await initPublish({ content, accessToken });
 
