@@ -131,7 +131,7 @@ export const productByName = (name: string): Product | undefined =>
 // Optional extras offered on the final order step. Priced inline at checkout via
 // Stripe `price_data`, so no extra Stripe Price IDs are needed. All add-ons are
 // one-time charges and only appear for one-time orders (not the monthly club).
-export type AddOnId = "rush" | "extra_character" | "gift_wrap";
+export type AddOnId = "rush" | "extra_character";
 
 export type AddOn = {
   id: AddOnId;
@@ -157,14 +157,6 @@ export const ADDONS: AddOn[] = [
     blurb: "Write in a sibling, friend, or pet as a second star of the story.",
     priceCents: 1200,
     priceLabel: "+$12",
-  },
-  {
-    id: "gift_wrap",
-    name: "Gift wrap + handwritten note",
-    blurb: "Gift-wrapped with a handwritten card — birthday & grandparent ready.",
-    priceCents: 600,
-    priceLabel: "+$6",
-    physicalOnly: true,
   },
 ];
 

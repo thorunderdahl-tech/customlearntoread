@@ -120,8 +120,8 @@ also update the matching Stripe Price (or create a new one and swap the ID).
 
 ### Checkout add-ons (order bumps)
 
-The final order step offers optional paid extras — Rush production, a 2nd
-character, gift wrap. They're priced inline at checkout (Stripe `price_data`),
+The final order step offers optional paid extras — Rush production and a 2nd
+character. They're priced inline at checkout (Stripe `price_data`),
 so **no extra Stripe Price IDs are needed**. Edit them in the `ADDONS` array in
 `lib/products.ts`. Selected add-ons show up on the owner order email and in
 Airtable (add an **Add-ons** column to your Orders table).
