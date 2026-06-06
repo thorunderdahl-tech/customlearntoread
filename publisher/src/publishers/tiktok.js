@@ -46,6 +46,47 @@ async function initPublish({ content, accessToken }) {
   return json.data.publish_id;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Poll the publish status until it completes. status is one of:
+// PROCESSING_UPLOAD | PROCESSING_DOWNLOAD | SEND_TO_USER_INBOX |
+// PUBLISH_COMPLETE | FAILED. PUBLISH_COMPLETE is the terminal success for a
+// direct PULL_FROM_URL post; FAILED carries a fail_reason.
+async function pollPublishStatus({ publishId, accessToken }) {
+  const { intervalMs, maxAttempts } = config.poll;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(`${API}/post/publish/status/fetch/`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify({ publish_id: publishId }),
+    });
+    const json = await res.json();
+    if (!res.ok || json.error?.code !== 'ok') {
+      throw new Error(
+        `TikTok status fetch failed (${res.status}): ${JSON.stringify(json.error || json)}`
+      );
+    }
+
+    const { status, fail_reason: failReason, publicaly_available_post_id: postIds } = json.data;
+    logger.info(`tiktok publish ${publishId} status=${status} (attempt ${attempt}/${maxAttempts})`);
+
+    if (status === 'PUBLISH_COMPLETE') {
+      return { status, postId: Array.isArray(postIds) ? postIds[0] : undefined };
+    }
+    if (status === 'FAILED') {
+      throw new Error(`TikTok publish ${publishId} FAILED: ${failReason || 'unknown reason'}`);
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(
+    `TikTok publish ${publishId} not complete after ${maxAttempts} attempts ` +
+      `(~${(maxAttempts * intervalMs) / 1000}s)`
+  );
+}
+
 async function publish({ content }) {
   if (config.dryRun) {
     logger.info(`[DRY_RUN] tiktok <- ${content.id} (${content.mediaType})`);
@@ -61,11 +102,12 @@ async function publish({ content }) {
 
   const publishId = await initPublish({ content, accessToken });
 
-  // TODO(Task 2): poll /v2/post/publish/status/fetch/ until PUBLISH_COMPLETE
-  // (PULL_FROM_URL is async — init only queues the download).
+  // PULL_FROM_URL is async — init only queues the download. Wait for the post
+  // to actually complete before we report success.
+  const { postId } = await pollPublishStatus({ publishId, accessToken });
 
-  logger.info(`tiktok publish queued ${content.id} -> publish_id ${publishId}`);
-  return { channel: 'tiktok', contentId: content.id, remoteId: publishId };
+  logger.info(`tiktok published ${content.id} -> publish_id ${publishId}${postId ? ` (post ${postId})` : ''}`);
+  return { channel: 'tiktok', contentId: content.id, remoteId: publishId, postId };
 }
 
-module.exports = { publish, initPublish };
+module.exports = { publish, initPublish, pollPublishStatus };
