@@ -8,6 +8,10 @@ import { getOrderRecord, airtableFieldsToOrder } from "@/lib/airtable";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Statuses that mean "this checkout never completed" — both are resumable.
+// "Abandoned" is set by the webhook when the Stripe session expires (~24h).
+const RESUMABLE_STATUSES = new Set(["Pending payment", "Abandoned", "Recovery sent"]);
+
 // One-click "finish your order" link from the abandoned-order recovery email.
 // Rebuilds a fresh Stripe Checkout session from the order we already stored in
 // Airtable, reusing the same record id so the webhook flips THIS row to Paid.
@@ -27,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     // Already paid (or being fulfilled) — send them to a friendly thank-you.
     const status = (record.fields["Status"] as string) || "";
-    if (status && status !== "Pending payment" && status !== "Recovery sent") {
+    if (status && !RESUMABLE_STATUSES.has(status)) {
       return NextResponse.redirect(`${siteUrl}/order/success`);
     }
 
