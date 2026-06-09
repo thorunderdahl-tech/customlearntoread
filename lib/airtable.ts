@@ -16,49 +16,6 @@ export function airtableConfigured(): boolean {
 
 type Fields = Record<string, unknown>;
 
-const UNKNOWN_FIELD_RE = /Unknown field name:\s*"?([^"]+?)"?\s*$/i;
-
-/**
- * Write to Airtable, gracefully dropping any column that doesn't exist in the
- * table yet. New fields (e.g. "Add-ons", "Recovery sent") may not have been
- * added to the base; rather than fail the whole record, we strip the unknown
- * field and retry so the rest of the order still saves.
- */
-async function writeWithFieldFallback(
-  url: string,
-  method: "POST" | "PATCH",
-  apiKey: string,
-  fields: Fields,
-): Promise<Response> {
-  const working: Fields = { ...fields };
-  // At most one retry per field, plus a safety bound.
-  for (let attempt = 0; attempt <= Object.keys(fields).length + 1; attempt++) {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ fields: working, typecast: true }),
-    });
-    if (res.ok) return res;
-    if (res.status === 422) {
-      const text = await res.text().catch(() => "");
-      const match = text.match(UNKNOWN_FIELD_RE);
-      const missing = match?.[1];
-      if (missing && missing in working) {
-        delete working[missing];
-        console.warn(`Airtable: column "${missing}" not found — saving without it.`);
-        continue;
-      }
-      throw new Error(`Airtable ${method} failed (422): ${text}`);
-    }
-    const text = await res.text().catch(() => "");
-    throw new Error(`Airtable ${method} failed (${res.status}): ${text}`);
-  }
-  throw new Error("Airtable write failed after stripping unknown fields");
-}
-
 /**
  * Create a new order row. Returns the Airtable record id, or null if Airtable
  * isn't configured. Throws on a real API error so callers can log it.
@@ -66,14 +23,41 @@ async function writeWithFieldFallback(
 export async function createOrderRecord(fields: Fields): Promise<string | null> {
   const c = cfg();
   if (!c) return null;
-  const res = await writeWithFieldFallback(
+  const res = await fetch(
     `${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}`,
-    "POST",
-    c.apiKey,
-    fields,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${c.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields, typecast: true }),
+    },
   );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Airtable create failed (${res.status}): ${text}`);
+  }
   const data = (await res.json()) as { id: string };
   return data.id;
+}
+
+/** Fetch a single order row by record id. Returns null if not configured or not found. */
+export async function getOrderRecord(
+  recordId: string,
+): Promise<{ id: string; fields: Record<string, any> } | null> {
+  const c = cfg();
+  if (!c) return null;
+  const res = await fetch(
+    `${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}/${recordId}`,
+    { headers: { Authorization: `Bearer ${c.apiKey}` }, cache: "no-store" },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Airtable get failed (${res.status}): ${text}`);
+  }
+  return (await res.json()) as { id: string; fields: Record<string, any> };
 }
 
 /** Patch an existing order row (e.g. to mark it Paid). No-op if not configured. */
@@ -83,12 +67,21 @@ export async function updateOrderRecord(
 ): Promise<void> {
   const c = cfg();
   if (!c) return;
-  await writeWithFieldFallback(
+  const res = await fetch(
     `${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}/${recordId}`,
-    "PATCH",
-    c.apiKey,
-    fields,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${c.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields, typecast: true }),
+    },
   );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Airtable update failed (${res.status}): ${text}`);
+  }
 }
 
 /** Maps a raw order (full, untruncated) to Airtable column names. */
@@ -121,7 +114,6 @@ export function orderToAirtableFields(o: Record<string, any>): Fields {
     "Theme 2": o.theme_2 || "",
     "Theme 3": o.theme_3 || "",
     "Special details": o.special_details || "",
-    "Add-ons": o.add_ons || "",
     "Shipping address": o.shipping_address || "",
     "Other notes": o.other_notes || "",
     "Reference photos": photos.join("\n"),
@@ -129,41 +121,11 @@ export function orderToAirtableFields(o: Record<string, any>): Fields {
   };
 }
 
-/** Inverse of orderToAirtableFields: rebuild the raw order body (the shape the
- * checkout route expects) from a stored Airtable row. Used to resume an
- * abandoned checkout from the recovery email. */
-export function airtableFieldsToOrder(f: Record<string, any>): Record<string, any> {
-  const lines = (v: any): string[] =>
-    typeof v === "string" ? v.split(/\s+/).filter(Boolean) : [];
-  return {
-    product_name: f["Product"] || "",
-    parent_name: f["Parent name"] || "",
-    parent_email: f["Parent email"] || "",
-    child_name: f["Child name"] || "",
-    child_age: f["Age"] || "",
-    reading_level: f["Reading level"] || "",
-    pronouns: f["Pronouns"] || "",
-    hair: f["Hair"] || "",
-    eyes: f["Eyes"] || "",
-    skin_tone: f["Skin tone"] || "",
-    glasses: f["Glasses / accessories"] || "",
-    clothing: f["Clothing"] || "",
-    look_notes: f["Look notes"] || "",
-    theme_1: f["Theme 1"] || "",
-    theme_2: f["Theme 2"] || "",
-    theme_3: f["Theme 3"] || "",
-    special_details: f["Special details"] || "",
-    shipping_address: f["Shipping address"] || "",
-    other_notes: f["Other notes"] || "",
-    photos: lines(f["Reference photos"]),
-    theme_photos: lines(f["Theme photos"]),
-  };
-}
-
 /** Fulfillment pipeline stages, in order. Status is a single-select in Airtable;
  * typecast:true auto-creates any option that doesn't exist yet. */
 export const FULFILLMENT_STATUSES = [
   "Pending payment",
+  "Abandoned",
   "Paid",
   "Designing",
   "Printing",
@@ -176,22 +138,6 @@ export interface AirtableOrder {
   id: string;
   createdTime: string;
   fields: Record<string, any>;
-}
-
-/** Fetch a single order row by record id, or null if not found / not configured. */
-export async function getOrderRecord(recordId: string): Promise<AirtableOrder | null> {
-  const c = cfg();
-  if (!c) return null;
-  const res = await fetch(
-    `${AIRTABLE_API}/${c.baseId}/${encodeURIComponent(c.table)}/${recordId}`,
-    { headers: { Authorization: `Bearer ${c.apiKey}` }, cache: "no-store" },
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Airtable get failed (${res.status}): ${text}`);
-  }
-  return (await res.json()) as AirtableOrder;
 }
 
 /** Fetch every order row (handles pagination), newest first. */
