@@ -123,6 +123,12 @@ export default function OrderForm() {
     if (plan && PRODUCTS.some((p) => p.id === plan)) {
       setState((s) => ({ ...s, product: plan as ProductId }));
     }
+    // SEO landing pages (/personalized-book-for/[name]) link here with ?child=.
+    // Prefill the child's name unless the visitor already typed one (draft wins).
+    const child = params.get("child");
+    if (child && child.trim()) {
+      setState((s) => (s.child_name.trim() ? s : { ...s, child_name: child.trim() }));
+    }
     draftLoadedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
