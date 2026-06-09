@@ -10,6 +10,11 @@ export const maxDuration = 60;
 const MIN_AGE_MS = 60 * 60 * 1000; // 1 hour — give them time to come back on their own
 const MAX_AGE_MS = 48 * 60 * 60 * 1000; // 48 hours — past this it's just spam
 
+// Rows eligible for a recovery email. "Pending payment" = checkout still open;
+// "Abandoned" = the Stripe session expired (webhook flips it at ~24h). Both are
+// recoverable — /api/resume builds a fresh session either way.
+const RECOVERABLE_STATUSES = new Set(["Pending payment", "Abandoned"]);
+
 function escapeHtml(s: string) {
   return s
     .replace(/&/g, "&amp;")
@@ -27,15 +32,15 @@ function recoveryEmail(opts: {
 }) {
   const child = escapeHtml(opts.childName) || "your reader";
   return `<div style="font-family:Inter,system-ui,sans-serif;color:#2f2a24;max-width:560px">
-    <h2 style="font-size:22px;margin:0 0 8px">You're one step away from ${child}'s book</h2>
-    <p style="color:#665d52">You started a custom <strong>${escapeHtml(opts.productName)}</strong> but didn't finish checkout. We saved every detail you entered — no need to redo the form.</p>
-    <p style="color:#665d52">As a little nudge, here's <strong>${escapeHtml(opts.discountLabel)} off</strong> with code <strong>${escapeHtml(opts.promoCode)}</strong> at checkout.</p>
-    <p style="margin:22px 0">
-      <a href="${escapeHtml(opts.resumeUrl)}" style="display:inline-block;background:#2f2a24;color:#fff;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:999px">Finish my order &rarr;</a>
-    </p>
-    <p style="color:#665d52;font-size:13px">The code is applied on the secure Stripe checkout page. Questions? Just reply — we read every email.</p>
-    <p style="color:#665d52;font-size:13px;margin-top:24px">CustomLearnToRead</p>
-  </div>`;
+<h2 style="font-size:22px;margin:0 0 8px">You're one step away from ${child}'s book</h2>
+<p style="color:#665d52">You started a custom <strong>${escapeHtml(opts.productName)}</strong> but didn't finish checkout. We saved every detail you entered — no need to redo the form.</p>
+<p style="color:#665d52">As a little nudge, here's <strong>${escapeHtml(opts.discountLabel)} off</strong> with code <strong>${escapeHtml(opts.promoCode)}</strong> at checkout.</p>
+<p style="margin:22px 0">
+<a href="${escapeHtml(opts.resumeUrl)}" style="display:inline-block;background:#2f2a24;color:#fff;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:999px">Finish my order &rarr;</a>
+</p>
+<p style="color:#665d52;font-size:13px">The code is applied on the secure Stripe checkout page. Questions? Just reply — we read every email.</p>
+<p style="color:#665d52;font-size:13px;margin-top:24px">CustomLearnToRead</p>
+</div>`;
 }
 
 async function run(req: NextRequest) {
@@ -70,7 +75,7 @@ async function run(req: NextRequest) {
   for (const o of orders) {
     scanned++;
     const f = o.fields;
-    if ((f["Status"] as string) !== "Pending payment") continue;
+    if (!RECOVERABLE_STATUSES.has((f["Status"] as string) || "")) continue;
     if (f["Recovery sent"]) continue;
     const email = (f["Parent email"] as string) || "";
     if (!email || !email.includes("@")) continue;
