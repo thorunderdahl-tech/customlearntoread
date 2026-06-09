@@ -15,8 +15,35 @@ const COOKIE_OPTS = {
   path: "/",
 };
 
+// Best-effort brute-force throttle (per warm serverless instance):
+// after MAX_FAILS failed attempts from one IP within the window, return 429.
+const FAIL_WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILS = 5;
+const failMap = new Map<string, { count: number; windowStart: number }>();
+function tooManyFails(ip: string): boolean {
+  const e = failMap.get(ip);
+  if (!e || Date.now() - e.windowStart > FAIL_WINDOW_MS) return false;
+  return e.count >= MAX_FAILS;
+}
+function recordFail(ip: string) {
+  const now = Date.now();
+  const e = failMap.get(ip);
+  if (!e || now - e.windowStart > FAIL_WINDOW_MS) {
+    failMap.set(ip, { count: 1, windowStart: now });
+  } else {
+    e.count += 1;
+  }
+}
+
 // Log in: verify password, set a signed session cookie.
 export async function POST(req: NextRequest) {
+  const ip = (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+  if (tooManyFails(ip)) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again in 15 minutes." },
+      { status: 429 },
+    );
+  }
   const body = await req.json().catch(() => ({}));
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) {
@@ -26,8 +53,10 @@ export async function POST(req: NextRequest) {
     );
   }
   if (!checkPassword(body?.password, expected)) {
+    recordFail(ip);
     return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
   }
+  failMap.delete(ip);
   const token = await createSession(sessionSecret());
   const res = NextResponse.json({ ok: true });
   res.cookies.set(ADMIN_COOKIE, token, {
