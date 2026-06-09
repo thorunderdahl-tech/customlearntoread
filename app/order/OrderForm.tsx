@@ -3,11 +3,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { PRODUCTS, addOnsFor, addOnById, type ProductId, type AddOnId } from "@/lib/products";
+import { PRODUCTS, type ProductId } from "@/lib/products";
 
 type FormState = {
   product: ProductId;
-  addons: AddOnId[];
   parent_name: string;
   parent_email: string;
   child_name: string;
@@ -45,7 +44,6 @@ const US_STATES = [
 
 const initial: FormState = {
   product: "paperback_set",
-  addons: [],
   parent_name: "",
   parent_email: "",
   child_name: "",
@@ -73,6 +71,12 @@ const initial: FormState = {
   consent: false,
 };
 
+// Draft persistence: a customer who reaches Stripe checkout and cancels (or
+// closes the tab) keeps everything they typed. Cleared on the success page
+// (which uses the same literal key in ClearDraft.tsx).
+const DRAFT_KEY = "clr_order_draft_v1";
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10 MB
+
 const TOTAL_STEPS = 5;
 const STEP_TITLES = [
   "Pick your book",
@@ -93,53 +97,52 @@ export default function OrderForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeFileInputRef = useRef<HTMLInputElement>(null);
 
+  const draftLoadedRef = useRef(false);
+
+  // On mount: restore any saved draft, then let an explicit ?plan= override
+  // the product choice. Runs once.
   useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && typeof draft === "object") {
+          setState((s) => ({
+            ...s,
+            ...draft,
+            photos: Array.isArray(draft.photos) ? draft.photos : [],
+            theme_photos: Array.isArray(draft.theme_photos) ? draft.theme_photos : [],
+            product: PRODUCTS.some((p) => p.id === draft.product) ? draft.product : s.product,
+          }));
+        }
+      }
+    } catch {
+      // Corrupt or unavailable storage — start fresh.
+    }
     const plan = params.get("plan");
     if (plan && PRODUCTS.some((p) => p.id === plan)) {
       setState((s) => ({ ...s, product: plan as ProductId }));
     }
-    // Prefill the child's name from SEO landing pages (/personalized-book-for/[name]).
-    const child = params.get("child");
-    if (child) {
-      const clean = child.replace(/[^a-zA-Z\s'-]/g, "").trim().slice(0, 40);
-      if (clean) setState((s) => (s.child_name ? s : { ...s, child_name: clean }));
+    draftLoadedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Save the draft on every change (after the initial restore).
+  useEffect(() => {
+    if (!draftLoadedRef.current) return;
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+    } catch {
+      // Storage full/unavailable — non-fatal.
     }
-  }, [params]);
+  }, [state]);
 
   const product = PRODUCTS.find((p) => p.id === state.product)!;
   const isSubscription = product.cadence === "monthly";
   const isDigital = product.id === "digital";
 
-  const availableAddons = addOnsFor(product);
-  const selectedAddons = state.addons
-    .map((id) => addOnById(id))
-    .filter((a): a is NonNullable<typeof a> => !!a && availableAddons.some((x) => x.id === a.id));
-  const addonsTotalCents = selectedAddons.reduce((sum, a) => sum + a.priceCents, 0);
-  const orderTotalCents = product.priceCents + addonsTotalCents;
-  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-
-  // If the chosen product can't take an add-on the user picked (e.g. switched to
-  // digital after selecting gift wrap), drop it so we never charge for it.
-  useEffect(() => {
-    setState((s) => {
-      const valid = addOnsFor(product).map((a) => a.id);
-      const pruned = s.addons.filter((id) => valid.includes(id));
-      return pruned.length === s.addons.length ? s : { ...s, addons: pruned };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.product]);
-
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
-  }
-
-  function toggleAddon(id: AddOnId) {
-    setState((s) => ({
-      ...s,
-      addons: s.addons.includes(id)
-        ? s.addons.filter((x) => x !== id)
-        : [...s.addons, id],
-    }));
   }
 
   async function uploadPhoto(file: File) {
@@ -167,6 +170,14 @@ export default function OrderForm() {
     try {
       const remaining = 3 - state[target].length;
       const toUpload = Array.from(files).slice(0, remaining);
+      for (const file of toUpload) {
+        if (!file.type.startsWith("image/")) {
+          throw new Error(`"${file.name}" isn't an image — please upload a photo (JPG, PNG, HEIC).`);
+        }
+        if (file.size > MAX_PHOTO_BYTES) {
+          throw new Error(`"${file.name}" is over 10 MB — please use a smaller photo.`);
+        }
+      }
       const urls: string[] = [];
       for (const file of toUpload) {
         const url = await uploadPhoto(file);
@@ -196,7 +207,7 @@ export default function OrderForm() {
     }
     if (s === 5) {
       if (!state.parent_name.trim()) return "Please add your name.";
-      if (!state.parent_email.trim() || !state.parent_email.includes("@"))
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.parent_email.trim()))
         return "Please add a valid email.";
       if (!isDigital) {
         if (!state.shipping_street.trim()) return "Please add a street address.";
@@ -247,7 +258,7 @@ export default function OrderForm() {
           ]
             .filter((s) => s && s.trim())
             .join("\n");
-      const payload = { ...state, addons: selectedAddons.map((a) => a.id), shipping_address };
+      const payload = { ...state, shipping_address };
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -618,30 +629,6 @@ export default function OrderForm() {
                 />
               </label>
 
-              {availableAddons.length > 0 && (
-                <div className="addons">
-                  <p className="addons-title">Make it extra special</p>
-                  <p className="addons-sub">Optional — add to this order at checkout.</p>
-                  {availableAddons.map((a) => {
-                    const checked = state.addons.includes(a.id);
-                    return (
-                      <label key={a.id} className={`addon-option${checked ? " checked" : ""}`}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleAddon(a.id)}
-                        />
-                        <span className="addon-body">
-                          <span className="addon-name">{a.name}</span>
-                          <span className="addon-blurb">{a.blurb}</span>
-                        </span>
-                        <span className="addon-price">{a.priceLabel}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-
               <label
                 style={{
                   flexDirection: "row",
@@ -739,20 +726,7 @@ export default function OrderForm() {
           {(state.photos.length + state.theme_photos.length) > 0 && (
             <p className="summary-row"><strong>Photos:</strong> {state.photos.length + state.theme_photos.length} attached</p>
           )}
-          {selectedAddons.length > 0 && (
-            <>
-              <hr />
-              <p className="summary-row"><strong>{product.name}</strong> <span className="summary-addon-price">{fmt(product.priceCents)}</span></p>
-              {selectedAddons.map((a) => (
-                <p key={a.id} className="summary-row summary-addon">
-                  <span>+ {a.name}</span>
-                  <span className="summary-addon-price">{fmt(a.priceCents)}</span>
-                </p>
-              ))}
-              <p className="summary-row summary-total"><strong>Total today</strong> <strong className="summary-addon-price">{fmt(orderTotalCents)}</strong></p>
-            </>
-          )}
-          {!isDigital && <p className="summary-shipping"><span aria-hidden="true">&#10004;</span> Free US shipping</p>}
+          {!isDigital && <p className="summary-shipping"><span aria-hidden="true">&#10004;</span> Free US shipping · typical custom book production starts after checkout; use the order notes for gift deadlines.</p>}
         </div>
       </aside>
     </div>
