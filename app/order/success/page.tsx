@@ -1,3 +1,5 @@
+import ClearDraft from "./ClearDraft";
+
 export const metadata = {
   title: "Order received | CustomLearnToRead",
 };
@@ -5,6 +7,7 @@ export const metadata = {
 export default function SuccessPage() {
   return (
     <div className="center-narrow">
+      <ClearDraft />
       <p className="eyebrow">Order confirmed</p>
       <h1>You&apos;re all set.</h1>
       <p>
