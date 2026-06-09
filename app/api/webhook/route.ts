@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { Resend } from "resend";
 import type Stripe from "stripe";
-import { updateOrderRecord } from "@/lib/airtable";
+import { updateOrderRecord, getOrderRecord } from "@/lib/airtable";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,6 @@ function escapeHtml(s: string) {
 function buildOrderEmail(meta: Record<string, string>, opts: { orderType: string; amount: string; stripeId: string }) {
   const rows = [
     field("Product", meta.product_name),
-    field("Add-ons", meta.add_ons),
     field("Order type", opts.orderType),
     field("Amount", opts.amount),
     field("Stripe ID", opts.stripeId),
@@ -85,6 +84,21 @@ export async function POST(req: NextRequest) {
       }
       const amount = full.amount_total ? `$${(full.amount_total / 100).toFixed(2)} ${full.currency?.toUpperCase() || ""}` : "-";
 
+      // Idempotency guard: Stripe retries webhooks (and can deliver duplicates).
+      // If the Airtable row is already Paid, this event was processed — skip
+      // re-sending emails. Best effort: if Airtable is unreachable, proceed.
+      if (meta.airtable_record_id) {
+        try {
+          const existing = await getOrderRecord(meta.airtable_record_id);
+          if (existing?.fields?.Status === "Paid") {
+            console.log("duplicate checkout.session.completed — already Paid, skipping", full.id);
+            return NextResponse.json({ received: true, duplicate: true });
+          }
+        } catch (e) {
+          console.error("airtable idempotency check failed (continuing)", e);
+        }
+      }
+
       // Mark the Airtable order Paid (created at checkout time with full details).
       if (meta.airtable_record_id) {
         try {
@@ -100,28 +114,75 @@ export async function POST(req: NextRequest) {
       }
 
       const resendKey = process.env.RESEND_API_KEY;
-      const ownerEmail = process.env.OWNER_EMAIL;
+      // OWNER_EMAIL may be a comma-separated list (e.g. "a@x.com, b@y.com"); send to all.
+      const ownerEmails = (process.env.OWNER_EMAIL || "").split(",").map((s) => s.trim()).filter(Boolean);
       const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";
-      if (resendKey && ownerEmail) {
+      if (resendKey && ownerEmails.length) {
         const resend = new Resend(resendKey);
-        await resend.emails.send({
-          from: fromEmail,
-          to: ownerEmail,
-          reply_to: meta.parent_email || undefined,
-          subject: `New ${isSub ? "subscription" : "order"} - ${meta.child_name || "custom book"} (${meta.product_name || ""})`,
-          html: buildOrderEmail(meta, { orderType: isSub ? "Monthly subscription" : "One-time order", amount, stripeId: full.id }),
-        });
-        if (meta.parent_email) {
+        // Each send is isolated so an owner-email failure can never block the
+        // customer's confirmation (or vice versa). Failures are logged — the
+        // Airtable row is the durable record either way.
+        try {
           await resend.emails.send({
             from: fromEmail,
-            to: meta.parent_email,
-            reply_to: ownerEmail,
-            subject: `Your CustomLearnToRead order is in!`,
-            html: buildCustomerEmail(meta.child_name || "your reader", meta.product_name || "Custom book", isSub),
+            to: ownerEmails,
+            reply_to: meta.parent_email || undefined,
+            subject: `New ${isSub ? "subscription" : "order"} - ${meta.child_name || "custom book"} (${meta.product_name || ""})`,
+            html: buildOrderEmail(meta, { orderType: isSub ? "Monthly subscription" : "One-time order", amount, stripeId: full.id }),
           });
+        } catch (e) {
+          console.error("owner order email failed", e);
+        }
+        if (meta.parent_email) {
+          try {
+            await resend.emails.send({
+              from: fromEmail,
+              to: meta.parent_email,
+              reply_to: ownerEmails,
+              subject: `Your CustomLearnToRead order is in!`,
+              html: buildCustomerEmail(meta.child_name || "your reader", meta.product_name || "Custom book", isSub),
+            });
+          } catch (e) {
+            console.error("customer confirmation email failed", e);
+          }
         }
       } else {
         console.warn("RESEND_API_KEY / OWNER_EMAIL not configured - skipping email. Order metadata:", meta);
+      }
+    }
+    if (event.type === "checkout.session.expired") {
+      // Customer filled the form but never paid. The full order already lives in
+      // Airtable as "Pending payment" — mark it Abandoned and tell the owner so
+      // they can follow up personally (highest-converting recovery at this scale).
+      const session = event.data.object as Stripe.Checkout.Session;
+      const meta = (session.metadata || {}) as Record<string, string>;
+      if (meta.airtable_record_id) {
+        try {
+          const existing = await getOrderRecord(meta.airtable_record_id);
+          // Only flip rows still pending — never touch one that got Paid.
+          if (!existing || existing.fields?.Status === "Pending payment") {
+            await updateOrderRecord(meta.airtable_record_id, { Status: "Abandoned" });
+          }
+        } catch (e) {
+          console.error("airtable update (abandoned) failed", e);
+        }
+      }
+      const resendKey = process.env.RESEND_API_KEY;
+      const ownerEmails = (process.env.OWNER_EMAIL || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";
+      if (resendKey && ownerEmails.length && (meta.parent_email || meta.child_name)) {
+        try {
+          const resend = new Resend(resendKey);
+          await resend.emails.send({
+            from: fromEmail,
+            to: ownerEmails,
+            reply_to: meta.parent_email || undefined,
+            subject: `Abandoned checkout - ${meta.child_name || "unknown"} (${meta.product_name || ""})`,
+            html: `<div style="font-family:Inter,system-ui,sans-serif;max-width:600px"><h2 style="font-size:20px">Checkout started but not completed</h2><p>${escapeHtml(meta.parent_name || "A parent")} (${escapeHtml(meta.parent_email || "no email")}) got to Stripe checkout for <strong>${escapeHtml(meta.product_name || "a book")}</strong> for <strong>${escapeHtml(meta.child_name || "their child")}</strong> but didn't pay. Their full personalization details are saved in Airtable (status: Abandoned).</p><p>A short personal reply-to note often wins these back — their email is set as reply-to on this message.</p></div>`,
+          });
+        } catch (e) {
+          console.error("abandoned-checkout owner email failed", e);
+        }
       }
     }
     if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
@@ -131,13 +192,13 @@ export async function POST(req: NextRequest) {
         const sub = await stripe.subscriptions.retrieve(subId);
         const meta = (sub.metadata || {}) as Record<string, string>;
         const resendKey = process.env.RESEND_API_KEY;
-        const ownerEmail = process.env.OWNER_EMAIL;
+        const ownerEmails = (process.env.OWNER_EMAIL || "").split(",").map((s) => s.trim()).filter(Boolean);
         const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";
-        if (resendKey && ownerEmail) {
+        if (resendKey && ownerEmails.length) {
           const resend = new Resend(resendKey);
           await resend.emails.send({
             from: fromEmail,
-            to: ownerEmail,
+            to: ownerEmails,
             reply_to: meta.parent_email || undefined,
             subject: `Monthly book cycle - ${meta.child_name || "subscriber"} (${meta.product_name || ""})`,
             html: buildOrderEmail(meta, { orderType: "Monthly cycle renewal", amount: invoice.amount_paid ? `$${(invoice.amount_paid / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || ""}` : "-", stripeId: invoice.id || sub.id }),
