@@ -8,12 +8,12 @@ export default function CancelPage() {
       <p className="eyebrow">Checkout canceled</p>
       <h1>No worries — nothing was charged.</h1>
       <p>
-        Your personalization details weren&apos;t saved when you canceled, but
-        you can head back and start a new order any time.
+        Good news: everything you entered is still saved on the order form.
+        Head back any time and pick up exactly where you left off.
       </p>
       <p style={{ marginTop: 24 }}>
         <a className="button primary" href="/order">
-          Back to the order form
+          Pick up where I left off
         </a>{" "}
         <a className="button secondary" href="/">
           Home
