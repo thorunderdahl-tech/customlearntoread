@@ -91,8 +91,11 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
 export default function CreateClient({ initialOrders, loadError }: { initialOrders: AirtableOrder[]; loadError: string | null }) {
   const params = useSearchParams();
   const [selectedId, setSelectedId] = useState(params.get("recordId") || "");
-  const [pageCount, setPageCount] = useState(10);
+  const [pageCount, setPageCount] = useState(20);
   const [levelId, setLevelId] = useState("");
+  const [emotionalGoal, setEmotionalGoal] = useState("");
+  const [mustUseWords, setMustUseWords] = useState("");
+  const [avoidWords, setAvoidWords] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -129,7 +132,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setError(""); resetAll();
     try {
       setBusy("Writing the story…");
-      const g = await story({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined });
+      const g = await story({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined, emotionalGoal: emotionalGoal || undefined, mustUseWords: mustUseWords.trim() || undefined, avoidWords: avoidWords.trim() || undefined });
       let d: Draft = g.draft; let c: Check = g.check;
       setDraft(d); setCheck(c); setOrder(g.order); setParentEmail(g.parentEmail || "");
       if (!c.pass) {
@@ -247,8 +250,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const doc = await PDFDocument.create();
       for (const dURL of imgs) {
         const jpg = await doc.embedJpg(await fetch(dURL).then((r) => r.arrayBuffer()));
-        const page = doc.addPage([1009, 1559]);
-        page.drawImage(jpg, { x: 0, y: 0, width: 1009, height: 1559 });
+        const page = doc.addPage([396, 612]); // 5.5in x 8.5in portrait
+        page.drawImage(jpg, { x: 0, y: 0, width: 396, height: 612 });
       }
       const bytes = await doc.save();
       const blob = new Blob([bytes], { type: "application/pdf" });
@@ -325,16 +328,34 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         )}
         <div className="crt-row">
           <label>Story pages
-            <input type="number" min={4} max={20} value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 10)} />
+            <input type="number" min={4} max={24} value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 10)} />
           </label>
           <label>Level override (optional)
             <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
               <option value="">Use order / age</option>
-              <option value="L1">Level 1 — brand-new reader</option>
-              <option value="L2">Level 2 — very early reader</option>
-              <option value="L3">Level 3 — growing reader</option>
-              <option value="L4">Level 4 — more confident reader</option>
+              <option value="tiny">Tiny Reader — 1-3 words a page</option>
+              <option value="beginner">Beginner Reader — 3-6 words a page</option>
+              <option value="growing">Growing Reader — one fuller sentence a page</option>
             </select>
+          </label>
+        </div>
+        <div className="crt-row">
+          <label>Emotional goal (optional)
+            <select value={emotionalGoal} onChange={(e) => setEmotionalGoal(e.target.value)}>
+              <option value="">Let the engine pick</option>
+              <option>Confidence</option>
+              <option>Friendship</option>
+              <option>Kindness</option>
+              <option>Trying Something New</option>
+              <option>Teamwork</option>
+              <option>Courage</option>
+            </select>
+          </label>
+          <label>Must-use words (optional)
+            <input value={mustUseWords} onChange={(e) => setMustUseWords(e.target.value)} placeholder="hop, dog, big" />
+          </label>
+          <label>Words to avoid (optional)
+            <input value={avoidWords} onChange={(e) => setAvoidWords(e.target.value)} placeholder="scary, monster" />
           </label>
         </div>
         <button className="crt-btn crt-primary" disabled={!selectedId || !!busy} onClick={generate}>
