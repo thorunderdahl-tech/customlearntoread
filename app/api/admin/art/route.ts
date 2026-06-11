@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateImage, visionAsk, listModels, geminiConfigured } from "@/lib/gemini";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const STYLE = `Children's picture-book illustration in a vibrant, warm, anime-influenced style: soft rounded features, big expressive sparkly eyes, gentle glowing light, rich saturated colors, clean shapes, magical cozy atmosphere. Full-bleed scene composition with the main subject in the upper two-thirds of the frame (the bottom quarter will be covered by a text band). ABSOLUTELY NO text, letters, numbers, signs, logos, or watermarks anywhere in the image.`;
 
