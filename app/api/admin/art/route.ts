@@ -4,7 +4,7 @@ import { generateImage, visionAsk, listModels, geminiConfigured } from "@/lib/ge
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const STYLE = `Children's picture-book illustration in a vibrant, warm, anime-influenced style: soft rounded features, big expressive sparkly eyes, gentle glowing light, rich saturated colors, clean shapes, magical cozy atmosphere. Full-bleed scene composition with the main subject in the upper two-thirds of the frame (the bottom quarter will be covered by a text band). ABSOLUTELY NO text, letters, numbers, signs, logos, or watermarks anywhere in the image.`;
+const STYLE = `Warm, premium, modern children's picture-book illustration: bright rich colors, soft friendly shapes, clean simple uncluttered backgrounds, large readable facial expressions, strong visual storytelling. The picture must tell the story on its own. Full-bleed scene with the main subject in the upper two-thirds of the frame (the bottom quarter will be covered by a text band). ABSOLUTELY NO text, letters, numbers, signs, logos, brands, or watermarks anywhere in the image. No trademarked or franchise characters — generic versions only.`;
 
 // One image operation per request. Actions: character | page | check | models
 export async function POST(req: NextRequest) {
