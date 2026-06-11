@@ -26,8 +26,8 @@ export type Product = {
 export const PRODUCTS: Product[] = [
   {
     id: "digital",
-    name: "Digital PDF",
-    blurb: "Printable PDF for home reading and practice. Fastest delivery.",
+    name: "Digital Book",
+    blurb: "Flip-the-page digital book plus a printable PDF. Fastest delivery.",
     priceCents: 1900,
     priceLabel: "$19",
     cadence: "one_time",
@@ -36,7 +36,8 @@ export const PRODUCTS: Product[] = [
     includes: [
       "Fully personalized story & art",
       "Written at your child's reading level",
-      "Emailed within 5 business days",
+      "Private link — pages turn like a real book",
+      "Printable PDF, emailed within 5 business days",
     ],
   },
   {
