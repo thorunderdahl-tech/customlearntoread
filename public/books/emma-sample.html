@@ -73,6 +73,9 @@
     align-items: center;
     justify-content: center;
   }
+  #sizer {
+    max-width: 100%;
+  }
   #book {
     filter: drop-shadow(0 22px 30px rgba(47, 42, 36, 0.22));
   }
@@ -180,7 +183,7 @@
     <div class="hint">Drag a page corner to turn it — just like a real book</div>
   </header>
 
-  <main><div id="stage"><div id="book"></div></div></main>
+  <main><div id="stage"><div id="sizer"><div id="book"></div></div></div></main>
 
   <footer>
     <button class="btn nav" id="prevBtn" aria-label="Previous page">&#10094;</button>
@@ -242,7 +245,7 @@
       var availW = stage.clientWidth, availH = stage.clientHeight;
       var pagesAcross = availW < 620 ? 1 : 2;
       var w = Math.min(availW / pagesAcross, availH / aspect);
-      bookEl.style.width = Math.max(180, Math.floor(w * pagesAcross)) + "px";
+      document.getElementById("sizer").style.width = Math.max(180, Math.floor(w * pagesAcross)) + "px";
     }
     applySize();
     window.addEventListener("resize", applySize);
