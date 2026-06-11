@@ -1,4 +1,7 @@
-// Story generation + AI grading prompts for the create pipeline.
+// Master book-generation prompts (story + grading) for the create pipeline.
+// Encodes the CUSTOM LEARN TO READ master prompt: the goal is NOT a story for
+// parents to read — it's a book the CHILD can successfully read themselves,
+// in the spirit of early BOB Books. Pictures carry the story; text supports.
 import type { Level, StoryDraft } from "./leveling";
 
 export interface OrderInfo {
@@ -13,6 +16,12 @@ export interface OrderInfo {
   lookNotes?: string;
   themes: string[];
   specialDetails?: string;
+}
+
+export interface StoryExtras {
+  emotionalGoal?: string; // Confidence | Friendship | Kindness | Trying Something New | Teamwork | Courage
+  mustUseWords?: string;
+  avoidWords?: string;
 }
 
 export function orderInfoFromFields(f: Record<string, any>): OrderInfo {
@@ -31,65 +40,83 @@ export function orderInfoFromFields(f: Record<string, any>): OrderInfo {
   };
 }
 
-const STORY_SYSTEM = `You write personalized learn-to-read books for the family business "Custom Learn to Read". The hero of every book is a real child; the book exists to make THAT child feel seen and to meet them exactly at their reading level. Warm, joyful, encouraging tone. Never scary, never sad endings. You follow level rules EXACTLY — they are hard constraints, not suggestions. You reply with a single JSON object and nothing else.`;
+export const STORY_SYSTEM = `You create personalized learn-to-read books for the family business "Custom Learn to Read".
+THE GOAL IS NOT A STORY FOR PARENTS TO READ ALOUD. The goal is a book the child can successfully read THEMSELVES — like early BOB Books. Pictures carry most of the story; the text supports the picture.
+WRITING RULES — DO: repeat vocabulary often; repeat sentence patterns; use predictable language; use concrete nouns; use familiar actions; keep the story positive; make the child the hero on every page.
+DO NOT: use long sentences; use figurative language; use complex vocabulary; use multiple actions per page; use trademarked characters; use copyrighted brands, teams, logos, or franchises (generic versions only — "a race car", never a branded one).
+Level rules are HARD constraints, not suggestions. You reply with a single JSON object and nothing else.`;
 
-export function buildGeneratePrompt(o: OrderInfo, level: Level, pageCount: number): string {
-  return `Write a personalized learn-to-read book as JSON.
+export function buildGeneratePrompt(o: OrderInfo, level: Level, pageCount: number, extras: StoryExtras = {}): string {
+  const mainTopic = o.themes[0] || "everyday adventures";
+  const supporting = o.themes.slice(1).join(", ");
+  return `Create a personalized learn-to-read book as JSON.
 
-THE CHILD (the hero):
+THE CHILD (the hero — appears on every page):
 - Name: ${o.childName}
 - Age: ${o.age || "unknown"}
-- Pronouns: ${o.pronouns || "not given — infer nothing, write around pronouns if unclear"}
-- Looks: hair ${o.hair || "?"}; eyes ${o.eyes || "?"}; skin ${o.skinTone || "?"}; ${o.glasses ? "accessories: " + o.glasses + ";" : ""} ${o.clothing ? "clothing: " + o.clothing + ";" : ""} ${o.lookNotes || ""}
-- Loves (themes to build the story around): ${o.themes.join(", ") || "everyday adventures"}
-- Special details from the parent: ${o.specialDetails || "none"}
+- Pronouns: ${o.pronouns || "not given — write around pronouns if unclear"}
+- Appearance: hair ${o.hair || "?"}; eyes ${o.eyes || "?"}; skin tone ${o.skinTone || "?"}; ${o.glasses ? "glasses/accessories: " + o.glasses + ";" : ""} ${o.clothing ? "clothing: " + o.clothing + ";" : ""} ${o.lookNotes || ""}
+
+THE BOOK:
+- Main topic: ${mainTopic}
+- Supporting characters/objects to weave in: ${supporting || "invent at most one simple friendly companion if it helps"}
+- Special details from the parent (use them — they make the child feel seen): ${o.specialDetails || "none"}
+- Emotional goal of the story: ${extras.emotionalGoal || "pick the best fit: confidence, friendship, kindness, trying something new, teamwork, or courage"}
+${extras.mustUseWords ? `- MUST-USE words (work each in naturally, more than once where possible): ${extras.mustUseWords}` : ""}${extras.avoidWords ? `\n- Words to AVOID entirely: ${extras.avoidWords}` : ""}
 
 READING LEVEL — HARD RULES (${level.parentLabel}):
 ${level.promptRules}
 
-BOOK SHAPE:
-- Exactly ${pageCount} story pages.
-- The story must star ${o.childName} by name and weave in the themes meaningfully (not just name-dropped).
-- Each page needs an "artPrompt": a vivid one-sentence illustration description for that page (what we see, where, mood). Always describe the child the same way, referring to them as "the child character". Do NOT put any words/text/signs inside the illustration descriptions.
+FORMAT:
+- Exactly ${pageCount} interior pages. ONE sentence per page. ONE illustration per page. No paragraphs, no text blocks.
+- Story arc across the pages: 1) introduction → 2) discovery → 3) fun activity → 4) small challenge → 5) success → 6) celebration → 7) positive ending.
+- Repeat key vocabulary throughout so earlier pages teach the words later pages use.
+
+ILLUSTRATION DIRECTIONS:
+- Each page needs an "artPrompt": a concrete one-sentence scene description that carries the story visually (what we see, where, the child's expression and action). The picture should tell the story even if the child can't read the word yet.
+- Refer to the hero as "the child character" and keep their appearance identical on every page.
+- Clean simple backgrounds, no clutter, large readable facial expressions.
+- NEVER describe any words, letters, signs, numbers, logos or brands in the illustration.
 
 Reply with ONLY this JSON shape:
 {
   "title": "...",
   "levelId": "${level.id}",
   "childName": "${o.childName}",
-  "characterDescription": "one rich sentence describing the child character's constant appearance (hair, eyes, skin, outfit) for the illustrator",
-  "coverArtPrompt": "cover illustration description, no text in image",
+  "characterDescription": "one rich sentence locking the child character's constant appearance (hair, eyes, skin, glasses, outfit) for the illustrator",
+  "coverArtPrompt": "cover illustration direction, no text in image",
   "pages": [ { "n": 1, "text": "...", "artPrompt": "..." } ]
 }`;
 }
 
 export function buildGradePrompt(draft: StoryDraft, level: Level, o: OrderInfo): string {
-  return `You are the quality gate for a personalized learn-to-read book. Grade this draft strictly.
+  return `You are the FINAL CHECK quality gate for a personalized learn-to-read book. Grade strictly.
 
 LEVEL RULES (${level.parentLabel}):
 ${level.promptRules}
 
 WHAT THE PARENT ORDERED:
 - Child: ${o.childName}, age ${o.age || "?"}
-- Themes: ${o.themes.join(", ") || "everyday adventures"}
+- Topics: ${o.themes.join(", ") || "everyday adventures"}
 - Special details: ${o.specialDetails || "none"}
 
 DRAFT:
 ${JSON.stringify(draft, null, 1)}
 
-Check, in order of importance:
-1. Level fit: could a child at this exact level read every page successfully? Flag ANY word or sentence that breaks the rules.
-2. Personalization: does the story genuinely star ${o.childName} and the ordered themes, or is it generic?
-3. Story quality: clear arc, satisfying warm ending, natural read-aloud rhythm, no awkward phrasing.
-4. Art prompts: each one concrete and consistent with the character description; none contain text-in-image.
-5. Safety/tone: nothing scary, sad, branded, or off-tone for a children's book.
+FINAL CHECK — verify each:
+1. CHILD CAN READ IT: every page is ONE short sentence the child can decode at this exact level. Flag ANY word or sentence that breaks the rules. This is a book the child reads themselves, not a read-aloud.
+2. Repetition & predictability: vocabulary and sentence patterns repeat like early BOB Books; one action per page; concrete nouns; familiar actions.
+3. Child is the hero: ${o.childName} stars on every page; topic stays consistent; the ordered details genuinely shape the story.
+4. Story arc: introduction → discovery → fun activity → small challenge → success → celebration → positive ending.
+5. Illustration directions: concrete, uncluttered, consistent character, visually tell the story, contain NO text/brands/logos.
+6. Safety & rights: positive tone, nothing scary; NO trademarked characters or copyrighted brands anywhere.
 
 Reply with ONLY JSON:
 { "pass": true|false, "score": 1-10, "issues": ["specific fixable issue", ...], "praise": "one line on what works" }`;
 }
 
 export function buildRevisePrompt(draft: StoryDraft, level: Level, issues: string[]): string {
-  return `Revise this learn-to-read book draft. Fix EVERY issue listed while keeping everything that works. Level rules remain hard constraints:
+  return `Revise this learn-to-read book draft. Fix EVERY issue listed while keeping everything that works. The child must be able to read every page themselves. Level rules remain hard constraints:
 ${level.promptRules}
 
 ISSUES TO FIX:
