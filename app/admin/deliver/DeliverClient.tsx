@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 
-const PDFJS_VERSION = "3.11.174";
-const PDFJS_URL = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.min.js`;
-const PDFJS_WORKER = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+// pdf.js is vendored same-origin (public/flipbook/) — cross-origin workers hang.
+const PDFJS_URL = "/flipbook/pdf.min.js";
+const PDFJS_WORKER = "/flipbook/pdf.worker.min.js";
 
 type Phase = "idle" | "rendering" | "preview" | "sending" | "done";
 
