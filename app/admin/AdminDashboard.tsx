@@ -263,10 +263,16 @@ export default function AdminDashboard({ initialOrders, loadError }: Props) {
                         ))}
                       </select>
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: "nowrap" }}>
                       <button className="admin-btn" onClick={() => setSelected(o)}>
                         View
-                      </button>
+                      </button>{" "}
+                      <a
+                        className="admin-btn"
+                        href={`/admin/deliver?recordId=${o.id}&child=${encodeURIComponent(field(o, "Child name") || "")}&email=${encodeURIComponent(field(o, "Parent email") || "")}`}
+                      >
+                        Deliver
+                      </a>
                     </td>
                   </tr>
                 );
