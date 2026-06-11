@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       const raw = await claude({ system: STORY_SYSTEM, user: buildGeneratePrompt(order, level, pageCount), maxTokens: 4000 });
       const draft = parseJsonBlock<StoryDraft>(raw);
       const check = checkStory(draft, level);
-      return NextResponse.json({ draft, check, levelId: level.id, order });
+      return NextResponse.json({ draft, check, levelId: level.id, order, parentEmail: rec.fields["Parent email"] || "" });
     }
 
     if (action === "grade") {
