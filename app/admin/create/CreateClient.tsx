@@ -226,13 +226,21 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   async function genAllArt() {
     if (!draft || !charRef) return;
     setError(""); setPdfUrl(""); setDelivered(null);
-    const targets = [0, ...draft.pages.map((p) => p.n)];
+    const already = { ...arts }; // skip pages finished in a previous run
+    const targets = [0, ...draft.pages.map((p) => p.n)].filter((n) => !already[n]);
+    const failed: number[] = [];
     for (const n of targets) {
-      setArtBusy(n === 0 ? "Illustrating the cover…" : `Illustrating page ${n} of ${draft.pages.length}…`);
-      try { await genOnePage(n); }
-      catch (e: any) { setError(`${n === 0 ? "Cover" : "Page " + n}: ${e?.message || e}`); break; }
+      const label = n === 0 ? "the cover" : `page ${n} of ${draft.pages.length}`;
+      let ok = false;
+      for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
+        setArtBusy(`Illustrating ${label}${attempt > 1 ? " (retry)" : ""}…`);
+        try { await genOnePage(n); ok = true; }
+        catch { if (attempt < 2) await new Promise((r) => setTimeout(r, 4000)); }
+      }
+      if (!ok) failed.push(n); // keep going — Redo buttons handle stragglers
     }
     setArtBusy("");
+    if (failed.length) setError(`Couldn't illustrate: ${failed.map((n) => (n === 0 ? "cover" : "page " + n)).join(", ")} — hit Redo on those tiles.`);
   }
 
   async function redoOne(n: number) {
