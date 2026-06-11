@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { upload } from "@vercel/blob/client";
 import type { AirtableOrder } from "@/lib/airtable";
 
 type Draft = {
@@ -14,18 +15,69 @@ type Draft = {
 };
 type Check = { pass: boolean; problems: string[]; stats: { totalWords: number; pages: number } };
 type Grade = { pass: boolean; score: number; issues: string[]; praise: string };
+type ArtQA = { pass: boolean; issues: string[] };
 
 const field = (o: AirtableOrder, k: string) => (o.fields?.[k] ?? "") as string;
 
-async function step(body: Record<string, unknown>) {
-  const res = await fetch("/api/admin/story", {
+async function api(path: string, body: Record<string, unknown>) {
+  const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error || "Step failed");
+  if (!res.ok) throw new Error(data?.error || "Request failed");
   return data;
+}
+const story = (b: Record<string, unknown>) => api("/api/admin/story", b);
+const art = (b: Record<string, unknown>) => api("/api/admin/art", b);
+
+function newToken(): string {
+  const abc = "abcdefghjkmnpqrstuvwxyz23456789";
+  let t = "";
+  const a = new Uint32Array(8);
+  crypto.getRandomValues(a);
+  for (let i = 0; i < 8; i++) t += abc[a[i] % abc.length];
+  return t;
+}
+const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30);
+
+function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("image decode failed")); i.src = src; });
+}
+
+// Composite a book page: full-bleed art + typeset text band (text is never AI-rendered).
+async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean): Promise<string> {
+  const W = 1614, H = 2494; // 1009x1559pt page at ~1.6x
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+  const img = await loadImg("data:image/png;base64," + artB64);
+  const s = Math.max(W / img.width, H / img.height);
+  ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
+
+  const bandH = Math.round(H * (isCover ? 0.16 : 0.2));
+  ctx.fillStyle = "rgba(253,252,255,0.97)";
+  ctx.fillRect(0, H - bandH, W, bandH);
+
+  ctx.fillStyle = "#3b2a82";
+  const fs = Math.round(isCover ? H * 0.034 : H * 0.026);
+  ctx.font = `700 ${fs}px Inter, "Segoe UI", system-ui, sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const maxW = W * 0.84;
+  const ws = text.split(/\s+/); const lines: string[] = []; let line = "";
+  for (const w of ws) { const t = line ? line + " " + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+  if (line) lines.push(line);
+  const lh = fs * 1.35; const cy = H - bandH / 2 - ((lines.length - 1) * lh) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, cy + i * lh));
+
+  if (!isCover) {
+    ctx.fillStyle = "#e87dab";
+    ctx.font = `600 ${Math.round(H * 0.013)}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(String(pageNo), W * 0.045, H - H * 0.018);
+  }
+  return c.toDataURL("image/jpeg", 0.86);
 }
 
 export default function CreateClient({ initialOrders, loadError }: { initialOrders: AirtableOrder[]; loadError: string | null }) {
@@ -42,42 +94,54 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const [saved, setSaved] = useState("");
   const [note, setNote] = useState("");
 
+  // Phase 2: art + assembly + delivery
+  const [charRef, setCharRef] = useState("");
+  const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA }>>({});
+  const [artBusy, setArtBusy] = useState("");
+  const [assembling, setAssembling] = useState("");
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [pageImages, setPageImages] = useState<string[]>([]);
+  const [parentEmail, setParentEmail] = useState("");
+  const [delivered, setDelivered] = useState<{ bookLink: string; pdfLink: string } | null>(null);
+  const pdfBlobRef = useRef<Blob | null>(null);
+
   const candidates = useMemo(
     () => initialOrders.filter((o) => ["Paid", "Designing"].includes(field(o, "Status"))),
     [initialOrders],
   );
   const selected = candidates.find((o) => o.id === selectedId) || initialOrders.find((o) => o.id === selectedId);
 
+  function resetAll() {
+    setDraft(null); setGrade(null); setCheck(null); setSaved("");
+    setCharRef(""); setArts({}); setPdfUrl(""); setPageImages([]); setDelivered(null);
+  }
+
   async function generate() {
     if (!selectedId) return;
-    setError(""); setSaved(""); setGrade(null);
+    setError(""); resetAll();
     try {
       setBusy("Writing the story…");
-      const g = await step({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined });
+      const g = await story({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined });
       let d: Draft = g.draft; let c: Check = g.check;
-      setDraft(d); setCheck(c); setOrder(g.order);
-
-      // Auto-fix deterministic rule breaks first.
+      setDraft(d); setCheck(c); setOrder(g.order); setParentEmail(g.parentEmail || "");
       if (!c.pass) {
         setBusy("Rules check failed — revising…");
-        const r = await step({ action: "revise", draft: d, issues: c.problems });
+        const r = await story({ action: "revise", draft: d, issues: c.problems });
         d = r.draft; c = r.check; setDraft(d); setCheck(c);
       }
       setBusy("AI quality grading…");
-      const q = await step({ action: "grade", draft: d, order: g.order });
+      const q = await story({ action: "grade", draft: d, order: g.order });
       let gr: Grade = q.grade; setGrade(gr);
       if (!gr.pass && gr.issues?.length) {
         setBusy("Grader flagged issues — revising…");
-        const r2 = await step({ action: "revise", draft: d, issues: gr.issues });
+        const r2 = await story({ action: "revise", draft: d, issues: gr.issues });
         d = r2.draft; setDraft(d); setCheck(r2.check);
         setBusy("Re-grading…");
-        const q2 = await step({ action: "grade", draft: d, order: g.order });
+        const q2 = await story({ action: "grade", draft: d, order: g.order });
         setGrade(q2.grade);
       }
       setBusy("");
-    } catch (e: any) {
-      setError(e?.message || String(e)); setBusy("");
-    }
+    } catch (e: any) { setError(e?.message || String(e)); setBusy(""); }
   }
 
   async function reviseWithNote() {
@@ -85,9 +149,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setError("");
     try {
       setBusy("Revising with your note…");
-      const r = await step({ action: "revise", draft, issues: [note.trim()] });
-      setDraft(r.draft); setCheck(r.check); setNote("");
-      setBusy("");
+      const r = await story({ action: "revise", draft, issues: [note.trim()] });
+      setDraft(r.draft); setCheck(r.check); setNote(""); setBusy("");
     } catch (e: any) { setError(e?.message || String(e)); setBusy(""); }
   }
 
@@ -96,16 +159,129 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setError("");
     try {
       setBusy("Saving to the order…");
-      await step({ action: "save", recordId: selectedId, draft, approved });
-      setSaved(approved ? "Story approved & saved — ready for art (Phase 2)." : "Draft saved to the order.");
+      await story({ action: "save", recordId: selectedId, draft, approved });
+      setSaved(approved ? "Story approved & saved." : "Draft saved to the order.");
       setBusy("");
     } catch (e: any) { setError(e?.message || String(e)); setBusy(""); }
   }
 
-  function setPageText(n: number, text: string) {
+  const setPageText = (n: number, text: string) =>
+    draft && setDraft({ ...draft, pages: draft.pages.map((p) => (p.n === n ? { ...p, text } : p)) });
+
+  // ---------- art ----------
+  async function genCharacter() {
     if (!draft) return;
-    setDraft({ ...draft, pages: draft.pages.map((p) => (p.n === n ? { ...p, text } : p)) });
+    setError(""); setArtBusy("Drawing the character sheet…");
+    try {
+      const r = await art({ action: "character", description: draft.characterDescription });
+      setCharRef(r.image); setArts({}); setPdfUrl(""); setDelivered(null);
+    } catch (e: any) { setError(e?.message || String(e)); }
+    setArtBusy("");
   }
+
+  async function genOnePage(n: number) {
+    if (!draft || !charRef) return;
+    const page = n === 0
+      ? { n: 0, text: draft.title, artPrompt: draft.coverArtPrompt }
+      : draft.pages.find((p) => p.n === n)!;
+    const first = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs: [charRef] });
+    let qa: ArtQA | undefined;
+    try { qa = (await art({ action: "check", image: first.image, pageText: page.text, characterDescription: draft.characterDescription })).verdict; } catch { /* QA optional */ }
+    if (qa && !qa.pass && qa.issues?.length) {
+      const retry = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs: [charRef], fixNotes: qa.issues.join("; ") });
+      let qa2: ArtQA | undefined;
+      try { qa2 = (await art({ action: "check", image: retry.image, pageText: page.text, characterDescription: draft.characterDescription })).verdict; } catch { /* QA optional */ }
+      setArts((a) => ({ ...a, [n]: { img: retry.image, qa: qa2 } }));
+    } else {
+      setArts((a) => ({ ...a, [n]: { img: first.image, qa } }));
+    }
+  }
+
+  async function genAllArt() {
+    if (!draft || !charRef) return;
+    setError(""); setPdfUrl(""); setDelivered(null);
+    const targets = [0, ...draft.pages.map((p) => p.n)];
+    for (const n of targets) {
+      setArtBusy(n === 0 ? "Illustrating the cover…" : `Illustrating page ${n} of ${draft.pages.length}…`);
+      try { await genOnePage(n); }
+      catch (e: any) { setError(`${n === 0 ? "Cover" : "Page " + n}: ${e?.message || e}`); break; }
+    }
+    setArtBusy("");
+  }
+
+  async function redoOne(n: number) {
+    setError(""); setArtBusy(n === 0 ? "Redoing the cover…" : `Redoing page ${n}…`);
+    try { await genOnePage(n); } catch (e: any) { setError(e?.message || String(e)); }
+    setArtBusy("");
+  }
+
+  // ---------- assembly + delivery ----------
+  const artDone = draft && charRef && [0, ...(draft?.pages.map((p) => p.n) || [])].every((n) => arts[n]);
+
+  async function assemble() {
+    if (!draft) return;
+    setError(""); setDelivered(null);
+    try {
+      setAssembling("Typesetting pages…");
+      const imgs: string[] = [await compositePage(arts[0].img, draft.title, 0, true)];
+      for (const p of draft.pages) imgs.push(await compositePage(arts[p.n].img, p.text, p.n, false));
+      setPageImages(imgs);
+      setAssembling("Building the print PDF…");
+      if (!(window as any).PDFLib) {
+        await new Promise<void>((res, rej) => {
+          const s = document.createElement("script");
+          s.src = "/flipbook/pdf-lib.min.js";
+          s.onload = () => res(); s.onerror = () => rej(new Error("pdf-lib failed to load"));
+          document.head.appendChild(s);
+        });
+      }
+      const { PDFDocument } = (window as any).PDFLib;
+      const doc = await PDFDocument.create();
+      for (const dURL of imgs) {
+        const jpg = await doc.embedJpg(await fetch(dURL).then((r) => r.arrayBuffer()));
+        const page = doc.addPage([1009, 1559]);
+        page.drawImage(jpg, { x: 0, y: 0, width: 1009, height: 1559 });
+      }
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      pdfBlobRef.current = blob;
+      setPdfUrl(URL.createObjectURL(blob));
+      setAssembling("");
+    } catch (e: any) { setError(e?.message || String(e)); setAssembling(""); }
+  }
+
+  async function deliverNow() {
+    if (!draft || !pdfBlobRef.current || !pageImages.length) return;
+    if (!/.+@.+\..+/.test(parentEmail)) { setError("Enter the customer's email."); return; }
+    setError("");
+    try {
+      const token = `${slugify(draft.childName) || "book"}-${newToken()}`;
+      setAssembling("Building the flipbook…");
+      const tplRes = await fetch("/flipbook/template.html");
+      if (!tplRes.ok) throw new Error("Couldn't load flipbook template");
+      const template = await tplRes.text();
+      const cfg = {
+        title: draft.title, pageW: 1614, pageH: 2494, pages: pageImages,
+        pdf: { mode: "url", url: `/books/${token}.pdf`, name: `${slugify(draft.title) || "book"}.pdf` },
+      };
+      const html = template
+        .replace("__TITLE__", draft.title.replace(/&/g, "&amp;").replace(/</g, "&lt;"))
+        .replace("__CONFIG_JSON__", () => JSON.stringify(cfg).replace(/</g, "\\u003c"));
+      setAssembling("Uploading the flipbook…");
+      await upload(`books/${token}.html`, new Blob([html], { type: "text/html" }), { access: "public", handleUploadUrl: "/api/admin/blob", contentType: "text/html" });
+      setAssembling("Uploading the print PDF…");
+      await upload(`books/${token}.pdf`, pdfBlobRef.current, { access: "public", handleUploadUrl: "/api/admin/blob", contentType: "application/pdf" });
+      setAssembling("Emailing the customer + updating the order…");
+      const res = await api("/api/admin/deliver", { token, childName: draft.childName, bookTitle: draft.title, email: parentEmail, recordId: selectedId || undefined });
+      setDelivered({ bookLink: res.bookLink, pdfLink: res.pdfLink });
+      setAssembling("");
+    } catch (e: any) { setError(e?.message || String(e)); setAssembling(""); }
+  }
+
+  const artTiles = draft ? [
+    { n: 0, label: "Cover", text: draft.title },
+    ...draft.pages.map((p) => ({ n: p.n, label: `Page ${p.n}`, text: p.text })),
+  ] : [];
 
   return (
     <div className="crt-wrap">
@@ -113,7 +289,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       <div className="crt-top">
         <div>
           <h1>Create a book</h1>
-          <p className="sub">Pick a paid order — the engine writes a leveled story, QA-checks it twice, and you sign off.</p>
+          <p className="sub">Order → leveled story → illustrations → print PDF + flipbook → customer email. You approve at each step.</p>
         </div>
         <a className="crt-btn" href="/admin">&larr; Back to orders</a>
       </div>
@@ -122,7 +298,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
       <div className="crt-card">
         <h2>1 · Order</h2>
-        <select value={selectedId} onChange={(e) => { setSelectedId(e.target.value); setDraft(null); setGrade(null); setCheck(null); setSaved(""); }}>
+        <select value={selectedId} onChange={(e) => { setSelectedId(e.target.value); resetAll(); }}>
           <option value="">Choose an order…</option>
           {candidates.map((o) => (
             <option key={o.id} value={o.id}>
@@ -156,7 +332,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
       {draft && (
         <div className="crt-card">
-          <h2>2 · Draft — “{draft.title}”</h2>
+          <h2>2 · Story — “{draft.title}”</h2>
           <div className="crt-badges">
             {check && <span className={"badge " + (check.pass ? "ok" : "bad")}>{check.pass ? "✓ Level rules pass" : `✗ ${check.problems.length} rule issue(s)`}</span>}
             {grade && <span className={"badge " + (grade.pass ? "ok" : "bad")}>{grade.pass ? `✓ QA grade ${grade.score}/10` : `✗ QA grade ${grade.score}/10`}</span>}
@@ -165,9 +341,6 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           {check && !check.pass && <ul className="crt-issues">{check.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>}
           {grade && !grade.pass && <ul className="crt-issues">{grade.issues.map((p, i) => <li key={i}>{p}</li>)}</ul>}
           {grade?.praise && <p className="hint">“{grade.praise}”</p>}
-
-          <p className="hint" style={{ marginTop: 10 }}><strong>Character:</strong> {draft.characterDescription}</p>
-
           <div className="crt-pages">
             {draft.pages.map((p) => (
               <div className="crt-page" key={p.n}>
@@ -177,17 +350,87 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
               </div>
             ))}
           </div>
-
           <div className="crt-revise">
             <input placeholder="Ask for a change… e.g. 'make page 3 about her dog Biscuit'" value={note} onChange={(e) => setNote(e.target.value)} />
             <button className="crt-btn" disabled={!note.trim() || !!busy} onClick={reviseWithNote}>Revise</button>
           </div>
-
           <div className="crt-actions">
             <button className="crt-btn" disabled={!!busy} onClick={() => save(false)}>Save draft</button>
-            <button className="crt-btn crt-primary" disabled={!!busy} onClick={() => save(true)}>Approve story ✓</button>
+            <button className="crt-btn" disabled={!!busy} onClick={() => save(true)}>Approve story ✓</button>
           </div>
           {saved && <p className="crt-saved">{saved}</p>}
+        </div>
+      )}
+
+      {draft && (
+        <div className="crt-card">
+          <h2>3 · Illustrations</h2>
+          {!charRef ? (
+            <>
+              <p className="hint">First, a character sheet locks {draft.childName}&rsquo;s look so every page matches.</p>
+              <button className="crt-btn crt-primary" disabled={!!artBusy} onClick={genCharacter}>{artBusy || "Draw character sheet"}</button>
+            </>
+          ) : (
+            <>
+              <div className="crt-char">
+                <img src={"data:image/png;base64," + charRef} alt="Character sheet" />
+                <div>
+                  <p className="hint">{draft.characterDescription}</p>
+                  <div className="crt-actions" style={{ justifyContent: "flex-start" }}>
+                    <button className="crt-btn" disabled={!!artBusy} onClick={genCharacter}>Redraw character</button>
+                    <button className="crt-btn crt-primary" disabled={!!artBusy} onClick={genAllArt}>
+                      {artBusy || (Object.keys(arts).length ? "Regenerate all pages" : `Illustrate cover + ${draft.pages.length} pages`)}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {Object.keys(arts).length > 0 && (
+                <div className="crt-grid">
+                  {artTiles.map((t) => {
+                    const a = arts[t.n];
+                    return (
+                      <div className="crt-tile" key={t.n}>
+                        <div className="tlabel">{t.label} {a?.qa ? (a.qa.pass ? "✓" : "⚠") : ""}</div>
+                        {a ? <img src={"data:image/png;base64," + a.img} alt={t.label} /> : <div className="tempty">…</div>}
+                        {a?.qa && !a.qa.pass && <p className="tissue">{a.qa.issues.join("; ")}</p>}
+                        <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>Redo</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {artDone && (
+        <div className="crt-card">
+          <h2>4 · Assemble &amp; deliver</h2>
+          <button className="crt-btn crt-primary" disabled={!!assembling} onClick={assemble}>{assembling || (pdfUrl ? "Re-assemble book" : "Assemble book")}</button>
+          {pdfUrl && (
+            <>
+              <iframe className="crt-preview" src={pdfUrl} title="Book preview" />
+              <p><a className="crt-btn" href={pdfUrl} download={(slugify(draft!.title) || "book") + ".pdf"}>Download print PDF</a></p>
+              <div className="crt-row">
+                <label>Customer email
+                  <input value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} placeholder="parent@example.com" />
+                </label>
+              </div>
+              {!delivered && (
+                <button className="crt-btn crt-primary" disabled={!!assembling} onClick={deliverNow}>
+                  {assembling || `Send book to ${parentEmail || "customer"} ✓`}
+                </button>
+              )}
+              {delivered && (
+                <div className="crt-done">
+                  <p className="big">✓ Delivered!</p>
+                  <p>Book link: <a href={delivered.bookLink} target="_blank" rel="noreferrer">{delivered.bookLink}</a></p>
+                  <p>Print PDF: <a href={delivered.pdfLink} target="_blank" rel="noreferrer">{delivered.pdfLink}</a></p>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -197,7 +440,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 }
 
 const CSS = `
-  .crt-wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 64px; color: #2f2a24; font-family: Inter, system-ui, sans-serif; }
+  .crt-wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 64px; color: #2f2a24; font-family: Inter, system-ui, sans-serif; }
   .crt-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
   .crt-top h1 { margin: 0; font-size: 1.7rem; }
   .crt-top .sub { color: #7a7164; margin: 4px 0 0; font-size: .92rem; }
@@ -219,9 +462,21 @@ const CSS = `
   .crt-page textarea { border: none; background: transparent; padding: 0; font-size: 1rem; resize: vertical; }
   .crt-page details { font-size: .82rem; color: #7a7164; margin-top: 6px; } .crt-page summary { cursor: pointer; font-weight: 600; }
   .crt-revise { display: flex; gap: 10px; margin: 12px 0; } .crt-revise input { flex: 1; }
-  .crt-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .crt-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
   .crt-saved { color: #2f5e38; font-weight: 700; }
   .crt-error { color: #b3261e; font-weight: 600; }
   .hint { font-size: .84rem; color: #7a7164; }
-  @media (max-width: 640px) { .crt-row { flex-direction: column; } }
+  .crt-char { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 14px; }
+  .crt-char img { width: 140px; border-radius: 10px; box-shadow: 0 3px 10px rgba(47,42,36,.18); }
+  .crt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 14px; }
+  .crt-tile { text-align: center; }
+  .crt-tile img { width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(47,42,36,.15); }
+  .crt-tile .tlabel { font-size: .74rem; font-weight: 800; color: #7a7164; margin-bottom: 4px; }
+  .crt-tile .tissue { font-size: .7rem; color: #8c2f25; }
+  .crt-tile .tsmall { padding: 4px 12px; font-size: .76rem; margin-top: 4px; }
+  .tempty { height: 180px; background: #f6f0e4; border-radius: 8px; }
+  .crt-preview { width: 100%; height: 560px; border: 1px solid #e7e0d4; border-radius: 12px; margin: 14px 0; background: #fff; }
+  .crt-done .big { color: #2f5e38; font-weight: 800; font-size: 1.05rem; }
+  .crt-done a { color: #b96e3c; word-break: break-all; }
+  @media (max-width: 640px) { .crt-row, .crt-char { flex-direction: column; } }
 `;
