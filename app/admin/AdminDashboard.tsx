@@ -272,6 +272,9 @@ export default function AdminDashboard({ initialOrders, loadError }: Props) {
                         href={`/admin/deliver?recordId=${o.id}&child=${encodeURIComponent(field(o, "Child name") || "")}&email=${encodeURIComponent(field(o, "Parent email") || "")}`}
                       >
                         Deliver
+                      </a>{" "}
+                      <a className="admin-btn" href={`/admin/create?recordId=${o.id}`}>
+                        Create
                       </a>
                     </td>
                   </tr>
