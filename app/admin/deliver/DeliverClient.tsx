@@ -101,7 +101,9 @@ export default function DeliverClient() {
         canvas.width = Math.round(vp.width);
         canvas.height = Math.round(vp.height);
         if (i === 1) pageH = canvas.height;
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+        // intent "print" renders via timers, not requestAnimationFrame —
+        // rAF freezes in background tabs and hangs the render forever.
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp, intent: "print" }).promise;
         pages.push(canvas.toDataURL("image/jpeg", 0.82));
       }
 
