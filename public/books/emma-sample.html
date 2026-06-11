@@ -81,11 +81,17 @@
   }
   #book .page {
     background-color: #fff;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
     border-radius: 2px;
     overflow: hidden;
+  }
+  #book .page img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
   }
   /* subtle inner spine shading on each page */
   #book .page.--left::after,
@@ -281,7 +287,10 @@
     CFG.pages.forEach(function (src, i) {
       var p = document.createElement("div");
       p.className = "page";
-      p.style.backgroundImage = "url(" + src + ")";
+      var im = document.createElement("img");
+      im.src = src;
+      im.alt = "Page " + (i + 1);
+      p.appendChild(im);
       if (i === 0 || i === total - 1) p.setAttribute("data-density", "hard");
       bookEl.appendChild(p);
     });
