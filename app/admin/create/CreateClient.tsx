@@ -54,6 +54,19 @@ function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("image decode failed")); i.src = src; });
 }
 
+async function fileToJpegB64(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImg(url);
+    const max = 1024;
+    const s = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85).split(",")[1];
+  } finally { URL.revokeObjectURL(url); }
+}
+
 // Composite a book page: full-bleed art + typeset text band (text is never AI-rendered).
 async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean): Promise<string> {
   const W = 1614, H = 2494; // 1009x1559pt page at ~1.6x
@@ -107,6 +120,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   // Phase 2: art + assembly + delivery
   const [charRef, setCharRef] = useState("");
+  const [photoB64, setPhotoB64] = useState("");
+  const photoInput = useRef<HTMLInputElement>(null);
   const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA }>>({});
   const [artBusy, setArtBusy] = useState("");
   const [assembling, setAssembling] = useState("");
@@ -184,7 +199,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     if (!draft) return;
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
-      const r = await art({ action: "character", description: draft.characterDescription });
+      const r = await art({ action: "character", description: draft.characterDescription, photo: photoB64 || undefined });
       setCharRef(r.image); setArts({}); setPdfUrl(""); setDelivered(null);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
@@ -398,6 +413,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       {draft && (
         <div className="crt-card">
           <h2>3 · Illustrations</h2>
+          <input ref={photoInput} type="file" accept="image/jpeg,image/png" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) setPhotoB64(await fileToJpegB64(f)); }} />
+          {photoB64 ? (
+            <p className="hint">✓ Reference photo attached — the character (and any pet in the photo) will be drawn from it, stylized, never photorealistic.{" "}
+              <button className="crt-btn tsmall" onClick={() => setPhotoB64("")}>Remove</button></p>
+          ) : (
+            <p className="hint">Optional: <button className="crt-btn tsmall" onClick={() => photoInput.current?.click()}>Attach a reference photo</button> of the child (and pet) — the character sheet will match it. JPG or PNG.</p>
+          )}
           {!charRef ? (
             <>
               <p className="hint">First, a character sheet locks {draft.childName}&rsquo;s look so every page matches.</p>
