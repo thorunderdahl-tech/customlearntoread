@@ -21,12 +21,18 @@ export async function POST(req: NextRequest) {
 
     if (action === "character") {
       const desc = body.description as string;
+      const photo = body.photo as string | undefined; // parent-provided reference photo (base64 JPEG)
       if (!desc) return NextResponse.json({ error: "Missing description" }, { status: 400 });
-      const img = await generateImage(
-        `${STYLE}\n\nCharacter reference sheet: a single child character shown clearly — full body, front view, neutral happy pose, plain soft cream background. The character: ${desc}. This image defines the character's exact look for a whole book; make hair, eyes, skin and outfit unmistakable.`,
-        [],
-        "2:3",
-      );
+      const prompt = photo
+        ? `${STYLE}
+
+Using the attached real photo as visual reference (provided by the child's parent), create a STYLIZED storybook character version of the child — warm illustrated picture-book style, clearly NOT photorealistic. Faithfully capture the child's hair color and texture, eye color, skin tone, and overall vibe from the photo. If a pet appears in the photo, include the pet beside the child on the sheet with its breed, coloring and fur faithfully stylized too.
+
+Character reference sheet: full body, front view, neutral happy pose, plain soft cream background. This sheet defines the look for a whole book — make every feature unmistakable. Also honor this description: ${desc}`
+        : `${STYLE}
+
+Character reference sheet: a single child character shown clearly — full body, front view, neutral happy pose, plain soft cream background. The character: ${desc}. This image defines the character's exact look for a whole book; make hair, eyes, skin and outfit unmistakable.`;
+      const img = await generateImage(prompt, photo ? [photo] : [], "2:3");
       return NextResponse.json({ image: img.data, mime: img.mime });
     }
 
