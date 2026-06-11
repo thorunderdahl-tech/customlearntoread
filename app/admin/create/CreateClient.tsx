@@ -42,6 +42,14 @@ function newToken(): string {
 }
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30);
 
+async function downscale(dataUrl: string, w: number, q: number): Promise<string> {
+  const img = await loadImg(dataUrl);
+  const h = Math.round((img.height / img.width) * w);
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  c.getContext("2d")!.drawImage(img, 0, 0, w, h);
+  return c.toDataURL("image/jpeg", q);
+}
+
 function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("image decode failed")); i.src = src; });
 }
@@ -260,8 +268,12 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const tplRes = await fetch("/flipbook/template.html");
       if (!tplRes.ok) throw new Error("Couldn't load flipbook template");
       const template = await tplRes.text();
+      // The print PDF keeps full resolution; the flipbook gets a lighter copy
+      // so the page loads fast on phones.
+      const flipPages = [];
+      for (const d of pageImages) flipPages.push(await downscale(d, 1000, 0.8));
       const cfg = {
-        title: draft.title, pageW: 1614, pageH: 2494, pages: pageImages,
+        title: draft.title, pageW: 1000, pageH: Math.round((2494 / 1614) * 1000), pages: flipPages,
         pdf: { mode: "url", url: `/books/${token}.pdf`, name: `${slugify(draft.title) || "book"}.pdf` },
       };
       const html = template
