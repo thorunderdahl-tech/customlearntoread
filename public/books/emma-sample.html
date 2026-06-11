@@ -233,7 +233,19 @@
 
   function init() {
     var stage = document.getElementById("stage");
+    var bookEl = document.getElementById("book");
     var aspect = CFG.pageH / CFG.pageW; // height per width of ONE page
+
+    // page-flip "stretch" fills the parent WIDTH only, so cap the parent
+    // width such that the resulting height also fits the stage.
+    function applySize() {
+      var availW = stage.clientWidth, availH = stage.clientHeight;
+      var pagesAcross = availW < 620 ? 1 : 2;
+      var w = Math.min(availW / pagesAcross, availH / aspect);
+      bookEl.style.width = Math.max(180, Math.floor(w * pagesAcross)) + "px";
+    }
+    applySize();
+    window.addEventListener("resize", applySize);
 
     function fit() {
       var availW = stage.clientWidth;
@@ -263,7 +275,6 @@
     });
 
     var total = CFG.pages.length;
-    var bookEl = document.getElementById("book");
     CFG.pages.forEach(function (src, i) {
       var p = document.createElement("div");
       p.className = "page";
