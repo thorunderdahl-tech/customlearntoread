@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession, sessionSecret, ADMIN_COOKIE } from "@/lib/auth";
 
-// Gate the admin dashboard and its API. Everything else is untouched.
+// Gate the admin dashboard, the interview simulator, and their APIs.
+// Everything else is untouched.
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/api/admin/:path*",
+    "/interview",
+    "/interview/:path*",
+    "/api/interview",
+    "/api/interview/:path*",
+  ],
 };
 
 export async function middleware(req: NextRequest) {
