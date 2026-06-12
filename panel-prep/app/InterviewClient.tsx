@@ -90,6 +90,7 @@ export default function InterviewClient() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [apiError, setApiError] = useState("");
   const [showHint, setShowHint] = useState(false);
+  const [showModel, setShowModel] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
   // Follow-up exchange state
@@ -129,6 +130,7 @@ export default function InterviewClient() {
     setFeedback(null);
     setApiError("");
     setShowHint(false);
+    setShowModel(false);
     setElapsed(0);
     setFuAnswer("");
     setFuStatus("idle");
@@ -337,11 +339,23 @@ export default function InterviewClient() {
                 <span className={spokenClass}>
                   ~{fmt(spoken)} spoken at {WPM} wpm {spoken > 120 ? "— too long for this panel, cut it" : spoken > 90 ? "— getting long" : ""}
                 </span>
-                <button className="iv-link" onClick={() => setShowHint((v) => !v)}>
-                  {showHint ? "Hide hint" : "What are they listening for?"}
-                </button>
+                <span className="iv-hintbtns">
+                  <button className="iv-link" onClick={() => setShowHint((v) => !v)}>
+                    {showHint ? "Hide hint" : "What are they listening for?"}
+                  </button>
+                  <button className="iv-link" onClick={() => setShowModel((v) => !v)}>
+                    {showModel ? "Hide strong answer" : "Show a strong answer"}
+                  </button>
+                </span>
               </div>
               {showHint && <div className="iv-hint">{current.question.hint}</div>}
+              {showModel && (
+                <div className="iv-model">
+                  <strong>A strong answer</strong>{" "}
+                  <em>(bracketed [slots] = swap in your own specifics, then say it in your own words)</em>
+                  <p>{current.question.modelAnswer}</p>
+                </div>
+              )}
               {apiError && (
                 <p className="iv-error">
                   {apiError} — <button className="iv-link" onClick={submitAnswer}>retry</button> or{" "}
@@ -380,6 +394,17 @@ export default function InterviewClient() {
               ) : (
                 <div className="iv-hint">
                   <strong>What {current.panelist.name} was listening for:</strong> {current.question.hint}
+                </div>
+              )}
+
+              <button className="iv-link" onClick={() => setShowModel((v) => !v)}>
+                {showModel ? "Hide strong answer" : "Compare with a strong answer"}
+              </button>
+              {showModel && (
+                <div className="iv-model">
+                  <strong>A strong answer</strong>{" "}
+                  <em>(bracketed [slots] = swap in your own specifics)</em>
+                  <p>{current.question.modelAnswer}</p>
                 </div>
               )}
 
@@ -563,6 +588,13 @@ export default function InterviewClient() {
           background: #fff7e6; border: 1px solid #f0dcae; border-radius: 12px;
           padding: 12px 14px; font-size: 0.9rem; line-height: 1.5; margin: 8px 0; color: #5a4a22;
         }
+        .iv-hintbtns { display: flex; gap: 14px; flex-wrap: wrap; }
+        .iv-model {
+          background: #eef3f7; border: 1px solid #ccdce8; border-radius: 12px;
+          padding: 12px 14px; font-size: 0.92rem; line-height: 1.55; margin: 8px 0; color: #25404f;
+        }
+        .iv-model em { font-size: 0.8rem; color: #54707f; font-style: italic; }
+        .iv-model p { margin: 8px 0 0; color: #25404f; white-space: pre-wrap; }
         .iv-error { color: #b3261e; font-size: 0.9rem; }
         .iv-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
         .iv-given { background: #fdfaf4; border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; }
