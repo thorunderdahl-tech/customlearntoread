@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession, sessionSecret, ADMIN_COOKIE } from "@/lib/auth";
 
-// Gate the admin dashboard and its API. Everything else is untouched.
+// The whole app is private: everything except the login page, the auth
+// endpoint, and Next.js static assets requires a valid session cookie.
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Public endpoints needed to log in.
-  if (pathname === "/admin/login" || pathname === "/api/admin/auth") {
+  if (pathname === "/login" || pathname === "/api/auth") {
     return NextResponse.next();
   }
 
@@ -18,12 +18,11 @@ export async function middleware(req: NextRequest) {
   const ok = await verifySession(token, sessionSecret());
   if (ok) return NextResponse.next();
 
-  // API calls get a clean 401; page requests get redirected to login.
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const url = req.nextUrl.clone();
-  url.pathname = "/admin/login";
+  url.pathname = "/login";
   url.searchParams.set("next", pathname);
   return NextResponse.redirect(url);
 }

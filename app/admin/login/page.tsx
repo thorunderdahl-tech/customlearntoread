@@ -20,8 +20,7 @@ export default function AdminLoginPage() {
       if (res.ok) {
         const params = new URLSearchParams(window.location.search);
         const next = params.get("next") || "/admin";
-        window.location.href =
-          next.startsWith("/admin") || next.startsWith("/interview") ? next : "/admin";
+        window.location.href = next.startsWith("/admin") ? next : "/admin";
         return;
       }
       const j = await res.json().catch(() => ({}));
