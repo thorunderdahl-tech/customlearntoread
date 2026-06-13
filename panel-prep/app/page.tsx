@@ -1,5 +1,5 @@
-import InterviewClient from "./InterviewClient";
+import Home from "./Home";
 
 export default function HomePage() {
-  return <InterviewClient />;
+  return <Home />;
 }

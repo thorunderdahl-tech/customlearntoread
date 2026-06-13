@@ -5,6 +5,7 @@ import {
   PANELISTS, THE_ROOM, THREE_MESSAGES,
   type Panelist, type InterviewQuestion,
 } from "@/lib/interview";
+import { useSpeech, countFillers } from "@/lib/speech";
 
 type Mode = "panel" | "single" | "tough";
 
@@ -45,6 +46,23 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+// Past per-question scores, used to bias new sessions toward weak spots.
+function loadScores(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem("pp-qscores") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveScore(qid: string, score: number) {
+  try {
+    const m = loadScores();
+    m[qid] = score;
+    localStorage.setItem("pp-qscores", JSON.stringify(m));
+  } catch {}
+}
+
 function buildQueue(mode: Mode, singleId: string): Item[] {
   if (mode === "single") {
     const p = PANELISTS.find((x) => x.id === singleId) || PANELISTS[0];
@@ -58,9 +76,13 @@ function buildQueue(mode: Mode, singleId: string): Item[] {
     return [...shuffle(items), { panelist: THE_ROOM, question: THE_ROOM.questions[0] }];
   }
   // Full panel: two questions per panelist, shuffled order, closer at the end.
+  // Questions you scored ≤3 on last time jump the line until you fix them.
+  const scores = loadScores();
   const items: Item[] = [];
   for (const p of PANELISTS) {
-    for (const q of shuffle(p.questions).slice(0, 2)) items.push({ panelist: p, question: q });
+    const weak = shuffle(p.questions.filter((q) => (scores[q.id] ?? 99) <= 3));
+    const rest = shuffle(p.questions.filter((q) => !weak.includes(q)));
+    for (const q of [...weak, ...rest].slice(0, 2)) items.push({ panelist: p, question: q });
   }
   return [...shuffle(items), { panelist: THE_ROOM, question: THE_ROOM.questions[0] }];
 }
@@ -93,6 +115,14 @@ export default function InterviewClient() {
   const [showModel, setShowModel] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
+  // Voice answering + pacing telemetry
+  const speech = useSpeech();
+  const [voiceSec, setVoiceSec] = useState<number | null>(null);
+  const [fillers, setFillers] = useState(0);
+  const [coldStart, setColdStart] = useState<number | null>(null);
+  const voiceStartRef = useRef<number | null>(null);
+  const firstInputRef = useRef<number | null>(null);
+
   // Follow-up exchange state
   const [fuAnswer, setFuAnswer] = useState("");
   const [fuStatus, setFuStatus] = useState<"idle" | "scoring" | "scored">("idle");
@@ -111,7 +141,25 @@ export default function InterviewClient() {
     return () => clearInterval(t);
   }, [phase, status, idx]);
 
-  const spoken = useMemo(() => spokenSeconds(answer), [answer]);
+  // Mirror the live transcript into the answer box while recording.
+  useEffect(() => {
+    if (!speech.listening) return;
+    setAnswer(speech.transcript);
+    if (firstInputRef.current === null && speech.transcript.trim()) markFirstInput();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speech.transcript, speech.listening]);
+
+  function markFirstInput() {
+    if (firstInputRef.current !== null) return;
+    firstInputRef.current = Date.now();
+    setColdStart(Math.round((Date.now() - startRef.current) / 1000));
+  }
+
+  // Real spoken time (from a voice take) beats the word-count estimate.
+  const spoken = useMemo(
+    () => voiceSec ?? spokenSeconds(answer),
+    [answer, voiceSec],
+  );
 
   function start(m: Mode) {
     setMode(m);
@@ -135,7 +183,28 @@ export default function InterviewClient() {
     setFuAnswer("");
     setFuStatus("idle");
     setFuFeedback(null);
+    speech.stop();
+    setVoiceSec(null);
+    setFillers(0);
+    setColdStart(null);
+    voiceStartRef.current = null;
+    firstInputRef.current = null;
     startRef.current = Date.now();
+  }
+
+  function startVoice() {
+    voiceStartRef.current = Date.now();
+    setVoiceSec(null);
+    setAnswer("");
+    speech.start();
+  }
+
+  function stopVoice() {
+    speech.stop();
+    if (voiceStartRef.current) {
+      setVoiceSec(Math.round((Date.now() - voiceStartRef.current) / 1000));
+    }
+    setFillers(countFillers(answer));
   }
 
   async function callRespond(body: Record<string, unknown>): Promise<Feedback | null> {
@@ -158,6 +227,16 @@ export default function InterviewClient() {
 
   async function submitAnswer() {
     if (!answer.trim() || !current) return;
+    let spokenNow = spoken;
+    if (speech.listening) {
+      // Stopping mid-recording: compute the real take length synchronously.
+      speech.stop();
+      if (voiceStartRef.current) {
+        spokenNow = Math.round((Date.now() - voiceStartRef.current) / 1000);
+        setVoiceSec(spokenNow);
+      }
+      setFillers(countFillers(answer));
+    }
     setStatus("scoring");
     setApiError("");
     try {
@@ -165,15 +244,16 @@ export default function InterviewClient() {
         panelistId: current.panelist.id,
         question: current.question.text,
         answer,
-        spokenSeconds: spoken,
+        spokenSeconds: spokenNow,
       });
       setFeedback(fb);
+      if (fb) saveScore(current.question.id, fb.score);
       setEntries((prev) => [...prev, {
         panelist: current.panelist.name,
         question: current.question.text,
         answer,
         score: fb?.score,
-        spokenSec: spoken,
+        spokenSec: spokenNow,
       }]);
       setStatus("scored");
       if (!fb) setShowHint(true); // no AI — dossier hint becomes the feedback
@@ -326,18 +406,48 @@ export default function InterviewClient() {
 
           {status !== "scored" && (
             <>
+              {speech.supported && (
+                <div className="iv-voicebar">
+                  {!speech.listening ? (
+                    <button className="iv-btn" onClick={startVoice} disabled={status === "scoring"}>
+                      🎙 {voiceSec !== null ? "Re-record" : "Answer by voice"}
+                    </button>
+                  ) : (
+                    <button className="iv-btn rec" onClick={stopVoice}>■ Stop recording</button>
+                  )}
+                  {speech.listening && (
+                    <span className="iv-reclight">● recording — answer like they're across the table</span>
+                  )}
+                  {!speech.listening && voiceSec !== null && (
+                    <span className="iv-voicestats">
+                      spoke {fmt(voiceSec)}{fillers > 0 ? ` · ${fillers} filler word${fillers === 1 ? "" : "s"}` : " · no fillers"} — edit below if the mic misheard you
+                    </span>
+                  )}
+                </div>
+              )}
               <textarea
                 className="iv-answer"
-                placeholder="Speak your answer out loud first, then type the spine of it here — headline, one proof point, close."
+                placeholder={speech.supported
+                  ? "Hit 🎙 and say it out loud (the panel hears voices, not keyboards) — or type the spine: headline, one proof point, close."
+                  : "Speak your answer out loud first, then type the spine of it here — headline, one proof point, close."}
                 value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
+                onChange={(e) => {
+                  setAnswer(e.target.value);
+                  if (e.target.value.trim()) markFirstInput();
+                }}
                 rows={7}
-                disabled={status === "scoring"}
+                disabled={status === "scoring" || speech.listening}
                 autoFocus
               />
               <div className="iv-meta">
                 <span className={spokenClass}>
-                  ~{fmt(spoken)} spoken at {WPM} wpm {spoken > 120 ? "— too long for this panel, cut it" : spoken > 90 ? "— getting long" : ""}
+                  {voiceSec !== null ? `${fmt(spoken)} spoken` : `~${fmt(spoken)} spoken at ${WPM} wpm`}
+                  {spoken > 120 ? " — too long for this panel, cut it" : spoken > 90 ? " — getting long" : ""}
+                  {coldStart !== null && (
+                    <em className={coldStart > 10 ? "over" : ""}>
+                      {" "}· started at {coldStart}s{coldStart > 10 ? " — panels read hesitation, aim for under 10" : ""}
+                    </em>
+                  )}
                 </span>
                 <span className="iv-hintbtns">
                   <button className="iv-link" onClick={() => setShowHint((v) => !v)}>
@@ -589,6 +699,11 @@ export default function InterviewClient() {
           padding: 12px 14px; font-size: 0.9rem; line-height: 1.5; margin: 8px 0; color: #5a4a22;
         }
         .iv-hintbtns { display: flex; gap: 14px; flex-wrap: wrap; }
+        .iv-voicebar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+        .iv-btn.rec { background: #b3261e; color: #fff; border-color: transparent; }
+        .iv-reclight { color: #b3261e; font-weight: 700; font-size: 0.88rem; }
+        .iv-voicestats { color: var(--muted, #665d52); font-size: 0.85rem; }
+        .iv-meta em { font-style: normal; }
         .iv-model {
           background: #eef3f7; border: 1px solid #ccdce8; border-radius: 12px;
           padding: 12px 14px; font-size: 0.92rem; line-height: 1.55; margin: 8px 0; color: #25404f;

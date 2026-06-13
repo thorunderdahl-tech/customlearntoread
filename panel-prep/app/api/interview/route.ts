@@ -3,11 +3,13 @@ import { claude, llmConfigured, parseJsonBlock } from "@/lib/llm";
 import {
   getPanelist, CANDIDATE_PROFILE, STATE_OF_PLAY, COACHING_RUBRIC, THREE_MESSAGES,
 } from "@/lib/interview";
+import { getDrill } from "@/lib/drills";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Actions: respond (score one answer + in-character follow-up) | debrief (whole session)
+// Actions: respond (score one answer + in-character follow-up)
+//        | debrief (whole session) | drill (check one rep against its beats)
 
 type RespondBody = {
   action: "respond";
@@ -89,6 +91,19 @@ export async function POST(req: NextRequest) {
       const raw = await claude({ system, user, maxTokens: 1100 });
       const db = parseJsonBlock<Debrief>(raw);
       return NextResponse.json(db);
+    }
+
+    if (body?.action === "drill") {
+      const item = getDrill(body.drillId);
+      const rep = (body.rep || "") as string;
+      const seconds = Math.round(Number(body.seconds) || 0);
+      if (!item || !rep.trim()) {
+        return NextResponse.json({ error: "Missing drill or rep" }, { status: 400 });
+      }
+      const system = `You are a drill-to-criterion coach. The candidate is rehearsing fixed spine content until it is automatic. Judge strictly but fairly: paraphrase is fine, missing or inaccurate beats are not. Ground judgments in the dossier facts below.\n\n${COACH_CONTEXT}`;
+      const user = `DRILL: ${item.title}\n\nTARGET — the rep must cover these beats, in the candidate's own words:\n${item.target}\n\nTIME: the rep took ~${seconds}s against a ${item.limitSec}s limit.\n\nTHE REP (spoken transcript or typed):\n${rep}\n\nA rep is "clean" only if it covers every required beat accurately (no overstated facts), stays on-message, and fits the time limit. Reply with ONLY a JSON object:\n{\n  "clean": <true/false>,\n  "missed": ["<beats missing, wrong, or overstated — max 4; empty if clean>"],\n  "note": "<one blunt sentence: the verdict plus the single most important fix>"\n}`;
+      const raw = await claude({ system, user, maxTokens: 600 });
+      return NextResponse.json(parseJsonBlock<{ clean: boolean; missed: string[]; note: string }>(raw));
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
