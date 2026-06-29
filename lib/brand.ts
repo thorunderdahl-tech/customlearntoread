@@ -29,7 +29,8 @@ export const BRAND_STORY_VOICE = `BRAND VOICE (Custom Learn to Read):
 - Warm, plain-spoken, confident, encouraging — reassuring, never hype-y. Confidence over challenge.
 - The child is ALWAYS the hero and ALWAYS succeeds; the ending is positive; the child is NEVER the joke. Every book builds reading confidence.
 - Personal and modern; never flashy, overstimulating, babyish, corporate, or "AI-sounding."
-- Do NOT feature the brand mascot (Bella, a calm goldendoodle) inside the child's story unless the order specifically asks for a dog — the child is the star, not a mascot.`;
+- Do NOT feature the brand mascot (Bella, a calm goldendoodle) inside the child's story unless the order specifically asks for a dog — the child is the star, not a mascot.
+- Default feeling is happy and positive for every character. Only give a page a different emotion if the story genuinely needs it; keep any non-positive feeling rare and mild, and resolve it warmly. In the illustration directions (artPrompts), describe characters as happy/smiling unless the beat truly calls for another gentle feeling.`;
 
 /**
  * Brand ILLUSTRATION style — the heart of on-brand art. Prepended to every
@@ -41,4 +42,5 @@ Warm, friendly, modern children's PICTURE-BOOK illustration — a soft, hand-mad
 Clean, uncluttered compositions with generous breathing room (protect white/negative space). Large, readable, friendly facial expressions; clear simple shapes; one clear focal action per page. The picture must tell the story on its own.
 Full-bleed scene with the main subject in the UPPER TWO-THIRDS of the frame (the bottom band is reserved for the reading text, so keep that area simple).
 NOT this: no anime, manga, or comic-book look; no 3D / Pixar / CGI render; no glossy "AI-fantasy" look; nothing flashy, overstimulating, babyish, or corporate. No bluish-purple gradients, no heavy textures.
+CHARACTERS: Draw children a touch MORE REALISTIC and natural — lifelike faces, hair and proportions, less cartoony and never babyish — while staying a warm, hand-illustrated picture-book (still NOT 3D, CGI, or photorealistic). When more than one child appears, render them as SAME-AGE peers/classmates: keep every kid similar in age, height and scale — do NOT make any child look older or younger than the others. Expressions are warm and HAPPY by default; only show a different emotion when the page's story text explicitly calls for it, and even then keep it rare, mild and age-appropriate — never angry, scary, sad or distressed unless the story truly requires it.
 HARD RULES: ABSOLUTELY NO text, letters, numbers, signs, logos, brands, or watermarks anywhere in the image. No trademarked or franchise characters — generic versions only.`;

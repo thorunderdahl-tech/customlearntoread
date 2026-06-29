@@ -20,6 +20,7 @@ Every decision serves one moment: **"I can read this."** The child is the hero. 
 - Warm palette: cream/gold grounds (`#faf7f2`), caramel `#c68a52`, peach `#f5b78d`, gold, sage accents; soft warm-tinted shadows; warm near-black ink (never pure black).
 - Clean, uncluttered, **generous white space**. Large readable friendly faces. One clear focal action per page. The picture tells the story on its own.
 - Composition: full-bleed, subject in the **upper two-thirds** (bottom band reserved for reading text).
+- **Characters:** a touch **more realistic** and natural (lifelike faces/proportions, never babyish) but still hand-illustrated — not 3D/photoreal. When multiple children appear, draw them as **same-age peers** (similar age, height, scale — none older/younger). Expressions are **happy by default**; show another emotion only when the story explicitly calls for it — rare, mild, age-appropriate, never scary or angry-looking otherwise.
 - **Avoid:** anime/manga/comic, 3D/Pixar/CGI, glossy "AI-fantasy," flashy/overstimulating/babyish, bluish-purple gradients, heavy textures.
 - **Hard rules:** no text/letters/numbers/logos/brands/watermarks in the image; no trademarked or franchise characters.
 

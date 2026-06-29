@@ -59,6 +59,8 @@ Check the image:
 2. Does the scene plausibly illustrate the story text?
 3. Is there ANY text, lettering, numbers or watermark in the image?
 4. Anything inappropriate or scary for ages 3-7? Any anatomical errors (extra fingers/limbs, deformed face)?
+5. Expressions: do the characters look happy/warm? Flag any unintended angry, sad, scared or distressed face that the story text does NOT call for (the default should be happy).
+6. If more than one child appears, do they look like SAME-AGE peers? Flag it if any child looks clearly older or younger than the others.
 Reply ONLY JSON: {"pass": true|false, "issues": ["short fixable issue", ...]}`,
         image,
       );
