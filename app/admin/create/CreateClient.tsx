@@ -67,38 +67,86 @@ async function fileToJpegB64(file: File): Promise<string> {
   } finally { URL.revokeObjectURL(url); }
 }
 
-// Composite a book page: full-bleed art + typeset text band (text is never AI-rendered).
+// ---- Print spec (brand sheet): 5.5"x8.5" trim + 0.125" bleed, 300 DPI, 0.5" safe area ----
+const DPI = 300;
+const PAGE_W = Math.round(5.75 * DPI); // 1725 px = trim 5.5" + 0.125" bleed each side
+const PAGE_H = Math.round(8.75 * DPI); // 2625 px
+const SAFE = Math.round(0.625 * DPI);  // 188 px from page edge to safe area (0.125" bleed + 0.5" safe)
+const TRIM_PT_W = 5.75 * 72;           // 414 pt — bleed page in PDF points (1 px = 1/300", so 300 DPI)
+const TRIM_PT_H = 8.75 * 72;           // 630 pt
+const pt = (n: number) => Math.round((n * DPI) / 72); // type points -> px at 300 DPI
+
+// Load the book fonts before rasterizing text onto the canvas (Andika interior,
+// Montserrat cover). Falls back to system fonts if Google Fonts is unreachable.
+async function ensureBookFonts(): Promise<void> {
+  try {
+    const fonts: any = (document as any).fonts;
+    if (!fonts?.load) return;
+    await Promise.all([
+      fonts.load(`700 ${pt(36)}px Andika`),
+      fonts.load(`400 ${pt(36)}px Andika`),
+      fonts.load(`800 ${pt(40)}px Montserrat`),
+    ]);
+    await fonts.ready;
+  } catch { /* system fallback */ }
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
+  const ws = text.split(/\s+/); const lines: string[] = []; let line = "";
+  for (const w of ws) { const t = line ? line + " " + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// Composite a print-ready book page: full-bleed art (to the 0.125" bleed edge) +
+// typeset text kept inside the 0.5" safe area. Text is never AI-rendered.
+// Interior text is Andika at ~36pt (brand-required 32-40pt); cover is Montserrat.
 async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean): Promise<string> {
-  const W = 1614, H = 2494; // 1009x1559pt page at ~1.6x
+  const W = PAGE_W, H = PAGE_H;
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+  // Cream ground so any rounding gap never shows as white.
+  ctx.fillStyle = "#faf7f2"; ctx.fillRect(0, 0, W, H);
+  // Full-bleed art: cover-fit so it reaches every edge, including the bleed.
   const img = await loadImg("data:image/png;base64," + artB64);
   const s = Math.max(W / img.width, H / img.height);
   ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
 
-  const bandH = Math.round(H * (isCover ? 0.16 : 0.2));
-  ctx.fillStyle = "rgba(253,252,255,0.97)";
-  ctx.fillRect(0, H - bandH, W, bandH);
-
-  ctx.fillStyle = "#3b2a82";
-  const fs = Math.round(isCover ? H * 0.034 : H * 0.026);
-  ctx.font = `700 ${fs}px Inter, "Segoe UI", system-ui, sans-serif`;
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  const maxW = W * 0.84;
-  const ws = text.split(/\s+/); const lines: string[] = []; let line = "";
-  for (const w of ws) { const t = line ? line + " " + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
-  if (line) lines.push(line);
-  const lh = fs * 1.35; const cy = H - bandH / 2 - ((lines.length - 1) * lh) / 2;
-  lines.forEach((l, i) => ctx.fillText(l, W / 2, cy + i * lh));
+  const maxW = W - SAFE * 2; // keep all text inside the safe area
 
-  if (!isCover) {
-    ctx.fillStyle = "#e87dab";
-    ctx.font = `600 ${Math.round(H * 0.013)}px Inter, system-ui, sans-serif`;
-    ctx.textAlign = "left";
-    ctx.fillText(String(pageNo), W * 0.045, H - H * 0.018);
+  if (isCover) {
+    const fs = pt(40);
+    ctx.font = `800 ${fs}px Montserrat, "Segoe UI", system-ui, sans-serif`;
+    const lines = wrapText(ctx, text, maxW);
+    const lh = fs * 1.18;
+    const blockH = lines.length * lh;
+    const blockTop = H - SAFE - blockH; // title block ends at the safe-area bottom line
+    ctx.fillStyle = "rgba(250,247,242,0.92)";
+    ctx.fillRect(0, blockTop - pt(22), W, H - (blockTop - pt(22)));
+    ctx.fillStyle = "#1f2a44";
+    lines.forEach((l, i) => ctx.fillText(l, W / 2, blockTop + lh / 2 + i * lh));
+    return c.toDataURL("image/jpeg", 0.92);
   }
-  return c.toDataURL("image/jpeg", 0.86);
+
+  // Interior reading text — Andika, big and literacy-safe, inside the safe area.
+  const fs = pt(36);
+  ctx.font = `700 ${fs}px Andika, "Comic Sans MS", system-ui, sans-serif`;
+  const lines = wrapText(ctx, text, maxW);
+  const lh = fs * 1.32;
+  const blockH = lines.length * lh;
+  const blockTop = H - SAFE - blockH; // text block sits just above the safe-area bottom
+  ctx.fillStyle = "rgba(250,247,242,0.95)";
+  ctx.fillRect(0, blockTop - pt(24), W, H - (blockTop - pt(24)));
+  ctx.fillStyle = "#2f2a24";
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, blockTop + lh / 2 + i * lh));
+
+  // Page number — small, inside the safe area.
+  ctx.fillStyle = "#8c5b37";
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.font = `600 ${pt(11)}px Andika, system-ui, sans-serif`;
+  ctx.fillText(String(pageNo), SAFE, H - SAFE + pt(18));
+  return c.toDataURL("image/jpeg", 0.92);
 }
 
 export default function CreateClient({ initialOrders, loadError }: { initialOrders: AirtableOrder[]; loadError: string | null }) {
@@ -257,6 +305,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setError(""); setDelivered(null);
     try {
       setAssembling("Typesetting pages…");
+      await ensureBookFonts();
       const imgs: string[] = [await compositePage(arts[0].img, draft.title, 0, true)];
       for (const p of draft.pages) imgs.push(await compositePage(arts[p.n].img, p.text, p.n, false));
       setPageImages(imgs);
@@ -273,8 +322,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const doc = await PDFDocument.create();
       for (const dURL of imgs) {
         const jpg = await doc.embedJpg(await fetch(dURL).then((r) => r.arrayBuffer()));
-        const page = doc.addPage([396, 612]); // 5.5in x 8.5in portrait
-        page.drawImage(jpg, { x: 0, y: 0, width: 396, height: 612 });
+        const page = doc.addPage([TRIM_PT_W, TRIM_PT_H]); // 5.75x8.75in = 5.5x8.5 trim + 0.125" bleed, art at 300 DPI
+        page.drawImage(jpg, { x: 0, y: 0, width: TRIM_PT_W, height: TRIM_PT_H });
       }
       const bytes = await doc.save();
       const blob = new Blob([bytes], { type: "application/pdf" });
@@ -299,7 +348,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const flipPages = [];
       for (const d of pageImages) flipPages.push(await downscale(d, 1000, 0.8));
       const cfg = {
-        title: draft.title, pageW: 1000, pageH: Math.round((2494 / 1614) * 1000), pages: flipPages,
+        title: draft.title, pageW: 1000, pageH: Math.round((PAGE_H / PAGE_W) * 1000), pages: flipPages,
         pdf: { mode: "url", url: `/books/${token}.pdf`, name: `${slugify(draft.title) || "book"}.pdf` },
       };
       const html = template
