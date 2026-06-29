@@ -129,17 +129,23 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
     return c.toDataURL("image/jpeg", 0.92);
   }
 
-  // Interior reading text — Andika, big and literacy-safe, inside the safe area.
+  // Interior reading text — Andika, big and literacy-safe. The cream text band
+  // starts at a FIXED line on every page (BAND_TOP) so the art→text cutoff lines
+  // up exactly across the whole book. Text is vertically centered in the band,
+  // kept above the safe-area bottom, regardless of how many lines it wraps to.
+  const BAND_TOP = Math.round(H * 0.74);
+  ctx.fillStyle = "#faf7f2"; // solid cream so the cutoff is clean and consistent
+  ctx.fillRect(0, BAND_TOP, W, H - BAND_TOP);
   const fs = pt(36);
   ctx.font = `700 ${fs}px Andika, "Comic Sans MS", system-ui, sans-serif`;
   const lines = wrapText(ctx, text, maxW);
   const lh = fs * 1.32;
   const blockH = lines.length * lh;
-  const blockTop = H - SAFE - blockH; // text block sits just above the safe-area bottom
-  ctx.fillStyle = "rgba(250,247,242,0.95)";
-  ctx.fillRect(0, blockTop - pt(24), W, H - (blockTop - pt(24)));
+  const areaBottom = H - SAFE; // never let text cross the safe-area line
+  const center = Math.min((BAND_TOP + areaBottom) / 2, areaBottom - blockH / 2);
+  const startY = center - blockH / 2 + lh / 2;
   ctx.fillStyle = "#2f2a24";
-  lines.forEach((l, i) => ctx.fillText(l, W / 2, blockTop + lh / 2 + i * lh));
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lh));
 
   // Page number — small, inside the safe area.
   ctx.fillStyle = "#8c5b37";
