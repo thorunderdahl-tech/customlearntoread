@@ -98,10 +98,21 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   return lines;
 }
 
+// Per-book interior text-band top (the art→text cutoff). Sized once per book to
+// fit its wordiest page, then reused on EVERY interior page — so the cutoff can
+// vary book to book but never page to page within a book. Clamped to a sane band.
+function interiorBandTop(maxLines: number): number {
+  const fs = pt(36), lh = fs * 1.32, pad = pt(30);
+  const blockH = Math.max(1, maxLines) * lh;
+  const top = (PAGE_H - SAFE) - blockH - pad * 2;
+  return Math.min(Math.max(top, Math.round(PAGE_H * 0.58)), Math.round(PAGE_H * 0.82));
+}
+
 // Composite a print-ready book page: full-bleed art (to the 0.125" bleed edge) +
 // typeset text kept inside the 0.5" safe area. Text is never AI-rendered.
 // Interior text is Andika at ~36pt (brand-required 32-40pt); cover is Montserrat.
-async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean): Promise<string> {
+// bandTop (interior only) is the fixed cutoff line, computed once per book.
+async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean, bandTop?: number): Promise<string> {
   const W = PAGE_W, H = PAGE_H;
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const ctx = c.getContext("2d")!;
@@ -133,7 +144,7 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
   // starts at a FIXED line on every page (BAND_TOP) so the art→text cutoff lines
   // up exactly across the whole book. Text is vertically centered in the band,
   // kept above the safe-area bottom, regardless of how many lines it wraps to.
-  const BAND_TOP = Math.round(H * 0.74);
+  const BAND_TOP = bandTop ?? Math.round(H * 0.74); // per-book fixed cutoff (fallback if not provided)
   ctx.fillStyle = "#faf7f2"; // solid cream so the cutoff is clean and consistent
   ctx.fillRect(0, BAND_TOP, W, H - BAND_TOP);
   const fs = pt(36);
@@ -312,8 +323,15 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     try {
       setAssembling("Typesetting pages…");
       await ensureBookFonts();
-      const imgs: string[] = [await compositePage(arts[0].img, draft.title, 0, true)];
-      for (const p of draft.pages) imgs.push(await compositePage(arts[p.n].img, p.text, p.n, false));
+      // Size the text band to THIS book's wordiest page, then use that same cutoff
+      // on every page (varies by book, never by page — so cutoffs line up in the book).
+      const mctx = document.createElement("canvas").getContext("2d")!;
+      mctx.font = `700 ${pt(36)}px Andika, "Comic Sans MS", system-ui, sans-serif`;
+      let maxLines = 1;
+      for (const p of draft.pages) maxLines = Math.max(maxLines, wrapText(mctx, p.text, PAGE_W - SAFE * 2).length);
+      const bandTop = interiorBandTop(maxLines);
+      const imgs: string[] = [await compositePage(arts[0].img, draft.title, 0, true, bandTop)];
+      for (const p of draft.pages) imgs.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop));
       setPageImages(imgs);
       setAssembling("Building the print PDF…");
       if (!(window as any).PDFLib) {
