@@ -3,6 +3,7 @@
 // parents to read — it's a book the CHILD can successfully read themselves,
 // in the spirit of early BOB Books. Pictures carry the story; text supports.
 import type { Level, StoryDraft } from "./leveling";
+import { BRAND_STORY_VOICE } from "./brand";
 
 export interface OrderInfo {
   childName: string;
@@ -44,7 +45,9 @@ export const STORY_SYSTEM = `You create personalized learn-to-read books for the
 THE GOAL IS NOT A STORY FOR PARENTS TO READ ALOUD. The goal is a book the child can successfully read THEMSELVES — like early BOB Books. Pictures carry most of the story; the text supports the picture.
 WRITING RULES — DO: repeat vocabulary often; repeat sentence patterns; use predictable language; use concrete nouns; use familiar actions; keep the story positive; make the child the hero on every page.
 DO NOT: use long sentences; use figurative language; use complex vocabulary; use multiple actions per page; use trademarked characters; use copyrighted brands, teams, logos, or franchises (generic versions only — "a race car", never a branded one).
-Level rules are HARD constraints, not suggestions. You reply with a single JSON object and nothing else.`;
+Level rules are HARD constraints, not suggestions. You reply with a single JSON object and nothing else.
+
+${BRAND_STORY_VOICE}`;
 
 export function buildGeneratePrompt(o: OrderInfo, level: Level, pageCount: number, extras: StoryExtras = {}): string {
   const mainTopic = o.themes[0] || "everyday adventures";

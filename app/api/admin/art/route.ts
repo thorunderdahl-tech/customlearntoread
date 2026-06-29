@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateImage, visionAsk, listModels, geminiConfigured } from "@/lib/gemini";
+import { BRAND_ART_STYLE } from "@/lib/brand";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const STYLE = `Warm, premium, modern children's picture-book illustration: bright rich colors, soft friendly shapes, clean simple uncluttered backgrounds, large readable facial expressions, strong visual storytelling. The picture must tell the story on its own. Full-bleed scene with the main subject in the upper two-thirds of the frame (the bottom quarter will be covered by a text band). ABSOLUTELY NO text, letters, numbers, signs, logos, brands, or watermarks anywhere in the image. No trademarked or franchise characters — generic versions only.`;
+// On-brand illustration style — single source of truth in lib/brand.ts.
+const STYLE = BRAND_ART_STYLE;
 
 // One image operation per request. Actions: character | page | check | models
 export async function POST(req: NextRequest) {
