@@ -143,6 +143,23 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
 
   if (!draft.pages?.length) problems.push("Story has no pages.");
 
+  // Proper-noun allowance: recurring cast names (friend, pet — e.g. "Mateo",
+  // "Pip") read like the child's own name: taught by the pictures. A word is
+  // treated as a name if EVERY occurrence is capitalized and it appears on 2+ pages.
+  const caseSeen = new Map<string, { cap: number; lower: number; pages: Set<number> }>();
+  draft.pages?.forEach((p) => {
+    p.text.split(/\s+/).forEach((raw) => {
+      const cleaned = raw.replace(/[^A-Za-z'’-]/g, "");
+      if (!cleaned) return;
+      const w = norm(cleaned);
+      const rec = caseSeen.get(w) || { cap: 0, lower: 0, pages: new Set<number>() };
+      if (/^[A-Z]/.test(cleaned)) rec.cap++; else rec.lower++;
+      rec.pages.add(p.n);
+      caseSeen.set(w, rec);
+    });
+  });
+  const castNames = new Set([...caseSeen].filter(([, r]) => r.lower === 0 && r.cap > 0 && r.pages.size >= 2).map(([w]) => w));
+
   // Topic-word allowance: a word repeated on 3+ pages is being taught by
   // repetition and pictures (BOB-Books style), so it is exempt from length and
   // decodability rules (e.g. "dinosaur") — but capped at the top
@@ -168,7 +185,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
       problems.push(`Page ${p.n}: ${sentences.length} sentence(s) — this level requires exactly ${r.sentencesPerPage[1] === r.sentencesPerPage[0] ? r.sentencesPerPage[0] : r.sentencesPerPage.join("-")} per page.`);
     if (ws.length > r.maxWordsPerPage || ws.length < r.minWordsPerPage)
       problems.push(`Page ${p.n}: ${ws.length} words — level allows ${r.minWordsPerPage}-${r.maxWordsPerPage}.`);
-    const nonName = ws.filter((w) => norm(w) !== nameNorm && !topicWords.has(norm(w)));
+    const nonName = ws.filter((w) => norm(w) !== nameNorm && !topicWords.has(norm(w)) && !castNames.has(norm(w)));
     if (nonName.length) {
       const avg = nonName.reduce((a, w) => a + w.length, 0) / nonName.length;
       if (avg > r.maxAvgWordLength)
@@ -184,7 +201,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     // Decodability: every word must be readable at this level.
     if (r.decodability !== "none") {
       const hard = [...new Set(ws.map(norm))].filter(
-        (w) => w && w !== nameNorm && !topicWords.has(w) && !wordFitsLevel(w, r.decodability),
+        (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, r.decodability),
       );
       if (hard.length)
         problems.push(`Page ${p.n}: word(s) the child can't decode at this level: ${hard.join(", ")} — swap for sight words or short phonetic words.`);
@@ -196,7 +213,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   // The title must be readable by the child too (name + topic words are fine).
   if (draft.title && r.decodability !== "none") {
     const hardTitle = [...new Set(words(draft.title).map(norm))].filter(
-      (w) => w && w !== nameNorm && !topicWords.has(w) && !wordFitsLevel(w, "moderate"),
+      (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, "moderate"),
     );
     if (hardTitle.length)
       problems.push(`Title: word(s) too hard for this level: ${hardTitle.join(", ")}.`);
