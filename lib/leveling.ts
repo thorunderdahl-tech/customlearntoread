@@ -73,6 +73,7 @@ export interface StoryDraft {
   levelId: LevelId;
   childName: string;
   characterDescription: string;
+  companionDescription?: string; // recurring pet/friend appearance lock ("" if none)
   coverArtPrompt: string;
   pages: StoryPage[];
 }

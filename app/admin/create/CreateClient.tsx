@@ -10,6 +10,7 @@ type Draft = {
   levelId: string;
   childName: string;
   characterDescription: string;
+  companionDescription?: string;
   coverArtPrompt: string;
   pages: { n: number; text: string; artPrompt: string }[];
 };
@@ -423,17 +424,23 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     if (!draft) return;
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
-      const r = await art({ action: "character", description: draft.characterDescription, photo: photoB64 || undefined });
+      const r = await art({ action: "character", description: draft.characterDescription, companion: draft.companionDescription || undefined, photo: photoB64 || undefined });
       setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
   }
 
+  // QA is NOT optional: transient API failures are retried, and if QA still can't
+  // run, the tile is marked unverified (?) and blocks assembly like a failure —
+  // unverified pages were the #1 source of consistency bugs shipping to customers.
   async function qaCheck(image: string, pageText: string, characterDescription: string, artPrompt?: string): Promise<ArtQA | undefined> {
-    try {
-      const [img, styleRef] = await Promise.all([refJpeg(image, 1200), refJpeg(charRef, 800)]);
-      return (await art({ action: "check", image: img, styleRef, pageText, characterDescription, artPrompt })).verdict;
-    } catch { return undefined; /* QA optional */ }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const [img, styleRef] = await Promise.all([refJpeg(image, 1200), refJpeg(charRef, 800)]);
+        return (await art({ action: "check", image: img, styleRef, pageText, characterDescription, companionDescription: draft?.companionDescription || undefined, artPrompt })).verdict;
+      } catch { await new Promise((r) => setTimeout(r, 3000)); }
+    }
+    return undefined; // QA unavailable — tile shows "?" and blocks until Redo or Use anyway
   }
 
   async function genOnePage(n: number) {
@@ -452,7 +459,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
     let img = "", qa: ArtQA | undefined, notes = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs, fixNotes: notes || undefined });
+      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, companionDescription: draft.companionDescription || undefined, refs, fixNotes: notes || undefined });
       img = r.image;
       qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
       if (!qa || qa.pass || !qa.issues?.length) break;
@@ -488,9 +495,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   }
 
   // ---------- assembly + delivery ----------
-  // A tile is done when it has art AND its QA either passed, never ran, or was
-  // explicitly accepted by the admin — failed QA blocks assembly by default.
-  const tileOk = (a?: { img: string; qa?: ArtQA; accepted?: boolean }) => !!a && (!a.qa || a.qa.pass || !!a.accepted);
+  // A tile is done ONLY when it has art AND its QA ran and passed (or the admin
+  // explicitly accepted it). Failed OR missing QA blocks assembly — a page that
+  // was never verified must not ship just because the checker errored.
+  const tileOk = (a?: { img: string; qa?: ArtQA; accepted?: boolean }) => !!a && ((a.qa?.pass ?? false) || !!a.accepted);
   const allTiles = [0, ...(draft?.pages.map((p) => p.n) || [])];
   const artDone = draft && charRef && allTiles.every((n) => tileOk(arts[n]));
   const artBlocked = draft && charRef && allTiles.every((n) => arts[n]) && !artDone;
@@ -739,12 +747,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
                     const a = arts[t.n];
                     return (
                       <div className="crt-tile" key={t.n}>
-                        <div className="tlabel">{t.label} {a?.qa ? (a.qa.pass ? "✓" : "⚠") : ""}</div>
+                        <div className="tlabel">{t.label} {a ? (a.qa ? (a.qa.pass ? "✓" : "⚠") : "?") : ""}</div>
                         {a ? <img src={"data:image/png;base64," + a.img} alt={t.label} /> : <div className="tempty">…</div>}
                         {a?.qa && !a.qa.pass && !a.accepted && <p className="tissue">{a.qa.issues.join("; ")}</p>}
+                        {a && !a.qa && !a.accepted && <p className="tissue">QA couldn&rsquo;t verify this page — Redo it or Use anyway.</p>}
                         {a?.accepted && <p className="hint">accepted despite QA</p>}
                         <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>Redo</button>
-                        {a?.qa && !a.qa.pass && !a.accepted && (
+                        {a && !a.accepted && (!a.qa || !a.qa.pass) && (
                           <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => setArts((s) => ({ ...s, [t.n]: { ...s[t.n], accepted: true } }))}>Use anyway</button>
                         )}
                       </div>
@@ -760,7 +769,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       {artBlocked && (
         <div className="crt-card">
           <h2>4 · Assemble &amp; deliver</h2>
-          <p className="crt-error">Some illustrations failed QA (⚠ above). Redo them or press &ldquo;Use anyway&rdquo; to unblock assembly.</p>
+          <p className="crt-error">Some illustrations failed QA (⚠) or couldn&rsquo;t be verified (?). Redo them or press &ldquo;Use anyway&rdquo; to unblock assembly.</p>
         </div>
       )}
       {artDone && (

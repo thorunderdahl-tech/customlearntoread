@@ -89,6 +89,7 @@ Reply with ONLY this JSON shape:
   "levelId": "${level.id}",
   "childName": "${o.childName}",
   "characterDescription": "one rich sentence locking the child character's constant appearance (hair, eyes, skin, glasses, outfit) for the illustrator",
+  "companionDescription": "one sentence locking the constant appearance of any recurring pet/companion/friend who appears on multiple pages (species, coloring, distinctive markings, collar/clothing) — empty string if none",
   "coverArtPrompt": "cover illustration direction, no text in image",
   "pages": [ { "n": 1, "text": "...", "artPrompt": "..." } ]
 }`;

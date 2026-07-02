@@ -23,26 +23,33 @@ export async function POST(req: NextRequest) {
 
     if (action === "character") {
       const desc = body.description as string;
+      const companion = (body.companion as string | undefined)?.trim();
       const photo = body.photo as string | undefined; // parent-provided reference photo (base64 JPEG)
       if (!desc) return NextResponse.json({ error: "Missing description" }, { status: 400 });
+      const companionLine = companion
+        ? `\n\nALSO on the sheet, standing beside the child: the recurring companion — ${companion}. Draw its species, coloring, markings and collar/clothing unmistakably; this sheet locks the companion's look for the whole book too.`
+        : "";
       const prompt = photo
         ? `${STYLE}
 
 Using the attached real photo as visual reference (provided by the child's parent), create a STYLIZED storybook character version of the child — warm illustrated picture-book style, clearly NOT photorealistic. Faithfully capture the child's hair color and texture, eye color, skin tone, and overall vibe from the photo. If a pet appears in the photo, include the pet beside the child on the sheet with its breed, coloring and fur faithfully stylized too.
 
-Character reference sheet: full body, front view, neutral happy pose, plain soft cream background. This sheet defines the look for a whole book — make every feature unmistakable. Also honor this description: ${desc}`
+Character reference sheet: full body, front view, neutral happy pose, plain soft cream background. This sheet defines the look for a whole book — make every feature unmistakable. Also honor this description: ${desc}${companionLine}`
         : `${STYLE}
 
-Character reference sheet: a single child character shown clearly — full body, front view, neutral happy pose, plain soft cream background. The character: ${desc}. This image defines the character's exact look for a whole book; make hair, eyes, skin and outfit unmistakable.`;
+Character reference sheet: a single child character shown clearly — full body, front view, neutral happy pose, plain soft cream background. The character: ${desc}. This image defines the character's exact look for a whole book; make hair, eyes, skin and outfit unmistakable.${companionLine}`;
       const img = await generateImage(prompt, photo ? [photo] : [], "2:3");
       return NextResponse.json({ image: img.data, mime: img.mime });
     }
 
     if (action === "page") {
-      const { artPrompt, characterDescription, refs = [], fixNotes } = body;
+      const { artPrompt, characterDescription, companionDescription, refs = [], fixNotes } = body;
       if (!artPrompt) return NextResponse.json({ error: "Missing artPrompt" }, { status: 400 });
+      const companionLine = (companionDescription as string | undefined)?.trim()
+        ? ` The recurring companion on the sheet MUST also appear identical wherever the scene includes it — ${companionDescription} — with the exact same species, coloring, markings and collar.`
+        : "";
       const img = await generateImage(
-        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}). Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nScene for this page: ${artPrompt}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
+        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}).${companionLine} Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nScene for this page: ${artPrompt}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
         (refs as string[]).slice(0, 3),
         "2:3",
       );
@@ -50,10 +57,10 @@ Character reference sheet: a single child character shown clearly — full body,
     }
 
     if (action === "check") {
-      const { image, pageText, characterDescription, styleRef, artPrompt } = body;
+      const { image, pageText, characterDescription, companionDescription, styleRef, artPrompt } = body;
       if (!image) return NextResponse.json({ error: "Missing image" }, { status: 400 });
       const raw = await visionAsk(
-        `You are the strict QA gate for a children's book illustration. A page that fails QA is regenerated, so it is much better to flag a real problem than to wave it through. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved character/style reference sheet for this book." : "The attached image is the page to check."} The page's story text is: "${pageText}".${artPrompt ? ` The art direction this image was generated from: "${artPrompt}".` : ""} The recurring child character must look like: ${characterDescription}.
+        `You are the strict QA gate for a children's book illustration. A page that fails QA is regenerated, so it is much better to flag a real problem than to wave it through. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved character/style reference sheet for this book." : "The attached image is the page to check."} The page's story text is: "${pageText}".${artPrompt ? ` The art direction this image was generated from: "${artPrompt}".` : ""} The recurring child character must look like: ${characterDescription}.${(companionDescription as string | undefined)?.trim() ? ` The recurring companion must look like: ${companionDescription}.` : ""}
 Check the page image:
 1. CHARACTER: does the child match that description EXACTLY (hair color/texture/length, eye color, skin tone, glasses/accessories, outfit and its colors)${styleRef ? " and the reference sheet" : ""}? Any drift is a fail.
 2. ${styleRef ? "STYLE: does the rendering style (medium, palette, line treatment) match the reference sheet closely enough that both could be pages of the same printed book?" : "STYLE: warm hand-illustrated picture-book style — no 3D/CGI, no anime, no photorealism?"}
@@ -76,6 +83,7 @@ Reply ONLY JSON: {"pass": true|false, "issues": ["short fixable issue", ...]}`,
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e: any) {
+    console.error("art route failed:", e?.message || e); // keep observable in Vercel runtime logs
     return NextResponse.json({ error: e?.message || "Art step failed" }, { status: 500 });
   }
 }
