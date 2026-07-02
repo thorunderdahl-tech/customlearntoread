@@ -76,8 +76,10 @@ FORMAT:
 - Repeat key vocabulary throughout so earlier pages teach the words later pages use.
 
 ILLUSTRATION DIRECTIONS:
-- Each page needs an "artPrompt": a concrete one-sentence scene description that carries the story visually (what we see, where, the child's expression and action). The picture should tell the story even if the child can't read the word yet.
+- Each page needs an "artPrompt": 2-3 concrete sentences of art direction that carry the story visually. Always specify: (1) the child character's action and facial expression/emotion, (2) the setting and 1-2 simple background elements, (3) camera framing (e.g. "wide shot", "close-up on face", "low angle looking up") — vary framing across pages so the book feels dynamic.
+- The picture must tell the story even if the child can't read the words yet.
 - Refer to the hero as "the child character" and keep their appearance identical on every page.
+- Compose every scene with the subject and all key objects in the UPPER TWO-THIRDS of a portrait frame — the bottom of each page is covered by the reading-text band, and print trimming crops the outer edges.
 - Clean simple backgrounds, no clutter, large readable facial expressions.
 - NEVER describe any words, letters, signs, numbers, logos or brands in the illustration.
 

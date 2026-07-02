@@ -42,7 +42,7 @@ Character reference sheet: a single child character shown clearly — full body,
       const { artPrompt, characterDescription, refs = [], fixNotes } = body;
       if (!artPrompt) return NextResponse.json({ error: "Missing artPrompt" }, { status: 400 });
       const img = await generateImage(
-        `${STYLE}\n\nThe child character in the attached reference image(s) MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}).\n\nScene for this page: ${artPrompt}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
+        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}). Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nScene for this page: ${artPrompt}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
         (refs as string[]).slice(0, 3),
         "2:3",
       );
@@ -50,19 +50,21 @@ Character reference sheet: a single child character shown clearly — full body,
     }
 
     if (action === "check") {
-      const { image, pageText, characterDescription } = body;
+      const { image, pageText, characterDescription, styleRef } = body;
       if (!image) return NextResponse.json({ error: "Missing image" }, { status: 400 });
       const raw = await visionAsk(
-        `You are QA for a children's book illustration. The page's story text is: "${pageText}". The recurring child character must look like: ${characterDescription}.
-Check the image:
-1. Does the child character match that description (hair, eyes, skin, outfit)?
-2. Does the scene plausibly illustrate the story text?
-3. Is there ANY text, lettering, numbers or watermark in the image?
-4. Anything inappropriate or scary for ages 3-7? Any anatomical errors (extra fingers/limbs, deformed face)?
-5. Expressions: do the characters look happy/warm? Flag any unintended angry, sad, scared or distressed face that the story text does NOT call for (the default should be happy).
-6. If more than one child appears, do they look like SAME-AGE peers? Flag it if any child looks clearly older or younger than the others.
+        `You are QA for a children's book illustration. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved character/style reference sheet for this book." : "The attached image is the page to check."} The page's story text is: "${pageText}". The recurring child character must look like: ${characterDescription}.
+Check the page image:
+1. Does the child character match that description (hair, eyes, skin, outfit)${styleRef ? " and the reference sheet" : ""}?
+2. ${styleRef ? "STYLE: does the rendering style (medium, palette, line treatment) match the reference sheet closely enough that both could be pages of the same printed book?" : "STYLE: warm hand-illustrated picture-book style — no 3D/CGI, no anime, no photorealism?"}
+3. Does the scene plausibly illustrate the story text?
+4. COMPOSITION: are the subject's face, hands and every story-critical object fully inside the UPPER TWO-THIRDS of the frame, with the bottom of the frame simple background only, and nothing important within ~5% of any edge? (The reading-text band covers the bottom of the page and print trimming crops the edges.)
+5. Is there ANY text, lettering, numbers or watermark in the image?
+6. Anything inappropriate or scary for ages 3-7? Any anatomical errors (extra fingers/limbs, deformed face)?
+7. Expressions: do the characters look happy/warm? Flag any unintended angry, sad, scared or distressed face that the story text does NOT call for (the default should be happy).
+8. If more than one child appears, do they look like SAME-AGE peers? Flag it if any child looks clearly older or younger than the others.
 Reply ONLY JSON: {"pass": true|false, "issues": ["short fixable issue", ...]}`,
-        image,
+        styleRef ? [image, styleRef] : image,
       );
       const start = raw.indexOf("{");
       const end = raw.lastIndexOf("}");

@@ -17,12 +17,14 @@ type Part =
   | { text: string }
   | { inline_data: { mime_type: string; data: string } };
 
-async function generate(model: string, parts: Part[], imageOut: boolean, aspectRatio?: string) {
+async function generate(model: string, parts: Part[], imageOut: boolean, aspectRatio?: string, imageSize?: string) {
   const body: Record<string, unknown> = { contents: [{ parts }] };
   if (imageOut) {
     body.generationConfig = {
       responseModalities: ["IMAGE"],
-      ...(aspectRatio ? { imageConfig: { aspectRatio } } : {}),
+      ...(aspectRatio || imageSize
+        ? { imageConfig: { ...(aspectRatio ? { aspectRatio } : {}), ...(imageSize ? { imageSize } : {}) } }
+        : {}),
     };
   }
   const res = await fetch(`${BASE}/models/${model}:generateContent?key=${key()}`, {
@@ -39,18 +41,29 @@ async function generate(model: string, parts: Part[], imageOut: boolean, aspectR
   };
 }
 
-/** Generate one image. Returns base64 JPEG/PNG data (no data: prefix) + mime. */
+/** Generate one image at print resolution. Returns base64 JPEG/PNG data (no data: prefix) + mime.
+ *  Requests 2K output by default (ART_IMAGE_SIZE=1K|2K|4K) so print pages aren't upscaled;
+ *  falls back to a plain request if the model rejects imageSize. */
 export async function generateImage(
   prompt: string,
   referenceImagesB64: string[] = [],
   aspectRatio = "2:3",
 ): Promise<{ data: string; mime: string }> {
   const model = process.env.ART_MODEL || "gemini-3-pro-image-preview";
+  const imageSize = process.env.ART_IMAGE_SIZE || "2K";
   const parts: Part[] = [
     ...referenceImagesB64.map((d) => ({ inline_data: { mime_type: "image/jpeg", data: d } })),
     { text: prompt },
   ];
-  const out = await generate(model, parts, true, aspectRatio);
+  let out: Awaited<ReturnType<typeof generate>>;
+  try {
+    out = await generate(model, parts, true, aspectRatio, imageSize);
+  } catch (e: any) {
+    // Older image models reject imageSize — retry without rather than failing the page.
+    if (/imageSize|image_size/i.test(String(e?.message))) {
+      out = await generate(model, parts, true, aspectRatio);
+    } else throw e;
+  }
   for (const c of out.candidates || []) {
     for (const p of c.content?.parts || []) {
       if (p.inlineData?.data) return { data: p.inlineData.data, mime: p.inlineData.mimeType || "image/png" };
@@ -59,10 +72,15 @@ export async function generateImage(
   throw new Error("Gemini returned no image (possibly safety-filtered prompt)");
 }
 
-/** Ask a vision model a question about an image; returns raw text. */
-export async function visionAsk(prompt: string, imageB64: string, mime = "image/jpeg"): Promise<string> {
+/** Ask a vision model a question about one or more images; returns raw text. */
+export async function visionAsk(prompt: string, imagesB64: string | string[], mime = "image/jpeg"): Promise<string> {
   const model = process.env.VISION_MODEL || "gemini-2.5-flash";
-  const out = await generate(model, [{ inline_data: { mime_type: mime, data: imageB64 } }, { text: prompt }], false);
+  const imgs = Array.isArray(imagesB64) ? imagesB64 : [imagesB64];
+  const parts: Part[] = [
+    ...imgs.map((d) => ({ inline_data: { mime_type: mime, data: d } })),
+    { text: prompt },
+  ];
+  const out = await generate(model, parts, false);
   const text = out.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
   if (!text) throw new Error("Vision model returned no text");
   return text;

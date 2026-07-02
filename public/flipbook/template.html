@@ -298,14 +298,18 @@
 
     var indicator = document.getElementById("indicator");
 
-    function label(idx) {
+    function pageName(idx) {
+      if (CFG.labels && CFG.labels[idx]) return CFG.labels[idx];
       if (idx === 0) return "Cover";
-      if (idx >= total - 1) return "Back cover";
+      if (idx === total - 1) return "Back cover";
+      return "Page " + idx;
+    }
+    function label(idx) {
       var orientation = pageFlip.getOrientation ? pageFlip.getOrientation() : "landscape";
-      if (orientation === "portrait") return "Page " + idx + " of " + (total - 2);
-      var left = idx, right = Math.min(idx + 1, total - 1);
-      if (right >= total - 1) return "Back cover";
-      return "Pages " + left + "–" + right + " of " + (total - 2);
+      if (orientation === "portrait" || idx === 0 || idx >= total - 1) return pageName(idx);
+      var right = idx + 1;
+      if (right > total - 1) return pageName(idx);
+      return pageName(idx) + " · " + pageName(right);
     }
     indicator.textContent = label(0);
 

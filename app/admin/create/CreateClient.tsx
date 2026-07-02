@@ -166,6 +166,163 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
   return c.toDataURL("image/jpeg", 0.92);
 }
 
+// ---- printer-file geometry (softcover): home PDF is trim size; printer files keep bleed ----
+const HOME_PT_W = 5.5 * 72, HOME_PT_H = 8.5 * 72; // 396 × 612 — customer home-print PDF (bleed cropped)
+const BLEED_OFF_PT = 0.125 * 72;                  // 9 pt
+const SPINE_IN_PER_PAGE = 0.002252;               // 50 lb white paper (KDP/Lulu)
+const MIN_INTERIOR = 24;                          // perfect-bound minimum; interior count must also be even
+const NAVY = "#1f2a44", INKC = "#2f2a24", CREAMC = "#faf7f2", CARAMEL = "#c68a52", CARAMEL_DARK = "#8c5b37";
+const ANDIKA = 'Andika, "Comic Sans MS", system-ui, sans-serif';
+const MONTSERRAT = 'Montserrat, "Segoe UI", system-ui, sans-serif';
+
+function newTypesetPage(): { c: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+  const c = document.createElement("canvas"); c.width = PAGE_W; c.height = PAGE_H;
+  const ctx = c.getContext("2d")!;
+  ctx.imageSmoothingEnabled = true; (ctx as any).imageSmoothingQuality = "high";
+  ctx.fillStyle = CREAMC; ctx.fillRect(0, 0, PAGE_W, PAGE_H);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  return { c, ctx };
+}
+
+function titlePage(title: string, childName: string): string {
+  const { c, ctx } = newTypesetPage();
+  const fs = pt(38);
+  ctx.font = `800 ${fs}px ${MONTSERRAT}`; ctx.fillStyle = NAVY;
+  const lines = wrapText(ctx, title, PAGE_W - SAFE * 2.2);
+  const lh = fs * 1.22;
+  const cy = PAGE_H * 0.4 - ((lines.length - 1) * lh) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, PAGE_W / 2, cy + i * lh));
+  ctx.fillStyle = CARAMEL;
+  ctx.fillRect(PAGE_W / 2 - pt(30), cy + lines.length * lh + pt(8), pt(60), pt(3));
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `700 ${pt(16)}px ${ANDIKA}`;
+  ctx.fillText(`Made just for ${childName}`, PAGE_W / 2, cy + lines.length * lh + pt(40));
+  ctx.font = `600 ${pt(10)}px ${MONTSERRAT}`;
+  ctx.fillText("C U S T O M   L E A R N   T O   R E A D", PAGE_W / 2, PAGE_H - SAFE - pt(10));
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+function copyrightPage(childName: string, year: number): string {
+  const { c, ctx } = newTypesetPage();
+  ctx.fillStyle = CARAMEL_DARK;
+  const fs = pt(10.5);
+  ctx.font = `400 ${fs}px ${ANDIKA}`;
+  [`This book was made with love for ${childName}.`,
+   `© ${year} Custom Learn to Read · customlearntoread.com`,
+   "All rights reserved."].forEach((l, i) => ctx.fillText(l, PAGE_W / 2, PAGE_H - SAFE - pt(52) + i * fs * 1.7));
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+function endPage(childName: string): string {
+  const { c, ctx } = newTypesetPage();
+  ctx.fillStyle = NAVY;
+  ctx.font = `800 ${pt(42)}px ${MONTSERRAT}`;
+  ctx.fillText("The End", PAGE_W / 2, PAGE_H * 0.42);
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `700 ${pt(18)}px ${ANDIKA}`;
+  ctx.fillText(`You did it, ${childName}!`, PAGE_W / 2, PAGE_H * 0.42 + pt(60));
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+function wordsPage(vocab: string[]): string {
+  const { c, ctx } = newTypesetPage();
+  ctx.fillStyle = NAVY;
+  ctx.font = `800 ${pt(26)}px ${MONTSERRAT}`;
+  ctx.fillText("Words I can read", PAGE_W / 2, PAGE_H * 0.14);
+  const words = vocab.slice(0, 30);
+  const fs = pt(16);
+  ctx.font = `700 ${fs}px ${ANDIKA}`; ctx.fillStyle = INKC;
+  const cols = words.length > 12 ? 2 : 1;
+  const rows = Math.ceil(words.length / cols);
+  const y0 = PAGE_H * 0.22, rowH = Math.min(fs * 2, (PAGE_H - SAFE - pt(30) - y0) / Math.max(rows, 1));
+  words.forEach((w, i) => {
+    const col = Math.floor(i / rows);
+    const x = cols === 1 ? PAGE_W / 2 : PAGE_W * (col === 0 ? 0.32 : 0.68);
+    ctx.fillText(w, x, y0 + (i % rows) * rowH);
+  });
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+function drawingPage(): string {
+  const { c, ctx } = newTypesetPage();
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `700 ${pt(15)}px ${ANDIKA}`;
+  ctx.fillText("My drawing", PAGE_W / 2, SAFE + pt(30));
+  ctx.strokeStyle = CARAMEL; ctx.lineWidth = pt(2);
+  const x = PAGE_W * 0.12, y = SAFE + pt(60), w = PAGE_W * 0.76, h = PAGE_H - SAFE - pt(30) - y;
+  ctx.beginPath();
+  if ((ctx as any).roundRect) (ctx as any).roundRect(x, y, w, h, pt(10)); else ctx.rect(x, y, w, h);
+  ctx.stroke();
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+function backCoverPage(title: string, childName: string): string {
+  const { c, ctx } = newTypesetPage();
+  ctx.fillStyle = NAVY;
+  const fs = pt(26);
+  ctx.font = `800 ${fs}px ${MONTSERRAT}`;
+  const lines = wrapText(ctx, title, PAGE_W * 0.72);
+  const lh = fs * 1.28;
+  const cy = PAGE_H * 0.4 - ((lines.length - 1) * lh) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, PAGE_W / 2, cy + i * lh));
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `700 ${pt(15)}px ${ANDIKA}`;
+  ctx.fillText(`A book made just for ${childName}`, PAGE_W / 2, cy + lines.length * lh + pt(46));
+  ctx.font = `600 ${pt(11)}px ${MONTSERRAT}`;
+  ctx.fillText("customlearntoread.com", PAGE_W / 2, PAGE_H - SAFE - pt(12));
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+// Printer wraparound softcover cover: back panel + spine (sized to page count) + front cover, with barcode zone.
+async function buildCoverWrap(coverDataUrl: string, title: string, childName: string, interiorPages: number): Promise<{ dataUrl: string; wPt: number; hPt: number }> {
+  const BLEED_PX = Math.round(0.125 * DPI);
+  const spineIn = interiorPages * SPINE_IN_PER_PAGE;
+  const wIn = 2 * 0.125 + 2 * 5.5 + spineIn;
+  const wPx = Math.round(wIn * DPI), hPx = PAGE_H;
+  const c = document.createElement("canvas"); c.width = wPx; c.height = hPx;
+  const ctx = c.getContext("2d")!;
+  ctx.imageSmoothingEnabled = true; (ctx as any).imageSmoothingQuality = "high";
+  ctx.fillStyle = CREAMC; ctx.fillRect(0, 0, wPx, hPx);
+
+  const backW = BLEED_PX + Math.round(5.5 * DPI); // back panel incl. its outer bleed
+  const spinePx = Math.round(spineIn * DPI);
+  ctx.fillStyle = CARAMEL; ctx.fillRect(backW, 0, spinePx, hPx); // spine — too thin for text at these counts
+
+  // Front cover art on the right (crop the composite's left bleed so it doesn't invade the spine).
+  const img = await loadImg(coverDataUrl);
+  const sx = BLEED_PX * (img.width / PAGE_W);
+  ctx.drawImage(img, sx, 0, img.width - sx, img.height, backW + spinePx, 0, PAGE_W - BLEED_PX, PAGE_H);
+
+  // Back panel typography (brand: Montserrat/navy + Andika/caramel).
+  const cx = BLEED_PX + Math.round((5.5 * DPI) / 2);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = NAVY;
+  const fs = pt(24);
+  ctx.font = `800 ${fs}px ${MONTSERRAT}`;
+  const lines = wrapText(ctx, title, 5.5 * DPI * 0.7);
+  const lh = fs * 1.28;
+  const cy = hPx * 0.34 - ((lines.length - 1) * lh) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, cx, cy + i * lh));
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `700 ${pt(14)}px ${ANDIKA}`;
+  ctx.fillText(`A book made just for ${childName}`, cx, cy + lines.length * lh + pt(38));
+  ctx.font = `600 ${pt(10)}px ${MONTSERRAT}`;
+  ctx.fillText("customlearntoread.com", cx, hPx - SAFE - pt(40));
+
+  // Reserved barcode zone: 2" × 1.2" white, 0.25" inside the back-panel trim, spine side.
+  const bw = 2 * DPI, bh = 1.2 * DPI, m = 0.25 * DPI;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(backW - m - bw, hPx - BLEED_PX - m - bh, bw, bh);
+
+  return { dataUrl: c.toDataURL("image/jpeg", 0.92), wPt: wIn * 72, hPt: 8.75 * 72 };
+}
+
+/** Shrink a base64 image for use as a generation/QA reference (keeps request bodies small). */
+async function refJpeg(b64: string, w = 900): Promise<string> {
+  const d = await downscale("data:image/png;base64," + b64, w, 0.82);
+  return d.split(",")[1];
+}
+
 export default function CreateClient({ initialOrders, loadError }: { initialOrders: AirtableOrder[]; loadError: string | null }) {
   const params = useSearchParams();
   const [selectedId, setSelectedId] = useState(params.get("recordId") || "");
@@ -187,11 +344,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const [charRef, setCharRef] = useState("");
   const [photoB64, setPhotoB64] = useState("");
   const photoInput = useRef<HTMLInputElement>(null);
-  const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA }>>({});
+  const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA; accepted?: boolean }>>({});
   const [artBusy, setArtBusy] = useState("");
   const [assembling, setAssembling] = useState("");
-  const [pdfUrl, setPdfUrl] = useState("");
+  const [pdfUrl, setPdfUrl] = useState(""); // customer home-print PDF (trim size)
+  const [printUrls, setPrintUrls] = useState<{ interior: string; cover: string } | null>(null); // printer-ready files
   const [pageImages, setPageImages] = useState<string[]>([]);
+  const [pageLabels, setPageLabels] = useState<string[]>([]);
   const [parentEmail, setParentEmail] = useState("");
   const [delivered, setDelivered] = useState<{ bookLink: string; pdfLink: string } | null>(null);
   const pdfBlobRef = useRef<Blob | null>(null);
@@ -204,7 +363,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   function resetAll() {
     setDraft(null); setGrade(null); setCheck(null); setSaved("");
-    setCharRef(""); setArts({}); setPdfUrl(""); setPageImages([]); setDelivered(null);
+    setCharRef(""); setArts({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
   }
 
   async function generate() {
@@ -265,9 +424,16 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
       const r = await art({ action: "character", description: draft.characterDescription, photo: photoB64 || undefined });
-      setCharRef(r.image); setArts({}); setPdfUrl(""); setDelivered(null);
+      setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
+  }
+
+  async function qaCheck(image: string, pageText: string, characterDescription: string): Promise<ArtQA | undefined> {
+    try {
+      const [img, styleRef] = await Promise.all([refJpeg(image, 1000), refJpeg(charRef, 800)]);
+      return (await art({ action: "check", image: img, styleRef, pageText, characterDescription })).verdict;
+    } catch { return undefined; /* QA optional */ }
   }
 
   async function genOnePage(n: number) {
@@ -275,13 +441,19 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     const page = n === 0
       ? { n: 0, text: draft.title, artPrompt: draft.coverArtPrompt }
       : draft.pages.find((p) => p.n === n)!;
-    const first = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs: [charRef] });
-    let qa: ArtQA | undefined;
-    try { qa = (await art({ action: "check", image: first.image, pageText: page.text, characterDescription: draft.characterDescription })).verdict; } catch { /* QA optional */ }
+    // Refs: character sheet first, then up to 2 already-passing pages as style
+    // anchors so every page matches both the character AND the book's style.
+    const anchors = Object.entries(arts)
+      .filter(([k, v]) => Number(k) !== n && Number(k) !== 0 && v.qa?.pass)
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .slice(-2)
+      .map(([, v]) => v.img);
+    const refs = await Promise.all([charRef, ...anchors].slice(0, 3).map((b) => refJpeg(b)));
+    const first = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs });
+    const qa = await qaCheck(first.image, page.text, draft.characterDescription);
     if (qa && !qa.pass && qa.issues?.length) {
-      const retry = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs: [charRef], fixNotes: qa.issues.join("; ") });
-      let qa2: ArtQA | undefined;
-      try { qa2 = (await art({ action: "check", image: retry.image, pageText: page.text, characterDescription: draft.characterDescription })).verdict; } catch { /* QA optional */ }
+      const retry = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs, fixNotes: qa.issues.join("; ") });
+      const qa2 = await qaCheck(retry.image, page.text, draft.characterDescription);
       setArts((a) => ({ ...a, [n]: { img: retry.image, qa: qa2 } }));
     } else {
       setArts((a) => ({ ...a, [n]: { img: first.image, qa } }));
@@ -290,7 +462,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   async function genAllArt() {
     if (!draft || !charRef) return;
-    setError(""); setPdfUrl(""); setDelivered(null);
+    setError(""); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     const already = { ...arts }; // skip pages finished in a previous run
     const targets = [0, ...draft.pages.map((p) => p.n)].filter((n) => !already[n]);
     const failed: number[] = [];
@@ -315,7 +487,32 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   }
 
   // ---------- assembly + delivery ----------
-  const artDone = draft && charRef && [0, ...(draft?.pages.map((p) => p.n) || [])].every((n) => arts[n]);
+  // A tile is done when it has art AND its QA either passed, never ran, or was
+  // explicitly accepted by the admin — failed QA blocks assembly by default.
+  const tileOk = (a?: { img: string; qa?: ArtQA; accepted?: boolean }) => !!a && (!a.qa || a.qa.pass || !!a.accepted);
+  const allTiles = [0, ...(draft?.pages.map((p) => p.n) || [])];
+  const artDone = draft && charRef && allTiles.every((n) => tileOk(arts[n]));
+  const artBlocked = draft && charRef && allTiles.every((n) => arts[n]) && !artDone;
+
+  async function ensurePdfLib() {
+    if ((window as any).PDFLib) return;
+    await new Promise<void>((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "/flipbook/pdf-lib.min.js";
+      s.onload = () => res(); s.onerror = () => rej(new Error("pdf-lib failed to load"));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function imagesToPdf(PDFDocument: any, imgs: string[], pagePt: [number, number], drawBox: { x: number; y: number; width: number; height: number }): Promise<Blob> {
+    const doc = await PDFDocument.create();
+    for (const dURL of imgs) {
+      const jpg = await doc.embedJpg(await fetch(dURL).then((r) => r.arrayBuffer()));
+      const page = doc.addPage([...pagePt]);
+      page.drawImage(jpg, drawBox);
+    }
+    return new Blob([await doc.save()], { type: "application/pdf" });
+  }
 
   async function assemble() {
     if (!draft) return;
@@ -323,6 +520,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     try {
       setAssembling("Typesetting pages…");
       await ensureBookFonts();
+      const year = new Date().getFullYear();
       // Size the text band to THIS book's wordiest page, then use that same cutoff
       // on every page (varies by book, never by page — so cutoffs line up in the book).
       const mctx = document.createElement("canvas").getContext("2d")!;
@@ -330,29 +528,42 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       let maxLines = 1;
       for (const p of draft.pages) maxLines = Math.max(maxLines, wrapText(mctx, p.text, PAGE_W - SAFE * 2).length);
       const bandTop = interiorBandTop(maxLines);
-      const imgs: string[] = [await compositePage(arts[0].img, draft.title, 0, true, bandTop)];
-      for (const p of draft.pages) imgs.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop));
-      setPageImages(imgs);
-      setAssembling("Building the print PDF…");
-      if (!(window as any).PDFLib) {
-        await new Promise<void>((res, rej) => {
-          const s = document.createElement("script");
-          s.src = "/flipbook/pdf-lib.min.js";
-          s.onload = () => res(); s.onerror = () => rej(new Error("pdf-lib failed to load"));
-          document.head.appendChild(s);
-        });
-      }
+      const cover = await compositePage(arts[0].img, draft.title, 0, true, bandTop);
+      const story: string[] = [];
+      for (const p of draft.pages) story.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop));
+      const vocab = [...new Set(draft.pages.flatMap((p) => p.text.split(/\s+/).map((w) => w.toLowerCase().replace(/[^a-z'’]/g, "")).filter(Boolean)))].sort();
+
+      // Interior (what gets bound): front matter + story + back matter, padded
+      // to an even count and the perfect-bound minimum of MIN_INTERIOR pages.
+      const front = [titlePage(draft.title, draft.childName), copyrightPage(draft.childName, year)];
+      const back = [endPage(draft.childName), wordsPage(vocab)];
+      const interior = [...front, ...story, ...back];
+      while (interior.length < MIN_INTERIOR || interior.length % 2 !== 0) interior.push(drawingPage());
+
+      // Digital book (flipbook + customer home-print PDF): cover→back cover, no pad pages.
+      const digital = [cover, ...front, ...story, ...back, backCoverPage(draft.title, draft.childName)];
+      const labels = ["Cover", "Title page", "Dedication", ...draft.pages.map((p) => `Page ${p.n}`), "The End", "Words I can read", "Back cover"];
+      setPageImages(digital); setPageLabels(labels);
+
+      setAssembling("Building the PDFs…");
+      await ensurePdfLib();
       const { PDFDocument } = (window as any).PDFLib;
-      const doc = await PDFDocument.create();
-      for (const dURL of imgs) {
-        const jpg = await doc.embedJpg(await fetch(dURL).then((r) => r.arrayBuffer()));
-        const page = doc.addPage([TRIM_PT_W, TRIM_PT_H]); // 5.75x8.75in = 5.5x8.5 trim + 0.125" bleed, art at 300 DPI
-        page.drawImage(jpg, { x: 0, y: 0, width: TRIM_PT_W, height: TRIM_PT_H });
-      }
-      const bytes = await doc.save();
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      pdfBlobRef.current = blob;
-      setPdfUrl(URL.createObjectURL(blob));
+      // 1) Customer home-print PDF: trim size (5.5 × 8.5), bleed cropped off.
+      const homeBlob = await imagesToPdf(PDFDocument, digital, [HOME_PT_W, HOME_PT_H], { x: -BLEED_OFF_PT, y: -BLEED_OFF_PT, width: TRIM_PT_W, height: TRIM_PT_H });
+      // 2) Printer interior: full bleed size (5.75 × 8.75), no cover, even count ≥ MIN_INTERIOR.
+      const interiorBlob = await imagesToPdf(PDFDocument, interior, [TRIM_PT_W, TRIM_PT_H], { x: 0, y: 0, width: TRIM_PT_W, height: TRIM_PT_H });
+      // 3) Printer wraparound cover: back + spine (sized to page count) + front, with barcode zone.
+      setAssembling("Building the wraparound cover…");
+      const wrap = await buildCoverWrap(cover, draft.title, draft.childName, interior.length);
+      const coverDoc = await PDFDocument.create();
+      const wrapJpg = await coverDoc.embedJpg(await fetch(wrap.dataUrl).then((r) => r.arrayBuffer()));
+      const coverPage = coverDoc.addPage([wrap.wPt, wrap.hPt]);
+      coverPage.drawImage(wrapJpg, { x: 0, y: 0, width: wrap.wPt, height: wrap.hPt });
+      const coverBlob = new Blob([await coverDoc.save()], { type: "application/pdf" });
+
+      pdfBlobRef.current = homeBlob;
+      setPdfUrl(URL.createObjectURL(homeBlob));
+      setPrintUrls({ interior: URL.createObjectURL(interiorBlob), cover: URL.createObjectURL(coverBlob) });
       setAssembling("");
     } catch (e: any) { setError(e?.message || String(e)); setAssembling(""); }
   }
@@ -370,9 +581,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       // The print PDF keeps full resolution; the flipbook gets a lighter copy
       // so the page loads fast on phones.
       const flipPages = [];
-      for (const d of pageImages) flipPages.push(await downscale(d, 1000, 0.8));
+      for (const d of pageImages) flipPages.push(await downscale(d, 1400, 0.8));
       const cfg = {
-        title: draft.title, pageW: 1000, pageH: Math.round((PAGE_H / PAGE_W) * 1000), pages: flipPages,
+        title: draft.title, pageW: 1400, pageH: Math.round((PAGE_H / PAGE_W) * 1400), pages: flipPages,
+        labels: pageLabels,
         pdf: { mode: "url", url: `/books/${token}.pdf`, name: `${slugify(draft.title) || "book"}.pdf` },
       };
       const html = template
@@ -528,8 +740,12 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
                       <div className="crt-tile" key={t.n}>
                         <div className="tlabel">{t.label} {a?.qa ? (a.qa.pass ? "✓" : "⚠") : ""}</div>
                         {a ? <img src={"data:image/png;base64," + a.img} alt={t.label} /> : <div className="tempty">…</div>}
-                        {a?.qa && !a.qa.pass && <p className="tissue">{a.qa.issues.join("; ")}</p>}
+                        {a?.qa && !a.qa.pass && !a.accepted && <p className="tissue">{a.qa.issues.join("; ")}</p>}
+                        {a?.accepted && <p className="hint">accepted despite QA</p>}
                         <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>Redo</button>
+                        {a?.qa && !a.qa.pass && !a.accepted && (
+                          <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => setArts((s) => ({ ...s, [t.n]: { ...s[t.n], accepted: true } }))}>Use anyway</button>
+                        )}
                       </div>
                     );
                   })}
@@ -540,6 +756,12 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         </div>
       )}
 
+      {artBlocked && (
+        <div className="crt-card">
+          <h2>4 · Assemble &amp; deliver</h2>
+          <p className="crt-error">Some illustrations failed QA (⚠ above). Redo them or press &ldquo;Use anyway&rdquo; to unblock assembly.</p>
+        </div>
+      )}
       {artDone && (
         <div className="crt-card">
           <h2>4 · Assemble &amp; deliver</h2>
@@ -547,7 +769,12 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           {pdfUrl && (
             <>
               <iframe className="crt-preview" src={pdfUrl} title="Book preview" />
-              <p><a className="crt-btn" href={pdfUrl} download={(slugify(draft!.title) || "book") + ".pdf"}>Download print PDF</a></p>
+              <p>
+                <a className="crt-btn" href={pdfUrl} download={(slugify(draft!.title) || "book") + ".pdf"}>Home-print PDF (5.5×8.5)</a>{" "}
+                {printUrls && <a className="crt-btn" href={printUrls.interior} download={(slugify(draft!.title) || "book") + "-interior-print.pdf"}>Printer interior (bleed, 300 DPI)</a>}{" "}
+                {printUrls && <a className="crt-btn" href={printUrls.cover} download={(slugify(draft!.title) || "book") + "-cover-wrap.pdf"}>Printer cover wrap (spine + barcode zone)</a>}
+              </p>
+              <p className="hint">Send the two printer files (not the home-print PDF) to the print shop — see docs/print-spec.md.</p>
               <div className="crt-row">
                 <label>Customer email
                   <input value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} placeholder="parent@example.com" />
