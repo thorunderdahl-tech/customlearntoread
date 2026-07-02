@@ -50,19 +50,21 @@ Character reference sheet: a single child character shown clearly — full body,
     }
 
     if (action === "check") {
-      const { image, pageText, characterDescription, styleRef } = body;
+      const { image, pageText, characterDescription, styleRef, artPrompt } = body;
       if (!image) return NextResponse.json({ error: "Missing image" }, { status: 400 });
       const raw = await visionAsk(
-        `You are QA for a children's book illustration. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved character/style reference sheet for this book." : "The attached image is the page to check."} The page's story text is: "${pageText}". The recurring child character must look like: ${characterDescription}.
+        `You are the strict QA gate for a children's book illustration. A page that fails QA is regenerated, so it is much better to flag a real problem than to wave it through. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved character/style reference sheet for this book." : "The attached image is the page to check."} The page's story text is: "${pageText}".${artPrompt ? ` The art direction this image was generated from: "${artPrompt}".` : ""} The recurring child character must look like: ${characterDescription}.
 Check the page image:
-1. Does the child character match that description (hair, eyes, skin, outfit)${styleRef ? " and the reference sheet" : ""}?
+1. CHARACTER: does the child match that description EXACTLY (hair color/texture/length, eye color, skin tone, glasses/accessories, outfit and its colors)${styleRef ? " and the reference sheet" : ""}? Any drift is a fail.
 2. ${styleRef ? "STYLE: does the rendering style (medium, palette, line treatment) match the reference sheet closely enough that both could be pages of the same printed book?" : "STYLE: warm hand-illustrated picture-book style — no 3D/CGI, no anime, no photorealism?"}
-3. Does the scene plausibly illustrate the story text?
-4. COMPOSITION: are the subject's face, hands and every story-critical object fully inside the UPPER TWO-THIRDS of the frame, with the bottom of the frame simple background only, and nothing important within ~5% of any edge? (The reading-text band covers the bottom of the page and print trimming crops the edges.)
-5. Is there ANY text, lettering, numbers or watermark in the image?
-6. Anything inappropriate or scary for ages 3-7? Any anatomical errors (extra fingers/limbs, deformed face)?
-7. Expressions: do the characters look happy/warm? Flag any unintended angry, sad, scared or distressed face that the story text does NOT call for (the default should be happy).
-8. If more than one child appears, do they look like SAME-AGE peers? Flag it if any child looks clearly older or younger than the others.
+3. SCENE FIDELITY: does the image match the story text${artPrompt ? " and art direction" : ""}? CRITICAL: verify every COUNT and COLOR that the text or art direction names — if the text says three apples, count the apples; if it names a red ball, the ball must be red. Wrong counts or colors are a fail.
+4. RECURRING ELEMENTS: any companion animal or repeated object must have consistent species, coloring and markings${styleRef ? " with the reference sheet" : ""} — a pet that changes breed or color between pages is a fail.
+5. ANATOMY / AI ERRORS: count fingers and limbs on every character; check for extra/missing/fused fingers or limbs, deformed faces or hands, warped or melting objects, duplicated features, garbled background details. Any AI artifact is a fail.
+6. COMPOSITION: are the subject's face, hands and every story-critical object fully inside the UPPER TWO-THIRDS of the frame, with the bottom of the frame simple background only, and nothing important within ~5% of any edge? (The reading-text band covers the bottom of the page and print trimming crops the edges.)
+7. Is there ANY text, lettering, numbers or watermark in the image?
+8. Anything inappropriate or scary for ages 3-7?
+9. Expressions: do the characters look happy/warm? Flag any unintended angry, sad, scared or distressed face that the story text does NOT call for (the default should be happy).
+10. If more than one child appears, do they look like SAME-AGE peers? Flag it if any child looks clearly older or younger than the others.
 Reply ONLY JSON: {"pass": true|false, "issues": ["short fixable issue", ...]}`,
         styleRef ? [image, styleRef] : image,
       );

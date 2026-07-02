@@ -429,10 +429,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setArtBusy("");
   }
 
-  async function qaCheck(image: string, pageText: string, characterDescription: string): Promise<ArtQA | undefined> {
+  async function qaCheck(image: string, pageText: string, characterDescription: string, artPrompt?: string): Promise<ArtQA | undefined> {
     try {
-      const [img, styleRef] = await Promise.all([refJpeg(image, 1000), refJpeg(charRef, 800)]);
-      return (await art({ action: "check", image: img, styleRef, pageText, characterDescription })).verdict;
+      const [img, styleRef] = await Promise.all([refJpeg(image, 1200), refJpeg(charRef, 800)]);
+      return (await art({ action: "check", image: img, styleRef, pageText, characterDescription, artPrompt })).verdict;
     } catch { return undefined; /* QA optional */ }
   }
 
@@ -449,15 +449,16 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       .slice(-2)
       .map(([, v]) => v.img);
     const refs = await Promise.all([charRef, ...anchors].slice(0, 3).map((b) => refJpeg(b)));
-    const first = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs });
-    const qa = await qaCheck(first.image, page.text, draft.characterDescription);
-    if (qa && !qa.pass && qa.issues?.length) {
-      const retry = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs, fixNotes: qa.issues.join("; ") });
-      const qa2 = await qaCheck(retry.image, page.text, draft.characterDescription);
-      setArts((a) => ({ ...a, [n]: { img: retry.image, qa: qa2 } }));
-    } else {
-      setArts((a) => ({ ...a, [n]: { img: first.image, qa } }));
+    // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
+    let img = "", qa: ArtQA | undefined, notes = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, refs, fixNotes: notes || undefined });
+      img = r.image;
+      qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
+      if (!qa || qa.pass || !qa.issues?.length) break;
+      notes = qa.issues.join("; ");
     }
+    setArts((a) => ({ ...a, [n]: { img, qa } }));
   }
 
   async function genAllArt() {
