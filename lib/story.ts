@@ -79,6 +79,7 @@ ILLUSTRATION DIRECTIONS:
 - Each page needs an "artPrompt": 2-3 concrete sentences of art direction that carry the story visually. Always specify: (1) the child character's action and facial expression/emotion, (2) the setting and 1-2 simple background elements, (3) camera framing (e.g. "wide shot", "close-up on face", "low angle looking up") — vary framing across pages so the book feels dynamic.
 - The picture must tell the story even if the child can't read the words yet.
 - Refer to the hero as "the child character" and keep their appearance identical on every page.
+- EVERY other recurring character (friend, sibling, pet) MUST get an entry in "castDescriptions" locking their exact appearance (skin tone, hair, eyes, clothing / species, coloring, markings) — the illustrator and QA enforce these on every page, so a missing entry means that character will drift.
 - Compose every scene with the subject and all key objects in the UPPER TWO-THIRDS of a portrait frame — the bottom of each page is covered by the reading-text band, and print trimming crops the outer edges.
 - Clean simple backgrounds, no clutter, large readable facial expressions.
 - NEVER describe any words, letters, signs, numbers, logos or brands in the illustration.
@@ -89,7 +90,7 @@ Reply with ONLY this JSON shape:
   "levelId": "${level.id}",
   "childName": "${o.childName}",
   "characterDescription": "one rich sentence locking the child character's constant appearance (hair, eyes, skin, glasses, outfit) for the illustrator",
-  "companionDescription": "one sentence locking the constant appearance of any recurring pet/companion/friend who appears on multiple pages (species, coloring, distinctive markings, collar/clothing) — empty string if none",
+  "castDescriptions": ["one sentence PER recurring character other than the hero — every friend, sibling, or pet who appears on 2+ pages gets an entry locking their constant appearance: name, skin tone, hair, eyes, clothing (or species, coloring, markings, collar). Empty array only if the hero is truly alone."],
   "coverArtPrompt": "cover illustration direction, no text in image",
   "pages": [ { "n": 1, "text": "...", "artPrompt": "..." } ]
 }`;
@@ -114,7 +115,7 @@ FINAL CHECK — verify each:
 2. Repetition & predictability: vocabulary and sentence patterns repeat like early BOB Books; one action per page; concrete nouns; familiar actions.
 3. Child is the hero: ${o.childName} stars on every page; topic stays consistent; the ordered details genuinely shape the story.
 4. Story arc: introduction → discovery → fun activity → small challenge → success → celebration → positive ending.
-5. Illustration directions: concrete, uncluttered, consistent character, visually tell the story, contain NO text/brands/logos.
+5. Illustration directions: concrete, uncluttered, consistent character, visually tell the story, contain NO text/brands/logos. Every recurring character other than the hero has a castDescriptions entry locking skin tone, hair and clothing — flag any recurring character that lacks one.
 6. Safety & rights: positive tone, nothing scary; NO trademarked characters or copyrighted brands anywhere.
 
 Reply with ONLY JSON:

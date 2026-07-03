@@ -73,7 +73,8 @@ export interface StoryDraft {
   levelId: LevelId;
   childName: string;
   characterDescription: string;
-  companionDescription?: string; // recurring pet/friend appearance lock ("" if none)
+  companionDescription?: string; // legacy single-companion lock (superseded by castDescriptions)
+  castDescriptions?: string[]; // appearance lock for EVERY recurring character other than the hero
   coverArtPrompt: string;
   pages: StoryPage[];
 }

@@ -10,10 +10,14 @@ type Draft = {
   levelId: string;
   childName: string;
   characterDescription: string;
-  companionDescription?: string;
+  companionDescription?: string; // legacy
+  castDescriptions?: string[];
   coverArtPrompt: string;
   pages: { n: number; text: string; artPrompt: string }[];
 };
+// Appearance locks for every recurring character other than the hero.
+const castText = (d: Draft | null) =>
+  (d?.castDescriptions?.length ? d.castDescriptions.join(" ") : d?.companionDescription || "").trim() || undefined;
 type Check = { pass: boolean; problems: string[]; stats: { totalWords: number; pages: number } };
 type Grade = { pass: boolean; score: number; issues: string[]; praise: string };
 type ArtQA = { pass: boolean; issues: string[] };
@@ -424,7 +428,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     if (!draft) return;
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
-      const r = await art({ action: "character", description: draft.characterDescription, companion: draft.companionDescription || undefined, photo: photoB64 || undefined });
+      const r = await art({ action: "character", description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined });
       setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
@@ -437,7 +441,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const [img, styleRef] = await Promise.all([refJpeg(image, 1200), refJpeg(charRef, 800)]);
-        return (await art({ action: "check", image: img, styleRef, pageText, characterDescription, companionDescription: draft?.companionDescription || undefined, artPrompt })).verdict;
+        return (await art({ action: "check", image: img, styleRef, pageText, characterDescription, cast: castText(draft), artPrompt })).verdict;
       } catch { await new Promise((r) => setTimeout(r, 3000)); }
     }
     return undefined; // QA unavailable — tile shows "?" and blocks until Redo or Use anyway
@@ -459,7 +463,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
     let img = "", qa: ArtQA | undefined, notes = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, companionDescription: draft.companionDescription || undefined, refs, fixNotes: notes || undefined });
+      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, cast: castText(draft), refs, fixNotes: notes || undefined });
       img = r.image;
       qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
       if (!qa || qa.pass || !qa.issues?.length) break;

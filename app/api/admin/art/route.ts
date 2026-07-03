@@ -23,11 +23,11 @@ export async function POST(req: NextRequest) {
 
     if (action === "character") {
       const desc = body.description as string;
-      const companion = (body.companion as string | undefined)?.trim();
+      const companion = ((body.cast as string | undefined) ?? (body.companion as string | undefined))?.trim();
       const photo = body.photo as string | undefined; // parent-provided reference photo (base64 JPEG)
       if (!desc) return NextResponse.json({ error: "Missing description" }, { status: 400 });
       const companionLine = companion
-        ? `\n\nALSO on the sheet, standing beside the child: the recurring companion — ${companion}. Draw its species, coloring, markings and collar/clothing unmistakably; this sheet locks the companion's look for the whole book too.`
+        ? `\n\nALSO on the sheet, standing in a row beside the child: EVERY recurring character in this book — ${companion}. Draw each one unmistakably (exact skin tone, hair, eyes, clothing; or species, coloring, markings, collar). This one sheet locks the look of the ENTIRE cast for the whole book.`
         : "";
       const prompt = photo
         ? `${STYLE}
@@ -43,10 +43,11 @@ Character reference sheet: a single child character shown clearly — full body,
     }
 
     if (action === "page") {
-      const { artPrompt, characterDescription, companionDescription, refs = [], fixNotes } = body;
+      const { artPrompt, characterDescription, refs = [], fixNotes } = body;
+      const castText = ((body.cast as string | undefined) ?? (body.companionDescription as string | undefined))?.trim();
       if (!artPrompt) return NextResponse.json({ error: "Missing artPrompt" }, { status: 400 });
-      const companionLine = (companionDescription as string | undefined)?.trim()
-        ? ` The recurring companion on the sheet MUST also appear identical wherever the scene includes it — ${companionDescription} — with the exact same species, coloring, markings and collar.`
+      const companionLine = castText
+        ? ` EVERY other recurring character on the sheet MUST also appear identical wherever the scene includes them — ${castText} — with the exact same skin tone, hair, clothing, species, coloring and markings. NEVER change any character's skin tone or hair between pages.`
         : "";
       const img = await generateImage(
         `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}).${companionLine} Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nScene for this page: ${artPrompt}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
@@ -57,12 +58,13 @@ Character reference sheet: a single child character shown clearly — full body,
     }
 
     if (action === "check") {
-      const { image, pageText, characterDescription, companionDescription, styleRef, artPrompt } = body;
+      const { image, pageText, characterDescription, styleRef, artPrompt } = body;
+      const castText = ((body.cast as string | undefined) ?? (body.companionDescription as string | undefined))?.trim();
       if (!image) return NextResponse.json({ error: "Missing image" }, { status: 400 });
       const raw = await visionAsk(
-        `You are the strict QA gate for a children's book illustration. A page that fails QA is regenerated, so it is much better to flag a real problem than to wave it through. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved character/style reference sheet for this book." : "The attached image is the page to check."} The page's story text is: "${pageText}".${artPrompt ? ` The art direction this image was generated from: "${artPrompt}".` : ""} The recurring child character must look like: ${characterDescription}.${(companionDescription as string | undefined)?.trim() ? ` The recurring companion must look like: ${companionDescription}.` : ""}
+        `You are the strict QA gate for a children's book illustration. A page that fails QA is regenerated, so it is much better to flag a real problem than to wave it through. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved cast/style reference sheet for this book — every recurring character's canonical look." : "The attached image is the page to check."} The page's story text is: "${pageText}".${artPrompt ? ` The art direction this image was generated from: "${artPrompt}".` : ""} The child hero must look like: ${characterDescription}.${castText ? ` The other recurring cast members must look like: ${castText}.` : ""}
 Check the page image:
-1. CHARACTER: does the child match that description EXACTLY (hair color/texture/length, eye color, skin tone, glasses/accessories, outfit and its colors)${styleRef ? " and the reference sheet" : ""}? Any drift is a fail.
+1. CAST IDENTITY (most important): check EVERY character in the image — the hero AND every recurring friend, sibling or pet — against their locked description${styleRef ? " and the reference sheet" : ""}. Hair color/texture/length, eye color, SKIN TONE, glasses/accessories, outfit and its colors, species/markings/collar. A character whose skin tone, hair, or outfit differs from the sheet — even slightly, even in the background — is a HARD FAIL. Name which character drifted.
 2. ${styleRef ? "STYLE: does the rendering style (medium, palette, line treatment) match the reference sheet closely enough that both could be pages of the same printed book?" : "STYLE: warm hand-illustrated picture-book style — no 3D/CGI, no anime, no photorealism?"}
 3. SCENE FIDELITY: does the image match the story text${artPrompt ? " and art direction" : ""}? CRITICAL: verify every COUNT and COLOR that the text or art direction names — if the text says three apples, count the apples; if it names a red ball, the ball must be red. Wrong counts or colors are a fail.
 4. RECURRING ELEMENTS: any companion animal or repeated object must have consistent species, coloring and markings${styleRef ? " with the reference sheet" : ""} — a pet that changes breed or color between pages is a fail.
