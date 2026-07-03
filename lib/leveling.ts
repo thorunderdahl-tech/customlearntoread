@@ -92,7 +92,9 @@ const words = (t: string) => t.split(/\s+/).map((w) => w.replace(/[^A-Za-z'’-]
 // ---- decodability vocabulary (see docs/reading-levels.md) ----
 // Dolch pre-primer + primer sight words.
 const SIGHT_CORE = new Set(("a and away big blue can come down find for funny go help here i in is it jump little look make me my not one play red run said see the three to two up we where yellow you " +
-  "all am are at ate be black brown but came did do eat four get good have he into like must new no now on our out please pretty ran ride saw say she so soon that there they this too under want was well went what white who will with yes").split(" "));
+  "all am are at ate be black brown but came did do eat four get good have he into like must new no now on our out please pretty ran ride saw say she so soon that there they this too under want was well went what white who will with yes " +
+  // Dolch color words — standard early-reader vocabulary
+  "orange purple pink green gray").split(" "));
 // Dolch first-grade + common Dolch nouns — the "moderate" extension.
 const SIGHT_EXTENDED = new Set(("after again an any as ask by could every fly from give going had has her him his how just know let live may of old once open over put round some stop take thank them then think walk were when " +
   "apple baby ball bear bed bird boat book box boy bus cake car cat chair cow day dog door duck egg eye farm fish frog fun game girl goat hat hen hill home horse house kitten leg man men milk moon morning mother name nest night pig rain ring school seed sheep shoe snow song stick street sun table thing time top toy tree water way wind window wood").split(" "));
