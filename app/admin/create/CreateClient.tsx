@@ -350,6 +350,9 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const [photoB64, setPhotoB64] = useState("");
   const photoInput = useRef<HTMLInputElement>(null);
   const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA; accepted?: boolean }>>({});
+  // Per-illustration art-director edit notes + reference photos (keyed by page n; 0 = cover).
+  const [pageNotes, setPageNotes] = useState<Record<number, string>>({});
+  const [pageRefs, setPageRefs] = useState<Record<number, string[]>>({}); // base64 JPEG reference photos
   const [artBusy, setArtBusy] = useState("");
   const [assembling, setAssembling] = useState("");
   const [pdfUrl, setPdfUrl] = useState(""); // customer home-print PDF (trim size)
@@ -368,7 +371,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   function resetAll() {
     setDraft(null); setGrade(null); setCheck(null); setSaved("");
-    setCharRef(""); setArts({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
+    setCharRef(""); setArts({}); setPageNotes({}); setPageRefs({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
   }
 
   async function generate() {
@@ -452,18 +455,25 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     const page = n === 0
       ? { n: 0, text: draft.title, artPrompt: draft.coverArtPrompt }
       : draft.pages.find((p) => p.n === n)!;
-    // Refs: character sheet first, then up to 2 already-passing pages as style
-    // anchors so every page matches both the character AND the book's style.
+    // Refs: character sheet first, then any reference photos the art director
+    // attached for THIS illustration (their explicit intent wins over anchors),
+    // then up to 2 already-passing pages as style anchors so every page matches
+    // both the character AND the book's style.
     const anchors = Object.entries(arts)
       .filter(([k, v]) => Number(k) !== n && Number(k) !== 0 && v.qa?.pass)
       .sort((a, b) => Number(a[0]) - Number(b[0]))
       .slice(-2)
       .map(([, v]) => v.img);
-    const refs = await Promise.all([charRef, ...anchors].slice(0, 3).map((b) => refJpeg(b)));
+    const myPhotos = pageRefs[n] || [];
+    const ordered = [charRef, ...myPhotos, ...anchors].slice(0, 3);
+    const refPhotoCount = Math.min(myPhotos.length, Math.max(0, ordered.length - 1));
+    const refs = await Promise.all(ordered.map((b) => refJpeg(b)));
+    const userNotes = (pageNotes[n] || "").trim() || undefined;
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
+    // The art director's own edit note (userNotes) is sent on every attempt.
     let img = "", qa: ArtQA | undefined, notes = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, cast: castText(draft), refs, fixNotes: notes || undefined });
+      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, cast: castText(draft), refs, refPhotoCount, userNotes, fixNotes: notes || undefined });
       img = r.image;
       qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
       if (!qa || qa.pass || !qa.issues?.length) break;
@@ -756,7 +766,45 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
                         {a?.qa && !a.qa.pass && !a.accepted && <p className="tissue">{a.qa.issues.join("; ")}</p>}
                         {a && !a.qa && !a.accepted && <p className="tissue">QA couldn&rsquo;t verify this page — Redo it or Use anyway.</p>}
                         {a?.accepted && <p className="hint">accepted despite QA</p>}
-                        <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>Redo</button>
+                        <textarea
+                          className="tnote"
+                          rows={2}
+                          placeholder="Notes / edits for this illustration…"
+                          value={pageNotes[t.n] || ""}
+                          onChange={(e) => setPageNotes((s) => ({ ...s, [t.n]: e.target.value }))}
+                        />
+                        <div className="trefs">
+                          {(pageRefs[t.n] || []).map((p, i) => (
+                            <span className="trefchip" key={i}>
+                              <img src={"data:image/jpeg;base64," + p} alt="reference" />
+                              <button
+                                type="button"
+                                aria-label="Remove reference photo"
+                                onClick={() => setPageRefs((s) => ({ ...s, [t.n]: (s[t.n] || []).filter((_, j) => j !== i) }))}
+                              >×</button>
+                            </span>
+                          ))}
+                          <label className="crt-btn tsmall trefadd">
+                            + Reference photo
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png"
+                              multiple
+                              style={{ display: "none" }}
+                              onChange={async (e) => {
+                                const input = e.currentTarget;
+                                const files = Array.from(input.files || []);
+                                if (!files.length) return;
+                                const b64s = await Promise.all(files.map(fileToJpegB64));
+                                setPageRefs((s) => ({ ...s, [t.n]: [...(s[t.n] || []), ...b64s] }));
+                                input.value = "";
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>
+                          {(pageNotes[t.n]?.trim() || (pageRefs[t.n]?.length ?? 0) > 0) ? "Redo with edits" : "Redo"}
+                        </button>
                         {a && !a.accepted && (!a.qa || !a.qa.pass) && (
                           <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => setArts((s) => ({ ...s, [t.n]: { ...s[t.n], accepted: true } }))}>Use anyway</button>
                         )}
@@ -851,6 +899,12 @@ const CSS = `
   .crt-tile .tlabel { font-size: .74rem; font-weight: 800; color: #7a7164; margin-bottom: 4px; }
   .crt-tile .tissue { font-size: .7rem; color: #8c2f25; }
   .crt-tile .tsmall { padding: 4px 12px; font-size: .76rem; margin-top: 4px; }
+  .crt-tile .tnote { width: 100%; box-sizing: border-box; margin-top: 6px; padding: 6px 8px; font-size: .76rem; border: 1.5px solid #e0d8c8; border-radius: 8px; background: #fffdf8; resize: vertical; font-family: inherit; text-align: left; }
+  .crt-tile .trefs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin-top: 6px; }
+  .crt-tile .trefchip { position: relative; display: inline-flex; }
+  .crt-tile .trefchip img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; box-shadow: 0 1px 4px rgba(47,42,36,.2); }
+  .crt-tile .trefchip button { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; line-height: 14px; padding: 0; border: none; border-radius: 999px; background: #8c2f25; color: #fff; font-size: .7rem; cursor: pointer; }
+  .crt-tile .trefadd { margin-top: 0; }
   .tempty { height: 180px; background: #f6f0e4; border-radius: 8px; }
   .crt-preview { width: 100%; height: 560px; border: 1px solid #e7e0d4; border-radius: 12px; margin: 14px 0; background: #fff; }
   .crt-done .big { color: #2f5e38; font-weight: 800; font-size: 1.05rem; }

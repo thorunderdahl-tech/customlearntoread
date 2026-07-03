@@ -46,11 +46,29 @@ Character reference sheet: a single child character shown clearly — full body,
       const { artPrompt, characterDescription, refs = [], fixNotes } = body;
       const castText = ((body.cast as string | undefined) ?? (body.companionDescription as string | undefined))?.trim();
       if (!artPrompt) return NextResponse.json({ error: "Missing artPrompt" }, { status: 400 });
+      // Art director's own edit notes for THIS illustration (typed in the tile).
+      const userNotes = (body.userNotes as string | undefined)?.trim();
+      // How many of the attached refs (after the character sheet at index 0) are
+      // real reference photos the art director attached for this scene, versus
+      // approved book pages used as style anchors. Reference photos come first.
+      const refCount = (refs as string[]).length;
+      const refPhotoCount = Math.max(0, Math.min(Number(body.refPhotoCount) || 0, Math.max(0, refCount - 1)));
       const companionLine = castText
         ? ` EVERY other recurring character on the sheet MUST also appear identical wherever the scene includes them — ${castText} — with the exact same skin tone, hair, clothing, species, coloring and markings. NEVER change any character's skin tone or hair between pages.`
         : "";
+      const refPhotoLine = refPhotoCount > 0
+        ? ` The next ${refPhotoCount} attached image${refPhotoCount > 1 ? "s are" : " is a"} real reference photo${refPhotoCount > 1 ? "s" : ""} the art director attached specifically for THIS scene — use ${refPhotoCount > 1 ? "them" : "it"} as visual guidance (likeness, clothing, objects, setting, pose or composition) but ALWAYS render in the book's warm stylized illustration style, never photorealistic.`
+        : "";
+      const stylePagesLine = refCount - 1 - refPhotoCount > 0
+        ? " Any remaining attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book."
+        : "";
+      // The art director's requested edits take priority; QA auto-fixes come after.
+      const fixInstruction = [
+        userNotes ? `Art director's requested edits for this illustration (do these): ${userNotes}` : "",
+        fixNotes ? `Also fix these QA problems from the previous attempt: ${fixNotes}` : "",
+      ].filter(Boolean).join("\n\n");
       const img = await generateImage(
-        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}).${companionLine} Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nScene for this page: ${artPrompt}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
+        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}).${companionLine}${refPhotoLine}${stylePagesLine}\n\nScene for this page: ${artPrompt}${fixInstruction ? `\n\n${fixInstruction}` : ""}`,
         (refs as string[]).slice(0, 3),
         "2:3",
       );
