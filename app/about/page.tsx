@@ -72,7 +72,7 @@ export default function AboutPage() {
           </article>
           <article>
             <h3>Simple words. Big text.</h3>
-            <p>Made for beginning readers. Confidence comes before challenge.</p>
+            <p>Made for beginning readers. Confidence comes before challenge. Prefer to read together? You can add optional grown-up read-along lines to any book.</p>
           </article>
           <article>
             <h3>One family at a time.</h3>

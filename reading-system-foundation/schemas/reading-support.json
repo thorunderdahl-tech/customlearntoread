@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "reading-support",
+  "version": 1,
+  "description": "The scaffolding that wraps every book: a caregiver-coaching page, a pre-reading warm-up, a tricky-word list, a comprehension-prompt bank, and the cumulative-review rule. Most fields are auto-derivable from reading-levels.json, gpc-table.json, heart-words.json, and the book's four_questions.",
+
+  "caregiver_page": {
+    "purpose": "One page (front or back matter) that turns a parent into an effective coach in 30 seconds.",
+    "fields": {
+      "sounds_practiced": "New GPCs at this level (from gpc-table.json where level == book level).",
+      "heart_words_previewed": "Heart words introduced at this level (from heart-words.json).",
+      "tricky_words_to_preview": "Any out-of-level personalization/theme tokens used in this book (from book-spec.allowed_tokens).",
+      "how_to_help_when_stuck": { "$ref": "#/coaching_prompts" },
+      "after_reading": { "$ref": "#/comprehension_bank" }
+    }
+  },
+
+  "coaching_prompts": {
+    "do": [
+      "What is the first sound?",
+      "Slide through the sounds slowly, then say it fast.",
+      "Cover part of the word and read the first chunk, then the rest.",
+      "Find a sound you know inside the word.",
+      "You said it — now reread the whole sentence so it flows."
+    ],
+    "avoid": [
+      "Look at the picture to figure out the word.",
+      "What word would make sense there?",
+      "Guess from the first letter."
+    ],
+    "why": "The 'do' prompts point the child back to decoding (the reliable strategy). The 'avoid' prompts are three-cueing habits that undercut decoding. Pictures are for meaning and confirmation, not word identification."
+  },
+
+  "pre_reading_warm_up": {
+    "purpose": "A 60-second warm-up before reading, all done aloud/with sound cards.",
+    "steps": [
+      { "step": "sound_review", "content": "Say the new GPC sounds for this level, then a few from prior levels (cumulative)." },
+      { "step": "blend_practice", "content": "Blend 3-4 decodable words that appear in the book (e.g., s-a-m -> Sam)." },
+      { "step": "heart_word_flash", "content": "Read the level's heart words, marking the 'by heart' part." },
+      { "step": "tricky_preview", "content": "Say and point to any out-of-level tokens (name, theme word) once, so they are not a surprise." }
+    ]
+  },
+
+  "comprehension_bank": {
+    "purpose": "Post-reading prompts tied to the comprehension strand of skills-matrix.json and the book's four_questions. Ask 2-3, matched to the book level.",
+    "by_strand": {
+      "recall_who_what": {
+        "levels": [1, 2, 3],
+        "prompts": ["Who is this story about?", "What did {who} want?", "What happened at the end?"]
+      },
+      "sequence": {
+        "levels": [4, 5, 6],
+        "prompts": ["What happened first? Then what?", "What did {who} try before it worked?", "Retell the story in order."]
+      },
+      "cause_effect_why_how": {
+        "levels": [6, 7, 8],
+        "prompts": ["Why did {who} want to {what}?", "How did {who} solve it?", "What would happen if they had given up?"]
+      },
+      "feelings_motivation": {
+        "levels": [7, 8, 9, 10],
+        "prompts": ["How did {who} feel, and how do you know?", "Why did {who} keep trying?", "Have you ever felt like {who}?"]
+      }
+    },
+    "template_slots": {
+      "{who}": "book.four_questions.who",
+      "{what}": "book.four_questions.what",
+      "{why}": "book.four_questions.why",
+      "{how}": "book.four_questions.how"
+    }
+  },
+
+  "cumulative_review_rule": {
+    "statement": "Every book must revisit previously-taught patterns, not only the level's new focus. Target: at least 40% of decodable running words use GPCs from BELOW the current level, so practice is distributed and spaced across the child's whole sequence.",
+    "rationale": "Distributed, cumulative review is core to structured literacy; it prevents 'learn it Tuesday, forget it Friday.'",
+    "enforced_by": "validation-rules.json -> checks.cumulative_review"
+  },
+
+  "example_for_sample_book": {
+    "book_id": "demo-0001",
+    "level": 3,
+    "sounds_practiced": ["e = /e/ (bed)", "u = /u/ (cup)", "x = /ks/", "z = /z/", "review: short a, short i, short o"],
+    "heart_words_previewed": ["me", "was", "are", "for", "of", "they", "have"],
+    "tricky_words_to_preview": ["Mia", "Sam"],
+    "warm_up_blend_words": ["Sam", "wet", "ran", "get", "red"],
+    "after_reading": [
+      "Who is this story about?",
+      "What did Mia want?",
+      "What happened at the end?"
+    ]
+  }
+}

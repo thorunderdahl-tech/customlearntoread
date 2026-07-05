@@ -1,0 +1,20 @@
+{
+  "book_id": "golden-L1",
+  "level": 1,
+  "template": "meet-goal-explore-challenge-learn-celebrate",
+  "arc": "cozy",
+  "theme": "dogs",
+  "setting": "home",
+  "objective": "celebrate",
+  "profile": { "child_name": "Pam", "name_complexity": "simple", "pet_name": "Sam" },
+  "four_questions": { "who": "Pam", "what": "play with her cat Sam", "why": "Sam is her pet", "how": "she pats him and he is glad" },
+  "allowed_tokens": { "personal": ["Pam", "Sam"], "theme_anchor": [] },
+  "pages": [
+    { "page": 1, "beat": "meet", "text": "I am Pam. I see my cat.", "illustration_prompt": "Pam and her cat at home, soft watercolor." },
+    { "page": 2, "beat": "goal", "text": "Sam is my cat.", "illustration_prompt": "Close-up of the cat Sam, soft watercolor." },
+    { "page": 3, "beat": "explore", "text": "Sam has a hat.", "illustration_prompt": "Cat Sam wearing a little hat, soft watercolor." },
+    { "page": 4, "beat": "challenge", "text": "Sam sat. The hat is tan.", "illustration_prompt": "Cat sitting with a tan hat, soft watercolor." },
+    { "page": 5, "beat": "learn", "text": "Sam ran. I ran.", "illustration_prompt": "Pam and Sam running together, soft watercolor." },
+    { "page": 6, "beat": "celebrate", "text": "I pat Sam. Sam is glad.", "illustration_prompt": "Pam patting a happy cat Sam, soft watercolor." }
+  ]
+}

@@ -3,6 +3,8 @@
 // parents to read — it's a book the CHILD can successfully read themselves,
 // in the spirit of early BOB Books. Pictures carry the story; text supports.
 import type { Level, StoryDraft } from "./leveling";
+import { describePhonicsScope } from "./reading/phonics";
+import { describePlan, type StoryPlan } from "./reading/storySystem";
 import { BRAND_STORY_VOICE } from "./brand";
 
 export interface OrderInfo {
@@ -23,6 +25,7 @@ export interface StoryExtras {
   emotionalGoal?: string; // Confidence | Friendship | Kindness | Trying Something New | Teamwork | Courage
   mustUseWords?: string;
   avoidWords?: string;
+  readAlong?: boolean; // Parent Read-Along Lines: also write a grown-up read-aloud line per page
 }
 
 export function orderInfoFromFields(f: Record<string, any>): OrderInfo {
@@ -45,11 +48,12 @@ export const STORY_SYSTEM = `You create personalized learn-to-read books for the
 THE GOAL IS NOT A STORY FOR PARENTS TO READ ALOUD. The goal is a book the child can successfully read THEMSELVES — like early BOB Books. Pictures carry most of the story; the text supports the picture.
 WRITING RULES — DO: repeat vocabulary often; repeat sentence patterns; use predictable language; use concrete nouns; use familiar actions; keep the story positive; make the child the hero on every page.
 DO NOT: use long sentences; use figurative language; use complex vocabulary; use multiple actions per page; use trademarked characters; use copyrighted brands, teams, logos, or franchises (generic versions only — "a race car", never a branded one).
+DECODABLE-TEXT PRINCIPLE: this is systematic phonics, not guessing from pictures. Every word must be sound-out-able with the letter-sounds the child has been taught at their level, plus a small set of taught high-frequency "heart" words, the child's name, and the book's topic word. The exact phonics scope for this book's level is given in the level rules — a code-based phonics check rejects any word outside it, so write inside the scope the first time.
 Level rules are HARD constraints, not suggestions. You reply with a single JSON object and nothing else.
 
 ${BRAND_STORY_VOICE}`;
 
-export function buildGeneratePrompt(o: OrderInfo, level: Level, pageCount: number, extras: StoryExtras = {}): string {
+export function buildGeneratePrompt(o: OrderInfo, level: Level, pageCount: number, extras: StoryExtras = {}, plan?: StoryPlan): string {
   const mainTopic = o.themes[0] || "everyday adventures";
   const supporting = o.themes.slice(1).join(", ");
   return `Create a personalized learn-to-read book as JSON.
@@ -70,9 +74,11 @@ ${extras.mustUseWords ? `- MUST-USE words (work each in naturally, more than onc
 READING LEVEL — HARD RULES (${level.parentLabel}):
 ${level.promptRules}
 
-FORMAT:
+${describePhonicsScope(level.rules.phonicsCeiling, level.rules.decodability)}
+
+${plan ? describePlan(plan) + "\n\n" : ""}${extras.readAlong ? `PARENT READ-ALONG LINES (this order includes them): for EVERY page, also write an "adultLine" — ONE richer sentence for a grown-up to read ALOUD. It describes the SAME moment as the page's "text" but may use bigger words and fuller sentences; it is NOT limited by the child's reading level. Keep it warm and age-appropriate. The child's "text" stays exactly at level and is unchanged by this. Do not reference the adultLine in the illustration.\n\n` : ""}FORMAT:
 - Exactly ${pageCount} interior pages. ONE sentence per page. ONE illustration per page. No paragraphs, no text blocks.
-- Story arc across the pages: 1) introduction → 2) discovery → 3) fun activity → 4) small challenge → 5) success → 6) celebration → 7) positive ending.
+- Spread the story across the pages following the STORY PLAN above (or, if none, a simple beginning → small challenge → happy ending). One clear problem, resolved warmly.
 - Repeat key vocabulary throughout so earlier pages teach the words later pages use.
 
 ILLUSTRATION DIRECTIONS:
@@ -92,7 +98,8 @@ Reply with ONLY this JSON shape:
   "characterDescription": "one rich sentence locking the child character's constant appearance (hair, eyes, skin, glasses, outfit) for the illustrator",
   "castDescriptions": ["one sentence PER recurring character other than the hero — every friend, sibling, or pet who appears on 2+ pages gets an entry locking their constant appearance: name, skin tone, hair, eyes, clothing (or species, coloring, markings, collar). Empty array only if the hero is truly alone."],
   "coverArtPrompt": "cover illustration direction, no text in image",
-  "pages": [ { "n": 1, "text": "...", "artPrompt": "..." } ]
+  "fourQuestions": { "who": "who the story is about (usually ${o.childName})", "what": "what they want", "why": "why it matters", "how": "how they succeed" },
+  "pages": [ { "n": 1, "text": "...", ${extras.readAlong ? `"adultLine": "grown-up read-aloud line for this page", ` : ""}"artPrompt": "..." } ]
 }`;
 }
 
@@ -101,6 +108,8 @@ export function buildGradePrompt(draft: StoryDraft, level: Level, o: OrderInfo):
 
 LEVEL RULES (${level.parentLabel}):
 ${level.promptRules}
+
+${describePhonicsScope(level.rules.phonicsCeiling, level.rules.decodability)}
 
 WHAT THE PARENT ORDERED:
 - Child: ${o.childName}, age ${o.age || "?"}
@@ -122,11 +131,32 @@ Reply with ONLY JSON:
 { "pass": true|false, "score": 1-10, "issues": ["specific fixable issue", ...], "praise": "one line on what works" }`;
 }
 
-export function buildRevisePrompt(draft: StoryDraft, level: Level, issues: string[]): string {
+/** Turn a story model's one-line scene idea into rich, specific art direction.
+ * Runs per page just before image generation so illustrations are well-composed
+ * and print-safe, not literal one-liners. Returns a prompt for a text model. */
+export function buildArtDirectionPrompt(pageText: string, roughScene: string, characterDescription: string, castText?: string): string {
+  return `You are an expert children's picture-book art director. Expand the idea below into vivid, specific art direction for ONE illustration. Output ONE tight paragraph (max ~90 words) — no lists, no preamble, just the scene an illustrator would follow.
+
+PAGE TEXT (the moment to illustrate): "${pageText}"
+ROUGH IDEA: ${roughScene}
+THE CHILD HERO: ${characterDescription}${castText ? `\nOTHER CHARACTERS (only if the scene includes them): ${castText}` : ""}
+
+Make concrete:
+- One clear focal action that matches the page text, with the character's warm, age-appropriate emotion.
+- Camera framing that fits and varies the book: wide establishing, mid, close-up on the face, or low angle looking up.
+- Composition: subject in the UPPER TWO-THIRDS; keep the bottom of the frame simple (a reading-text band covers it); keep every story-critical element at least 8% inside all four edges (print trimming crops the borders).
+- A setting with just 1-2 background elements and a sense of depth (foreground / background).
+- Warm golden-hour lighting and a cozy, harmonious color feel.
+Do NOT include any text, letters, numbers, signs, logos, or brand/franchise characters. Reply with ONLY the paragraph.`;
+}
+
+export function buildRevisePrompt(draft: StoryDraft, level: Level, issues: string[], plan?: StoryPlan): string {
   return `Revise this learn-to-read book draft. Fix EVERY issue listed while keeping everything that works. The child must be able to read every page themselves. Level rules remain hard constraints:
 ${level.promptRules}
 
-ISSUES TO FIX:
+${describePhonicsScope(level.rules.phonicsCeiling, level.rules.decodability)}
+
+${plan ? describePlan(plan) + "\n\nKeep the same story plan and fourQuestions unless an issue requires changing them.\n\n" : ""}${draft.pages?.some((p) => p.adultLine) ? "This book has Parent Read-Along Lines: keep each page's \"adultLine\" (the grown-up read-aloud line); change it only if an issue names it.\n\n" : ""}ISSUES TO FIX:
 ${issues.map((i, n) => `${n + 1}. ${i}`).join("\n")}
 
 CURRENT DRAFT:

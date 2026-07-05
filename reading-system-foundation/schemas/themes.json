@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "themes",
+  "version": 1,
+  "description": "Surface content only. Themes are data, never code, so the library can grow indefinitely. Each theme has setting options, illustration motifs, and 'anchor words' with a decodability flag. Out-of-level anchor words are governed by personalization.json caps. No trademarked/franchise IP as themes.",
+  "anchor_word_note": "in_level=false means the word exceeds early phonics levels and is treated as an allowed theme token (capped, repeated, illustration-supported), not counted against the decodable budget.",
+  "themes": [
+    {
+      "id": "dinosaurs", "name": "Dinosaurs",
+      "settings": ["forest", "museum", "volcano valley", "backyard dig", "jungle"],
+      "motifs": ["footprints", "fossils", "ferns", "eggs", "bones"],
+      "anchor_words": [
+        { "word": "dinosaur", "in_level": false, "short_name": "dino" },
+        { "word": "T. rex", "in_level": false, "short_name": "Rex" },
+        { "word": "fossil", "in_level": false }
+      ]
+    },
+    {
+      "id": "firefighters", "name": "Firefighters",
+      "settings": ["fire station", "town street", "park", "school"],
+      "motifs": ["fire truck", "hose", "helmet", "ladder", "dalmatian"],
+      "anchor_words": [
+        { "word": "firefighter", "in_level": false, "short_name": "the crew" },
+        { "word": "engine", "in_level": false, "short_name": "truck" }
+      ]
+    },
+    {
+      "id": "space", "name": "Space",
+      "settings": ["rocket", "moon", "star field", "space station", "red planet"],
+      "motifs": ["rocket", "stars", "planets", "helmet", "flag"],
+      "anchor_words": [
+        { "word": "planet", "in_level": false },
+        { "word": "rocket", "in_level": true },
+        { "word": "astronaut", "in_level": false, "short_name": "star pilot" }
+      ]
+    },
+    {
+      "id": "dogs", "name": "Dogs & Pets",
+      "settings": ["backyard", "park", "home", "beach", "farm"],
+      "motifs": ["ball", "bone", "leash", "paw prints", "doghouse"],
+      "anchor_words": [
+        { "word": "puppy", "in_level": true },
+        { "word": "wag", "in_level": true }
+      ]
+    },
+    {
+      "id": "princesses", "name": "Castles & Royals",
+      "settings": ["castle", "garden", "tower", "village", "forest"],
+      "motifs": ["crown", "cape", "banner", "drawbridge", "lantern"],
+      "anchor_words": [
+        { "word": "castle", "in_level": true },
+        { "word": "princess", "in_level": false, "short_name": "the royal kid" },
+        { "word": "dragon", "in_level": false }
+      ]
+    },
+    {
+      "id": "trucks", "name": "Trucks & Machines",
+      "settings": ["construction site", "farm", "town", "junkyard"],
+      "motifs": ["wheels", "scoop", "crane", "dump bed", "cones"],
+      "anchor_words": [
+        { "word": "truck", "in_level": true },
+        { "word": "digger", "in_level": true },
+        { "word": "bulldozer", "in_level": false, "short_name": "the big dozer" }
+      ]
+    },
+    {
+      "id": "ocean", "name": "Ocean",
+      "settings": ["tide pool", "reef", "boat", "beach", "deep sea"],
+      "motifs": ["waves", "shells", "fish", "coral", "boat"],
+      "anchor_words": [
+        { "word": "fish", "in_level": true },
+        { "word": "octopus", "in_level": false, "short_name": "eight-arm friend" },
+        { "word": "dolphin", "in_level": false }
+      ]
+    },
+    {
+      "id": "sports", "name": "Sports",
+      "settings": ["field", "gym", "park", "backyard", "court"],
+      "motifs": ["ball", "net", "goal", "team shirt", "trophy"],
+      "anchor_words": [
+        { "word": "team", "in_level": true },
+        { "word": "goal", "in_level": true },
+        { "word": "trophy", "in_level": false }
+      ]
+    }
+  ]
+}

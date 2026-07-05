@@ -1,0 +1,54 @@
+{
+  "book_id": "demo-0001",
+  "level": 3,
+  "template": "problem-try-try-succeed",
+  "arc": "helping",
+  "theme": "dogs",
+  "setting": "backyard",
+  "tone": ["kind", "warm"],
+  "objective": "help",
+  "profile": {
+    "child_name": "Mia",
+    "name_complexity": "simple",
+    "pronouns": "she/her",
+    "favorite_color": "red",
+    "pet_name": "Sam",
+    "theme_favorite": "puppy"
+  },
+  "combination_key": {
+    "template": "problem-try-try-succeed",
+    "arc": "helping",
+    "setting": "backyard",
+    "tone_primary": "kind",
+    "objective": "help"
+  },
+  "four_questions": {
+    "who": "Mia",
+    "what": "get her wet pup Sam back inside",
+    "why": "Sam is wet and sad",
+    "how": "she stays calm and calls him with a red ball"
+  },
+  "allowed_tokens": {
+    "personal": ["Mia", "Sam"],
+    "theme_anchor": []
+  },
+  "reference_sheet": {
+    "character": "Mia, age 5, light-brown skin, curly black hair, red shirt, happy",
+    "theme_objects": ["small tan pup named Sam", "red ball", "wooden fence"],
+    "art_style": "soft watercolor, rounded shapes, bright and friendly",
+    "palette": ["red", "green", "warm brown", "sky blue"]
+  },
+  "pages": [
+    { "page": 1, "beat": "meet", "text": "I am Mia. Sam is my pup.", "illustration_prompt": "Mia (see reference sheet) in a green backyard with her small tan pup Sam (see reference sheet), soft watercolor." },
+    { "page": 2, "beat": "problem", "text": "Sam is wet. Sam is sad.", "illustration_prompt": "Pup Sam wet by the wooden fence, looking sad, soft watercolor." },
+    { "page": 3, "beat": "attempt1", "text": "Sam ran off. I can not get him.", "illustration_prompt": "Sam running off, Mia reaching out, soft watercolor." },
+    { "page": 4, "beat": "attempt2", "text": "I sit. I am not mad. I get a red ball.", "illustration_prompt": "Mia sitting calmly holding a red ball, soft watercolor." },
+    { "page": 5, "beat": "succeed", "text": "Sam ran to me. I am so glad!", "illustration_prompt": "Pup Sam running happily to Mia for the red ball, soft watercolor." },
+    { "page": 6, "beat": "share", "text": "Sam and I run in. Sam is not sad.", "illustration_prompt": "Mia and dry, happy Sam going inside together, soft watercolor." }
+  ],
+  "validation": {
+    "status": "pending",
+    "failed_checks": [],
+    "offending_tokens": []
+  }
+}

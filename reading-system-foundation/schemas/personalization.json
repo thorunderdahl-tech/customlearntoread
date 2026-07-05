@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "personalization",
+  "version": 1,
+  "description": "Child profile fields + the rules that let personalization ADD motivating out-of-level tokens without RAISING the reading difficulty of the surrounding text.",
+  "profile_fields": {
+    "child_name": { "type": "string", "required": true, "role": "personal_proper_noun_heart_word" },
+    "name_complexity": { "type": "enum", "values": ["simple", "moderate", "hard"], "note": "Set 'hard' for long/unusual names so layout gives space and no other new words share the page." },
+    "pronouns": { "type": "enum", "values": ["she/her", "he/him", "they/them"], "required": false },
+    "favorite_color": { "type": "string", "required": false },
+    "sibling_name": { "type": "string", "required": false, "role": "personal_proper_noun_heart_word" },
+    "pet_name": { "type": "string", "required": false, "role": "personal_proper_noun_heart_word" },
+    "theme_favorite": { "type": "string", "required": false, "note": "e.g., a specific dinosaur; may be an out-of-level anchor word." },
+    "reading_level": { "type": "integer", "required": true, "note": "1-10 from reading-levels.json" }
+  },
+  "token_rules": {
+    "child_name": {
+      "always_allowed": true,
+      "rationale": "Most motivating word in the book; recognized very early; repeats. Treated as a personal proper-noun heart word regardless of decodability.",
+      "counts_against_decodable_budget": false
+    },
+    "personal_proper_nouns": {
+      "applies_to": ["sibling_name", "pet_name"],
+      "always_allowed": true,
+      "max_distinct_per_book": 2,
+      "counts_against_decodable_budget": false
+    },
+    "theme_anchor_words": {
+      "always_allowed": true,
+      "max_out_of_level_distinct_per_book": 2,
+      "must_introduce_once_then_repeat": true,
+      "illustration_support_required": true,
+      "prefer_short_name_after_first_use": true,
+      "counts_against_decodable_budget": false
+    }
+  },
+  "balancing_rule": {
+    "statement": "On any page containing an out-of-level personal or theme token, every OTHER word on that page must be fully at-level (decodable-by-level or a live heart word).",
+    "purpose": "Keeps the decodable reading load flat while the content feels custom.",
+    "enforced_by": "validation-rules.json -> checks.balancing"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "reading-levels",
+  "version": 1,
+  "description": "The educational engine. Each level is defined by a cumulative phonics scope-and-sequence, a cumulative set of high-frequency 'heart words', and sentence/convention constraints. A word is eligible at level N if it is decodable with phonics taught by N, is a heart word introduced by N, or is an allowed personalization/theme token (see personalization.json).",
+  "notes": {
+    "cumulative": "phonics_new and heart_words_new list only what is INTRODUCED at that level. Eligibility is cumulative: level N allows everything from levels 1..N.",
+    "heart_word": "A high-frequency word taught with the regular part decoded and the irregular letter(s) memorized 'by heart'. Many Dolch words are actually decodable and are NOT heart words.",
+    "leveling_policy": "Custom levels. Grade bands are approximate. We do NOT brand as Fountas & Pinnell (three-cueing, litigation risk) or claim official Lexile measures (proprietary/licensed)."
+  },
+  "levels": [
+    {
+      "level": 1, "label": "Ladybug", "grade_band": "PreK-K",
+      "phonics_new": ["short a", "continuous consonants m s f n l r", "stop consonants t p c d g b h", "CVC with short a"],
+      "heart_words_new": ["I", "the", "a", "is", "to", "see", "my"],
+      "max_sentence_words": 4, "max_words_per_page": 8, "pages": [10, 12],
+      "new_decodable_words_per_book": [4, 5], "min_repetition_per_new_word": 3,
+      "allowed_structures": ["simple"], "tense": ["present"],
+      "conventions": { "capital_and_period": true, "question_mark": false, "exclamation": false, "comma_series": false, "dialogue": false, "contractions": false }
+    },
+    {
+      "level": 2, "label": "Caterpillar", "grade_band": "K",
+      "phonics_new": ["short i", "short o", "CVC with a/i/o"],
+      "heart_words_new": ["we", "like", "go", "and", "you", "he", "she"],
+      "max_sentence_words": 5, "max_words_per_page": 10, "pages": [12, 12],
+      "new_decodable_words_per_book": [5, 6], "min_repetition_per_new_word": 3,
+      "allowed_structures": ["simple"], "tense": ["present"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": false, "comma_series": false, "dialogue": false, "contractions": false }
+    },
+    {
+      "level": 3, "label": "Cricket", "grade_band": "K",
+      "phonics_new": ["short e", "short u", "all CVC"],
+      "heart_words_new": ["was", "are", "for", "of", "they", "have"],
+      "max_sentence_words": 6, "max_words_per_page": 12, "pages": [12, 14],
+      "new_decodable_words_per_book": [6, 7], "min_repetition_per_new_word": 2,
+      "allowed_structures": ["simple"], "tense": ["present", "past"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": false, "dialogue": false, "contractions": false }
+    },
+    {
+      "level": 4, "label": "Firefly", "grade_band": "K-1",
+      "phonics_new": ["consonant digraphs sh ch th wh ck", "-s plural"],
+      "heart_words_new": ["said", "do", "what", "come", "some"],
+      "max_sentence_words": 7, "max_words_per_page": 14, "pages": [12, 14],
+      "new_decodable_words_per_book": [7, 8], "min_repetition_per_new_word": 2,
+      "allowed_structures": ["simple"], "tense": ["present", "past"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": true, "dialogue": false, "contractions": true }
+    },
+    {
+      "level": 5, "label": "Dragonfly", "grade_band": "1",
+      "phonics_new": ["initial blends st bl tr sl", "final blends nd mp st lt", "-ing"],
+      "heart_words_new": ["here", "there", "where", "one", "two"],
+      "max_sentence_words": 8, "max_words_per_page": 16, "pages": [14, 16],
+      "new_decodable_words_per_book": [8, 9], "min_repetition_per_new_word": 2,
+      "allowed_structures": ["simple", "compound"], "compound_connectors": ["and", "but", "so"], "tense": ["present", "past"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": true, "dialogue": true, "contractions": true }
+    },
+    {
+      "level": 6, "label": "Robin", "grade_band": "1",
+      "phonics_new": ["silent-e long vowels a_e i_e o_e u_e"],
+      "heart_words_new": ["your", "our", "from", "or", "by"],
+      "max_sentence_words": 9, "max_words_per_page": 18, "pages": [14, 16],
+      "new_decodable_words_per_book": [9, 10], "min_repetition_per_new_word": 2,
+      "allowed_structures": ["simple", "compound"], "compound_connectors": ["and", "but", "so", "or"], "tense": ["present", "past"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": true, "dialogue": true, "contractions": true }
+    },
+    {
+      "level": 7, "label": "Bluebird", "grade_band": "1-2",
+      "phonics_new": ["vowel teams ai ay ee ea oa ow", "-ed"],
+      "heart_words_new": ["could", "would", "should", "been", "who"],
+      "max_sentence_words": 11, "max_words_per_page": 22, "pages": [16, 16],
+      "new_decodable_words_per_book": [10, 12], "min_repetition_per_new_word": 1,
+      "allowed_structures": ["simple", "compound", "complex"], "complex_connectors": ["because", "when", "before", "after"], "tense": ["present", "past"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": true, "dialogue": true, "contractions": true }
+    },
+    {
+      "level": 8, "label": "Falcon", "grade_band": "2",
+      "phonics_new": ["r-controlled ar or er ir ur"],
+      "heart_words_new": ["many", "any", "again", "once", "their"],
+      "max_sentence_words": 12, "max_words_per_page": 24, "pages": [16, 18],
+      "new_decodable_words_per_book": [12, 14], "min_repetition_per_new_word": 1,
+      "allowed_structures": ["simple", "compound", "complex"], "complex_connectors": ["because", "when", "before", "after", "while", "if"], "tense": ["present", "past"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": true, "dialogue": true, "contractions": true }
+    },
+    {
+      "level": 9, "label": "Hawk", "grade_band": "2-3",
+      "phonics_new": ["diphthongs oi oy ou ow", "vowel teams oo aw au"],
+      "heart_words_new": ["because", "people", "other", "only", "through"],
+      "max_sentence_words": 14, "max_words_per_page": 28, "pages": [16, 20],
+      "new_decodable_words_per_book": [14, 16], "min_repetition_per_new_word": 1,
+      "allowed_structures": ["simple", "compound", "complex"], "complex_connectors": ["because", "when", "before", "after", "while", "if", "although", "since"], "tense": ["present", "past", "future"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": true, "dialogue": true, "contractions": true }
+    },
+    {
+      "level": 10, "label": "Eagle", "grade_band": "3",
+      "phonics_new": ["multisyllable decoding", "soft c/g", "suffixes -tion -ly -ful", "prefixes re- un-", "silent letters"],
+      "heart_words_new": ["thought", "enough", "does", "done", "another"],
+      "max_sentence_words": 16, "max_words_per_page": 34, "pages": [18, 24],
+      "new_decodable_words_per_book": [16, 20], "min_repetition_per_new_word": 1,
+      "allowed_structures": ["simple", "compound", "complex", "paragraph"], "complex_connectors": ["because", "when", "before", "after", "while", "if", "although", "since", "unless", "until"], "tense": ["present", "past", "future"],
+      "conventions": { "capital_and_period": true, "question_mark": true, "exclamation": true, "comma_series": true, "dialogue": true, "contractions": true }
+    }
+  ]
+}

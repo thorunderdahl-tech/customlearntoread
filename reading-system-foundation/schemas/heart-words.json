@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "heart-words",
+  "version": 1,
+  "description": "Master list of high-frequency words taught before they are fully decodable. 'regular=true' words are actually decodable and are high-frequency, not true heart words (many Dolch words are like this). For true heart words, 'heart_part' marks the irregular grapheme the child memorizes 'by heart'; the rest is decoded. 'level' = when it is introduced.",
+  "heart_words": [
+    { "word": "I", "level": 1, "regular": false, "heart_part": "I", "note": "says its letter name" },
+    { "word": "the", "level": 1, "regular": false, "heart_part": "e", "note": "e = /uh/" },
+    { "word": "a", "level": 1, "regular": false, "heart_part": "a", "note": "schwa" },
+    { "word": "is", "level": 1, "regular": false, "heart_part": "s", "note": "s = /z/" },
+    { "word": "to", "level": 1, "regular": false, "heart_part": "o", "note": "o = /oo/" },
+    { "word": "see", "level": 1, "regular": true, "heart_part": null, "note": "decodable at L7 (ee); taught early as HF" },
+    { "word": "my", "level": 1, "regular": false, "heart_part": "y", "note": "y = /ie/" },
+
+    { "word": "we", "level": 2, "regular": false, "heart_part": "e", "note": "e = /ee/ (open)" },
+    { "word": "like", "level": 2, "regular": true, "heart_part": null, "note": "decodable at L6 (i_e); taught early as HF" },
+    { "word": "go", "level": 2, "regular": false, "heart_part": "o", "note": "o = /oe/ (open)" },
+    { "word": "and", "level": 2, "regular": true, "heart_part": null, "note": "fully decodable at L1; HF not heart" },
+    { "word": "you", "level": 2, "regular": false, "heart_part": "ou", "note": "ou = /oo/" },
+    { "word": "he", "level": 2, "regular": false, "heart_part": "e", "note": "e = /ee/ (open)" },
+    { "word": "she", "level": 2, "regular": false, "heart_part": "e", "note": "sh regular; e = /ee/" },
+
+    { "word": "me", "level": 3, "regular": false, "heart_part": "e", "note": "e = /ee/ (open)" },
+    { "word": "was", "level": 3, "regular": false, "heart_part": "a,s", "note": "a = /o/, s = /z/" },
+    { "word": "are", "level": 3, "regular": false, "heart_part": "are", "note": "whole rime irregular" },
+    { "word": "for", "level": 3, "regular": true, "heart_part": null, "note": "decodable at L8 (or); taught early as HF" },
+    { "word": "of", "level": 3, "regular": false, "heart_part": "f", "note": "f = /v/" },
+    { "word": "they", "level": 3, "regular": false, "heart_part": "ey", "note": "ey = /ae/" },
+    { "word": "have", "level": 3, "regular": false, "heart_part": "a_e", "note": "magic-e exception: short a" },
+
+    { "word": "said", "level": 4, "regular": false, "heart_part": "ai", "note": "ai = /e/" },
+    { "word": "do", "level": 4, "regular": false, "heart_part": "o", "note": "o = /oo/" },
+    { "word": "what", "level": 4, "regular": false, "heart_part": "a", "note": "a = /o/" },
+    { "word": "come", "level": 4, "regular": false, "heart_part": "o_e", "note": "o = /u/" },
+    { "word": "some", "level": 4, "regular": false, "heart_part": "o_e", "note": "o = /u/" },
+
+    { "word": "here", "level": 5, "regular": true, "heart_part": null, "note": "decodable at L8+ (e-r-e); taught as HF" },
+    { "word": "there", "level": 5, "regular": false, "heart_part": "ere", "note": "ere = /air/" },
+    { "word": "where", "level": 5, "regular": false, "heart_part": "ere", "note": "ere = /air/" },
+    { "word": "one", "level": 5, "regular": false, "heart_part": "one", "note": "= /wun/" },
+    { "word": "two", "level": 5, "regular": false, "heart_part": "wo", "note": "w silent, o = /oo/" },
+
+    { "word": "your", "level": 6, "regular": false, "heart_part": "our", "note": "our = /or/" },
+    { "word": "our", "level": 6, "regular": false, "heart_part": "our", "note": "= /ow-er/" },
+    { "word": "from", "level": 6, "regular": true, "heart_part": null, "note": "decodable at L5 (blend); HF" },
+    { "word": "or", "level": 6, "regular": true, "heart_part": null, "note": "decodable at L8; taught as HF" },
+    { "word": "by", "level": 6, "regular": false, "heart_part": "y", "note": "y = /ie/" },
+
+    { "word": "could", "level": 7, "regular": false, "heart_part": "oul", "note": "oul = /oo/, l silent" },
+    { "word": "would", "level": 7, "regular": false, "heart_part": "oul", "note": "oul = /oo/, l silent" },
+    { "word": "should", "level": 7, "regular": false, "heart_part": "oul", "note": "oul = /oo/, l silent" },
+    { "word": "been", "level": 7, "regular": true, "heart_part": null, "note": "decodable at L7 (ee); HF" },
+    { "word": "who", "level": 7, "regular": false, "heart_part": "who", "note": "wh = /h/, o = /oo/" },
+
+    { "word": "many", "level": 8, "regular": false, "heart_part": "a", "note": "a = /e/" },
+    { "word": "any", "level": 8, "regular": false, "heart_part": "a", "note": "a = /e/" },
+    { "word": "again", "level": 8, "regular": false, "heart_part": "ai", "note": "ai = /e/" },
+    { "word": "once", "level": 8, "regular": false, "heart_part": "o,ce", "note": "o = /wu/, ce = /s/" },
+    { "word": "their", "level": 8, "regular": false, "heart_part": "eir", "note": "eir = /air/" },
+
+    { "word": "because", "level": 9, "regular": false, "heart_part": "au,se", "note": "au = /u/, se = /z/" },
+    { "word": "people", "level": 9, "regular": false, "heart_part": "eo,le", "note": "eo = /ee/, le = /ul/" },
+    { "word": "other", "level": 9, "regular": false, "heart_part": "o", "note": "o = /u/" },
+    { "word": "only", "level": 9, "regular": true, "heart_part": null, "note": "decodable at L10; HF" },
+    { "word": "through", "level": 9, "regular": false, "heart_part": "ough", "note": "ough = /oo/" },
+
+    { "word": "thought", "level": 10, "regular": false, "heart_part": "ough", "note": "ough = /aw/" },
+    { "word": "enough", "level": 10, "regular": false, "heart_part": "e,ough", "note": "ough = /uf/" },
+    { "word": "does", "level": 10, "regular": false, "heart_part": "oe,s", "note": "oe = /u/, s = /z/" },
+    { "word": "done", "level": 10, "regular": false, "heart_part": "o_e", "note": "o = /u/" },
+    { "word": "another", "level": 10, "regular": false, "heart_part": "o", "note": "o = /u/" }
+  ]
+}

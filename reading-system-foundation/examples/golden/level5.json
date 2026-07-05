@@ -1,0 +1,20 @@
+{
+  "book_id": "golden-L5",
+  "level": 5,
+  "template": "meet-goal-explore-challenge-learn-celebrate",
+  "arc": "adventure",
+  "theme": "space",
+  "setting": "rocket",
+  "objective": "explore",
+  "profile": { "child_name": "Max", "name_complexity": "simple" },
+  "four_questions": { "who": "Max", "what": "fly his rocket to a planet", "why": "he wants to explore", "how": "he spins to dodge a rock and lands" },
+  "allowed_tokens": { "personal": ["Max"], "theme_anchor": [] },
+  "pages": [
+    { "page": 1, "beat": "meet", "text": "I am Max. I have a big red rocket.", "illustration_prompt": "Max beside a big red rocket, soft watercolor." },
+    { "page": 2, "beat": "goal", "text": "I want to zip up to a planet.", "illustration_prompt": "Max pointing up at a distant planet, soft watercolor." },
+    { "page": 3, "beat": "explore", "text": "Blast off! The rocket is fast.", "illustration_prompt": "Rocket launching with flames, soft watercolor." },
+    { "page": 4, "beat": "challenge", "text": "But a big rock is up top!", "illustration_prompt": "A large space rock ahead of the rocket, soft watercolor." },
+    { "page": 5, "beat": "learn", "text": "I spin. I miss the big rock!", "illustration_prompt": "Rocket spinning around the rock, soft watercolor." },
+    { "page": 6, "beat": "celebrate", "text": "I land on the planet. I win!", "illustration_prompt": "Max landing the rocket on a colorful planet, soft watercolor." }
+  ]
+}

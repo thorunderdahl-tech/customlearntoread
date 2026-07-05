@@ -16,24 +16,7 @@ export function airtableConfigured(): boolean {
 
 type Fields = Record<string, unknown>;
 
-// Airtable 422 body looks like: {"error":{"type":"UNKNOWN_FIELD_NAME","message":"Unknown field name: \"Book link\""}}
-// Pull the offending column name out of either the parsed message or the raw body.
-const UNKNOWN_FIELD_RE = /Unknown field name:\s*"([^"]+)"/i;
-
-function extractMissingField(body: string): string | undefined {
-  let message = body;
-  try {
-    const parsed = JSON.parse(body) as { error?: { message?: string } };
-    if (parsed?.error?.message) message = parsed.error.message;
-  } catch {
-    // body wasn't JSON — fall through and match the raw text
-  }
-  // Try the unescaped (JSON-parsed) form first, then the escaped raw form.
-  return (
-    message.match(UNKNOWN_FIELD_RE)?.[1] ||
-    body.match(/Unknown field name:\s*\\?"([^"\\]+)/i)?.[1]
-  );
-}
+const UNKNOWN_FIELD_RE = /Unknown field name:\s*"?([^"]+?)"?\s*$/i;
 
 /**
  * Write to Airtable, gracefully dropping any column that doesn't exist in the
@@ -61,18 +44,11 @@ async function writeWithFieldFallback(
     if (res.ok) return res;
     if (res.status === 422) {
       const text = await res.text().catch(() => "");
-      const missing = extractMissingField(text);
+      const match = text.match(UNKNOWN_FIELD_RE);
+      const missing = match?.[1];
       if (missing && missing in working) {
         delete working[missing];
         console.warn(`Airtable: column "${missing}" not found — saving without it.`);
-        continue;
-      }
-      // Backstop: an unknown-field error we couldn't name. Rather than lose the
-      // whole write (e.g. failing to mark an order Delivered), retry with just
-      // Status — the critical fulfillment field — if it's present.
-      if (/unknown field/i.test(text) && "Status" in working && Object.keys(working).length > 1) {
-        for (const k of Object.keys(working)) if (k !== "Status") delete working[k];
-        console.warn("Airtable: unidentified unknown column(s) — retrying with Status only.");
         continue;
       }
       throw new Error(`Airtable ${method} failed (422): ${text}`);
@@ -148,6 +124,7 @@ export function orderToAirtableFields(o: Record<string, any>): Fields {
     "Add-ons": o.add_ons || "",
     "Shipping address": o.shipping_address || "",
     "Other notes": o.other_notes || "",
+    "Parent read-along": o.parent_read_along ? "Yes" : "",
     "Reference photos": photos.join("\n"),
     "Theme photos": themePhotos.join("\n"),
   };

@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "validation-rules",
+  "version": 1,
+  "description": "The QA moat. Every generated book is validated against these rules before it may proceed to illustration/print. Hard rules must pass; soft rules produce warnings. Failures return the offending tokens and feed a regenerate-with-constraints loop.",
+  "checks": {
+    "word_eligibility": {
+      "type": "hard",
+      "rule": "Every content word must be (a) decodable with phonics taught by the target level, (b) a heart word introduced by the target level, or (c) an allowed personalization/theme token.",
+      "on_fail": "List each ineligible word with the page and the reason it failed."
+    },
+    "decodability_ratio": {
+      "type": "hard",
+      "rule": "Running-word decodability (excluding heart words and allowed tokens) must meet the level threshold.",
+      "thresholds_by_level": { "1": 0.95, "2": 0.92, "3": 0.9, "4": 0.88, "5": 0.85, "6": 0.85, "7": 0.82, "8": 0.8, "9": 0.8, "10": 0.78 }
+    },
+    "sentence_length": {
+      "type": "hard",
+      "rule": "No sentence may exceed the level's max_sentence_words.",
+      "source": "reading-levels.json -> levels[].max_sentence_words"
+    },
+    "new_word_budget": {
+      "type": "hard",
+      "rule": "Count of newly-introduced decodable content words must fall within the level's new_decodable_words_per_book range.",
+      "source": "reading-levels.json -> levels[].new_decodable_words_per_book"
+    },
+    "repetition": {
+      "type": "soft",
+      "rule": "Each newly-introduced content word should appear at least min_repetition_per_new_word times.",
+      "source": "reading-levels.json -> levels[].min_repetition_per_new_word"
+    },
+    "cumulative_review": {
+      "type": "soft",
+      "rule": "At least 40% of decodable running words must use GPCs from BELOW the book's level, so prior patterns get distributed practice.",
+      "how_checked": "engine (decodability.py) — computed from grapheme levels",
+      "source": "reading-support.json -> cumulative_review_rule"
+    },
+    "practices_own_level": {
+      "type": "soft",
+      "rule": "The book must EXERCISE its level's new focus, not only review earlier patterns. At least 2 distinct decodable words must practice the level's new content (a new grapheme, or a structural feature: consonant blends at L5, multisyllable words at L10).",
+      "how_checked": "engine (decodability.py) — practices_level()",
+      "rationale": "Cumulative review alone lets a book coast on old patterns; this ensures each level actually teaches what it claims."
+    },
+    "naturalness": {
+      "type": "soft",
+      "rule": "Child-track sentences must read as natural English, not contorted to fit constraints (no 'Yoda-speak', no unnatural word order). Judged by a model rubric.",
+      "how_checked": "LLM rubric (0-3); flag < 2"
+    },
+    "semantic_coherence": {
+      "type": "soft",
+      "rule": "Sentences connect and the story makes sense page-to-page; pronouns and referents are clear; the four-questions arc is followed.",
+      "how_checked": "LLM rubric (0-3); flag < 2"
+    },
+    "no_filler_repetition": {
+      "type": "soft",
+      "rule": "Repetition must serve meaning or a chorus, not pad the page. Flag consecutive near-identical sentences that add nothing (e.g., 'Sam sat. Sam sat. Sam is a cat.').",
+      "how_checked": "heuristic (n-gram overlap of adjacent sentences) + LLM check"
+    },
+    "allowed_structures": {
+      "type": "hard",
+      "rule": "Only sentence structures allowed at the level may appear (simple/compound/complex/paragraph); compound/complex connectors must be in the level's allowed list.",
+      "source": "reading-levels.json -> levels[].allowed_structures / compound_connectors / complex_connectors"
+    },
+    "conventions": {
+      "type": "hard",
+      "rule": "Questions, exclamations, series commas, dialogue, and contractions may appear only if the level's conventions flag is true.",
+      "source": "reading-levels.json -> levels[].conventions"
+    },
+    "balancing": {
+      "type": "hard",
+      "rule": "On any page with an out-of-level personal/theme token, all other words on the page must be at-level.",
+      "source": "personalization.json -> balancing_rule"
+    },
+    "four_questions": {
+      "type": "hard",
+      "rule": "The story must answer Who, What, Why, and How. Verified against the beat->answers mapping of the chosen template plus a semantic check.",
+      "source": "story-templates.json -> templates[].beats[].answers"
+    },
+    "story_guardrails": {
+      "type": "hard",
+      "rule": "The book must pass the story guardrails: child_protagonist, child_agency (child solves it, not luck/adult), single_problem (levels 1-4), safe_stakes, positive_resolution, emotional_return, respectful_representation. Soft guardrails (earned_resolution, show_dont_moralize, one_value_per_book) produce warnings.",
+      "how_checked": "structural checks where possible (single_problem via beat count; child present via name occurrence) + LLM rubric for agency/stakes/resolution",
+      "source": "story-framework.json -> story_guardrails"
+    },
+    "variety": {
+      "type": "soft",
+      "rule": "The book's combination_key must satisfy anti-repeat rules vs the child's recent books (no exact repeat; differ on >=3 of 5 axes within same theme+level).",
+      "source": "story-framework.json -> variety"
+    },
+    "illustration_consistency": {
+      "type": "hard",
+      "rule": "Character, theme-object, and art-style descriptors must be identical across every page prompt (sourced from the book's reference sheet).",
+      "source": "book-spec.schema.json -> reference_sheet"
+    },
+    "picture_independence": {
+      "type": "hard",
+      "rule": "The operational form of the anti-three-cueing principle. Every IN-LEVEL running word must be identifiable without the illustration ('cover the picture' test). Illustrations may depict, enrich, and confirm the text — this bars picture DEPENDENCY, not picture-text correspondence.",
+      "exception": "Out-of-level personalization/theme anchor words (per personalization.json token_rules) are permitted to rely on illustration support.",
+      "note": "Flag predictable/patterned constructions where a noun is only gettable by naming what is in the picture."
+    },
+    "content_safety": {
+      "type": "hard",
+      "rule": "Must pass the safety block below."
+    }
+  },
+  "safety_block": {
+    "stakes": "Mild, resolvable challenges only. No real peril, injury, illness, or death.",
+    "imagery": "No frightening, violent, or distressing scenes.",
+    "resolution": "Warm, kindness-positive endings.",
+    "representation": "Inclusive and respectful; no stereotypes.",
+    "ip": "No trademarked characters, franchises, or brands as themes.",
+    "language": "Age-appropriate vocabulary and topics only."
+  },
+  "pipeline_policy": {
+    "ship_requires": "All hard checks pass.",
+    "on_hard_fail": "Return offending tokens/pages and regenerate with tightened constraints.",
+    "on_soft_fail": "Warn and allow human/heuristic override."
+  }
+}

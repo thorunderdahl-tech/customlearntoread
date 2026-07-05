@@ -41,6 +41,22 @@ export async function POST(req: NextRequest) {
     const resend = new Resend(resendKey);
 
     const first = esc(childName || "Your child");
+    // Post-delivery reading-level feedback links (only when we can tie them to an
+    // order). The parent clicks after their child has read it — naturally decoupled
+    // from any renewal date, so it never reads as a "cancel?" prompt.
+    const fb = (r: string) => `${siteUrl}/api/feedback?o=${encodeURIComponent(recordId || "")}&r=${r}`;
+    const feedbackBlock = recordId
+      ? `<div style="margin:24px 0 0;padding-top:18px;border-top:1px solid #f0e7d8">
+      <p style="font-size:14px;line-height:1.6;color:#6b6257;margin:0 0 10px">Once ${first} has read it, how did the reading level feel? One tap helps us make the next book just right:</p>
+      <p style="font-size:14px;margin:0">
+        <a href="${fb("easy")}" style="color:#b96e3c;font-weight:600;text-decoration:none">Too easy</a>
+        &nbsp;·&nbsp;
+        <a href="${fb("right")}" style="color:#b96e3c;font-weight:600;text-decoration:none">Just right</a>
+        &nbsp;·&nbsp;
+        <a href="${fb("hard")}" style="color:#b96e3c;font-weight:600;text-decoration:none">Too hard</a>
+      </p>
+    </div>`
+      : "";
     const { error: sendError } = await resend.emails.send({
       from: fromEmail,
       to: email,
@@ -59,6 +75,7 @@ export async function POST(req: NextRequest) {
     <p style="font-size:14px;line-height:1.6;color:#6b6257;margin:0 0 8px">It works on any phone, tablet, or computer &mdash; drag a page corner to turn it. Want a copy to print or keep forever?</p>
     <p style="font-size:14px;margin:0 0 22px"><a href="${pdfLink}" style="color:#b96e3c;font-weight:600">Download the printable PDF</a></p>
     <p style="font-size:13px;line-height:1.6;color:#6b6257;margin:0 0 4px">This link is private to your family &mdash; feel free to share it with grandparents.</p>
+    ${feedbackBlock}
     <p style="font-size:13px;line-height:1.6;color:#6b6257;margin:18px 0 0">Happy reading!<br>The Custom Learn to Read family</p>
   </div>
 </div>`,

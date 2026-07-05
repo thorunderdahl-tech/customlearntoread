@@ -280,6 +280,17 @@ export default function Home() {
             <p>Short paragraphs. Wider vocabulary. More expressive story.</p>
           </article>
         </div>
+        <div style={{ maxWidth: 720, margin: "32px auto 0", textAlign: "center" }}>
+          <p className="eyebrow">Optional</p>
+          <h3 style={{ margin: "0 0 8px" }}>Parent Read-Along Lines</h3>
+          <p style={{ margin: "0 auto", maxWidth: 620 }}>
+            Want to build vocabulary while they learn to sound out words? Add an
+            optional grown-up read-aloud line to every page &mdash; richer language
+            for you to read together, while your child reads their own simple line.
+            Choose it when you order.{" "}
+            <Link href="/reading-approach">How it works &rarr;</Link>
+          </p>
+        </div>
       </section>
 
       <section className="section peek-inside">
@@ -435,6 +446,17 @@ export default function Home() {
             <p>
               When in doubt, choose the easier level. Confidence matters most
               for a brand-new reader.
+            </p>
+          </details>
+          <details>
+            <summary>What are Parent Read-Along Lines?</summary>
+            <p>
+              An optional feature you can turn on when you order &mdash; it&apos;s
+              off by default and free. Each page gets a second line, smaller and in
+              italics, for a grown-up to read aloud, with richer words and a fuller
+              story. Your child still reads their own simple line at their level.
+              It&apos;s a gentle way to support reading comprehension while they
+              build their decoding skills. <Link href="/reading-approach">Learn how it works &rarr;</Link>
             </p>
           </details>
           <details>

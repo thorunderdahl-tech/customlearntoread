@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "book-spec",
+  "version": 1,
+  "title": "Assembled Book Spec",
+  "description": "The object that threads all layers together. Produced by the assembler, consumed by the generator, validator, illustrator, and layout steps.",
+  "type": "object",
+  "required": ["book_id", "level", "template", "arc", "theme", "profile", "combination_key", "four_questions", "reference_sheet", "pages"],
+  "properties": {
+    "book_id": { "type": "string" },
+    "level": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "template": { "type": "string", "description": "story-templates.json id" },
+    "arc": { "type": "string", "description": "story-arcs.json id" },
+    "theme": { "type": "string", "description": "themes.json id" },
+    "setting": { "type": "string" },
+    "tone": { "type": "array", "items": { "type": "string" } },
+    "objective": { "type": "string", "enum": ["find", "build", "learn", "help", "celebrate", "explore", "solve"] },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "child_name": { "type": "string" },
+        "name_complexity": { "type": "string", "enum": ["simple", "moderate", "hard"] },
+        "pronouns": { "type": "string" },
+        "favorite_color": { "type": "string" },
+        "sibling_name": { "type": "string" },
+        "pet_name": { "type": "string" },
+        "theme_favorite": { "type": "string" }
+      },
+      "required": ["child_name"]
+    },
+    "combination_key": {
+      "type": "object",
+      "description": "Used by the variety engine's per-child anti-repeat memory.",
+      "properties": {
+        "template": { "type": "string" }, "arc": { "type": "string" }, "setting": { "type": "string" },
+        "tone_primary": { "type": "string" }, "objective": { "type": "string" }
+      }
+    },
+    "four_questions": {
+      "type": "object",
+      "required": ["who", "what", "why", "how"],
+      "properties": {
+        "who": { "type": "string" }, "what": { "type": "string" }, "why": { "type": "string" }, "how": { "type": "string" }
+      }
+    },
+    "allowed_tokens": {
+      "type": "object",
+      "description": "Resolved out-of-level tokens permitted in this book (from personalization + theme).",
+      "properties": {
+        "personal": { "type": "array", "items": { "type": "string" } },
+        "theme_anchor": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "reference_sheet": {
+      "type": "object",
+      "description": "Generated once per book (or per child series) and threaded into every page illustration prompt for consistency.",
+      "properties": {
+        "character": { "type": "string", "description": "Fixed descriptors: age, hair, skin tone, outfit, expression." },
+        "theme_objects": { "type": "array", "items": { "type": "string" } },
+        "art_style": { "type": "string" },
+        "palette": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "language": {
+      "type": "object",
+      "description": "OPTIONAL (website toggle, OFF by default; unused in standard single-track books). The language-comprehension half of the Simple View of Reading. Enriches the book without raising the child's decodable load. Drives the adult read-aloud track and vocabulary/knowledge goals.",
+      "properties": {
+        "tier2_vocab": { "type": "array", "items": { "type": "string" }, "description": "Rich words introduced ONLY in the adult read-aloud track, defined in kid-friendly terms." },
+        "background_knowledge": { "type": "array", "items": { "type": "string" }, "description": "Facts/concepts the theme builds (e.g., 'puppies shake to dry off')." },
+        "strands": { "type": "array", "items": { "type": "string", "enum": ["vocabulary", "background_knowledge", "language_structures", "verbal_reasoning", "literacy_knowledge"] }, "description": "Scarborough language-comprehension strands this book touches." }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["page", "beat", "text", "illustration_prompt"],
+        "properties": {
+          "page": { "type": "integer" },
+          "beat": { "type": "string", "description": "story-templates.json beat id" },
+          "text": { "type": "string", "description": "CHILD track: fully decodable at the book's level. This is what the child reads and what the validator checks." },
+          "adult_read_aloud": { "type": "string", "description": "OPTIONAL (website toggle, OFF by default; unused in standard single-track books). ADULT track: a richer line the caregiver reads aloud. NOT decodability-constrained; may use Tier-2 vocabulary and complex syntax. Excluded from decodability/eligibility checks; carries the language-comprehension load." },
+          "illustration_prompt": { "type": "string" }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "description": "Populated by the validator.",
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "fail", "warn"] },
+        "failed_checks": { "type": "array", "items": { "type": "string" } },
+        "offending_tokens": { "type": "array", "items": { "type": "object" } }
+      }
+    }
+  }
+}

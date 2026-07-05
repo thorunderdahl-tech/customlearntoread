@@ -4,6 +4,8 @@
 // Level 2 -> beginner, Level 3/4 -> growing, "Not sure" -> by age.
 // Books are BOB-Books-like: ONE sentence per page, pictures carry the story.
 
+import { phonicsDecodable, wordMaxLevel } from "./reading/phonics";
+
 export type LevelId = "tiny" | "beginner" | "growing";
 
 export interface LevelRules {
@@ -16,6 +18,14 @@ export interface LevelRules {
   allowContractions: boolean;
   allowDialogue: boolean;
   decodability: "strict" | "moderate" | "none"; // sight-word/CVC vocabulary gate
+  // Highest phonics grapheme level (1-10, see lib/reading/phonics.ts) a word may
+  // require to still count as "decodable" at this level. Drives the systematic
+  // grapheme check. Omitted when decodability is "none".
+  phonicsCeiling?: number;
+  // Grapheme level at which THIS level's new focus begins (words needing >= this
+  // are "new-focus"; words below are "review"). Drives the soft cumulative-review
+  // and practices-own-level checks. Omitted for the first level (nothing to review).
+  newFocusFrom?: number;
   // Sight-word teaching set (Level 1): the book's core vocabulary — excluding
   // names and topic words — must be this many DISTINCT words, drawn from the
   // Dolch Pre-Primer list (with limited flexibility), each reused across pages.
@@ -36,7 +46,7 @@ export const LEVELS: Level[] = [
     id: "tiny",
     parentLabel: "Tiny Reader",
     formPrefixes: ["Level 1"],
-    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 1, maxWordsPerPage: 3, maxAvgWordLength: 4.0, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "strict", sightWordBudget: [8, 10], sightWordFlex: 2 },
+    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 1, maxWordsPerPage: 3, maxAvgWordLength: 4.0, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "strict", phonicsCeiling: 3, sightWordBudget: [8, 10], sightWordFlex: 2 },
     promptRules:
       "This book TEACHES a sight-word set, like BOB Books and Scholastic Sight Word Readers. FIRST choose the book's teaching set: 8-10 different words from the Dolch Pre-Primer list ONLY: a, and, away, big, blue, can, come, down, find, for, funny, go, help, here, I, in, is, it, jump, little, look, make, me, my, not, one, play, red, run, said, see, the, three, to, two, up, we, where, yellow, you. At most 2 of the 8-10 may instead be short phonetic CVC words (like hop, sit, nap) if the story needs an action word. THEN write every page using ONLY: that teaching set + the child's name + the book's topic word(s) (like dinosaur — repetition and pictures teach those). Reuse every teaching word on multiple pages — a word used once teaches nothing. Exactly ONE tiny sentence or label per page, 1-3 words (e.g. 'A cat.', 'Sam hops.', 'Big dog!'). One strong repeating sentence pattern with one slot changing. NO two pages may have identical text. Present tense. No commas, no dialogue.",
   },
@@ -44,7 +54,7 @@ export const LEVELS: Level[] = [
     id: "beginner",
     parentLabel: "Beginner Reader",
     formPrefixes: ["Level 2"],
-    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 3, maxWordsPerPage: 6, maxAvgWordLength: 4.4, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "moderate" },
+    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 3, maxWordsPerPage: 6, maxAvgWordLength: 4.4, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "moderate", phonicsCeiling: 6, newFocusFrom: 4 },
     promptRules:
       "Exactly ONE sentence per page, 3-6 words, like early BOB Books: 'I see a cat.' 'I can run.' 'We can play.' 'The dog is here.' 'Sam can hop.' Repeat sentence structures across pages with one word changing. High-frequency sight words (Dolch Pre-Primer + Primer) plus simple decodable words; reuse the same sight words throughout so the book teaches them. NO two pages may have identical text. ONE action per page. Present tense. No commas, no dialogue, no contractions. EXCEPTION: the book's main topic word (like dinosaur or princess) is allowed even if long — repetition and the pictures teach it.",
   },
@@ -52,7 +62,7 @@ export const LEVELS: Level[] = [
     id: "growing",
     parentLabel: "Growing Reader",
     formPrefixes: ["Level 3", "Level 4"],
-    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 4, maxWordsPerPage: 10, maxAvgWordLength: 5.0, nameOnPageShare: 0.4, allowCommas: false, allowContractions: false, allowDialogue: true, decodability: "none" },
+    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 4, maxWordsPerPage: 10, maxAvgWordLength: 5.0, nameOnPageShare: 0.4, allowCommas: false, allowContractions: false, allowDialogue: true, decodability: "none", newFocusFrom: 7 },
     promptRules:
       "Exactly ONE sentence per page, 4-10 words. Still predictable and patterned, but with a fuller story arc and a few new words a growing reader can decode from context. Mostly one- and two-syllable words. NO two pages may have identical text. ONE action per page. Simple connectors allowed (and, but, so). Present tense. No dialogue longer than three words. EXCEPTION: the book's main topic word is allowed even if long — repetition and the pictures teach it.",
   },
@@ -72,6 +82,7 @@ export interface StoryPage {
   n: number;
   text: string;
   artPrompt: string;
+  adultLine?: string; // optional grown-up read-aloud line (Parent Read-Along Lines)
 }
 export interface StoryDraft {
   title: string;
@@ -82,11 +93,15 @@ export interface StoryDraft {
   castDescriptions?: string[]; // appearance lock for EVERY recurring character other than the hero
   coverArtPrompt: string;
   pages: StoryPage[];
+  // Story-system layer (see lib/reading/storySystem.ts).
+  fourQuestions?: { who: string; what: string; why: string; how: string };
+  combination?: { key: string; template: string; arc: string; setting: string; tone: string; objective: string };
 }
 
 export interface CheckResult {
   pass: boolean;
   problems: string[];
+  warnings: string[]; // soft, non-blocking (cumulative review, practices-own-level)
   stats: { totalWords: number; pages: number; uniqueWords: number };
 }
 
@@ -105,32 +120,25 @@ const SIGHT_CORE = new Set([...PRE_PRIMER, ...PRIMER]);
 const SIGHT_EXTENDED = new Set(("after again an any as ask by could every fly from give going had has her him his how just know let live may of old once open over put round some stop take thank them then think walk were when " +
   "apple baby ball bear bed bird boat book box boy bus cake car cat chair cow day dog door duck egg eye farm fish frog fun game girl goat hat hen hill home horse house kitten leg man men milk moon morning mother name nest night pig rain ring school seed sheep shoe snow song stick street sun table thing time top toy tree water way wind window wood").split(" "));
 
-const VOWELS = "aeiou";
-/** Phonics heuristic: short decodable words (CVC-pattern family: at, cat, stop, hand…). */
-function isDecodableShort(w: string): boolean {
-  if (w.length < 2 || w.length > 4) return false;
-  if (!/^[a-z]+$/.test(w)) return false;
-  const groups = w.match(/[aeiou]+/g);
-  if (!groups || groups.length !== 1 || groups[0].length !== 1) return false; // exactly one short vowel
-  return !VOWELS.includes(w[w.length - 1]); // ends in a consonant
+/** The phonics ceiling used when scoring a word against a level. Falls back to a
+ * sensible default when a level omits phonicsCeiling. */
+function ceilingFor(r: LevelRules): number {
+  return r.phonicsCeiling ?? (r.decodability === "strict" ? 3 : 6);
 }
-/** Moderate additionally allows CVCe (magic-e: cake, ride) and simple -s plurals of decodable words. */
-function isDecodableModerate(w: string): boolean {
-  if (isDecodableShort(w)) return true;
-  if (w.length >= 3 && w.length <= 5 && w.endsWith("e")) {
-    const stem = w.slice(0, -1);
-    const groups = stem.match(/[aeiou]+/g);
-    if (groups && groups.length === 1 && groups[0].length === 1 && !VOWELS.includes(stem[stem.length - 1])) return true;
-  }
-  if (w.endsWith("s") && w.length > 2 && isDecodableShort(w.slice(0, -1))) return true;
-  return false;
-}
-function wordFitsLevel(w: string, decodability: "strict" | "moderate" | "none"): boolean {
-  if (decodability === "none") return true;
+
+/** Can the child read this word at this level? A word fits if it's a taught
+ * high-frequency (sight/heart) word OR it is systematically decodable using
+ * graphemes up to the level's phonics ceiling (lib/reading/phonics.ts).
+ * The grapheme engine replaces the old CVC/CVCe heuristic, so blends, digraphs,
+ * vowel teams and r-controlled vowels are scored correctly. */
+function wordFitsLevel(w: string, r: LevelRules): boolean {
+  const mode = r.decodability;
+  if (mode === "none") return true;
   if (SIGHT_CORE.has(w)) return true;
-  if (decodability === "strict") return isDecodableShort(w);
-  if (SIGHT_EXTENDED.has(w) || isDecodableModerate(w)) return true;
-  // -s forms of sight words (sees, plays, cats) read as easily as their stems.
+  const ceiling = ceilingFor(r);
+  if (mode === "strict") return phonicsDecodable(w, ceiling);
+  // moderate: also allow the extended Dolch sight set and -s forms of sight words.
+  if (SIGHT_EXTENDED.has(w) || phonicsDecodable(w, ceiling)) return true;
   if (w.endsWith("s") && w.length > 2) {
     const stem = w.slice(0, -1);
     if (SIGHT_CORE.has(stem) || SIGHT_EXTENDED.has(stem)) return true;
@@ -144,6 +152,7 @@ const CONTRACTION_RE = /\w(n['’]t|['’](ll|re|ve|m|d))\b/i; // possessive 's 
 /** Deterministic rubric check — QA gate #1 (pure code, no AI judgment). */
 export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   const problems: string[] = [];
+  const warnings: string[] = [];
   const r = level.rules;
   const nameNorm = norm(draft.childName || "");
   let totalWords = 0;
@@ -179,7 +188,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   });
   const topicWords = new Set(
     [...pageOccurrences]
-      .filter(([w, n]) => n >= 3 && w !== nameNorm && (r.decodability === "none" ? w.length > r.maxAvgWordLength : !wordFitsLevel(w, r.decodability)))
+      .filter(([w, n]) => n >= 3 && w !== nameNorm && (r.decodability === "none" ? w.length > r.maxAvgWordLength : !wordFitsLevel(w, r)))
       .sort((a, b) => b[1] - a[1])
       .slice(0, MAX_TOPIC_EXEMPTIONS)
       .map(([w]) => w),
@@ -210,7 +219,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     // Decodability: every word must be readable at this level.
     if (r.decodability !== "none") {
       const hard = [...new Set(ws.map(norm))].filter(
-        (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, r.decodability),
+        (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, r),
       );
       if (hard.length)
         problems.push(`Page ${p.n}: word(s) the child can't decode at this level: ${hard.join(", ")} — swap for sight words or short phonetic words.`);
@@ -251,7 +260,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     if (core.length < minSet)
       problems.push(`Sight-word set: only ${core.length} different core words — aim for ${minSet}-${maxSet} so the book teaches a full set.`);
     const offList = core.filter((w) => !PRE_PRIMER.has(w));
-    const offListBad = offList.filter((w) => !PRIMER.has(w) && !isDecodableShort(w));
+    const offListBad = offList.filter((w) => !PRIMER.has(w) && !phonicsDecodable(w, 3));
     if (offListBad.length)
       problems.push(`Sight-word set: not Pre-Primer Dolch words and not simple phonetic words: ${offListBad.join(", ")} — replace with words from the Pre-Primer list.`);
     if (offList.length > flex)
@@ -264,7 +273,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   // The title must be readable by the child too (name + topic words are fine).
   if (draft.title && r.decodability !== "none") {
     const hardTitle = [...new Set(words(draft.title).map(norm))].filter(
-      (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, "moderate"),
+      (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, { ...r, decodability: "moderate", phonicsCeiling: 6 }),
     );
     if (hardTitle.length)
       problems.push(`Title: word(s) too hard for this level: ${hardTitle.join(", ")}.`);
@@ -278,9 +287,42 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   if (!draft.title) problems.push("Missing title.");
   if (!draft.coverArtPrompt) problems.push("Missing cover illustration direction.");
 
+  // Four-questions spine: every book must answer who / what / why / how so the
+  // story has a goal and a reason, not just "things happen."
+  const fq = draft.fourQuestions;
+  if (!fq || !fq.who?.trim() || !fq.what?.trim() || !fq.why?.trim() || !fq.how?.trim())
+    problems.push("Missing the four-questions spine (who / what / why / how) — fill the fourQuestions field so the book has a clear goal, reason, and resolution.");
+
+  // Soft reading checks (warnings, never block): does the book both REVIEW earlier
+  // patterns and PRACTICE its own level's new focus? Uses the grapheme engine.
+  if (r.newFocusFrom) {
+    let decodable = 0, below = 0;
+    const focusWords = new Set<string>();
+    draft.pages?.forEach((p) => {
+      words(p.text).forEach((raw) => {
+        const w = norm(raw);
+        if (!w || w === nameNorm || castNames.has(w) || topicWords.has(w)) return;
+        if (SIGHT_CORE.has(w)) return; // core Dolch sight words aren't phonics-decoding practice
+        const ml = wordMaxLevel(w);
+        if (ml == null) return; // not phonically decodable — handled by sight-word rules
+        decodable++;
+        if (ml < r.newFocusFrom!) below++;
+        else focusWords.add(w);
+      });
+    });
+    if (decodable > 0) {
+      const reviewRatio = below / decodable;
+      if (reviewRatio < 0.4)
+        warnings.push(`Cumulative review: only ${Math.round(reviewRatio * 100)}% of decodable words review earlier (below-level) patterns — aim for ≥40% familiar words so the book reinforces, not just introduces.`);
+      if (focusWords.size < 2)
+        warnings.push(`Practices its level: only ${focusWords.size} word(s) use this level's new patterns — include at least 2 so the book actually teaches its level, not just reviews.`);
+    }
+  }
+
   return {
     pass: problems.length === 0,
     problems,
+    warnings,
     stats: { totalWords, pages: draft.pages?.length || 0, uniqueWords: vocab.size },
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { AirtableOrder } from "@/lib/airtable";
@@ -13,12 +13,12 @@ type Draft = {
   companionDescription?: string; // legacy
   castDescriptions?: string[];
   coverArtPrompt: string;
-  pages: { n: number; text: string; artPrompt: string }[];
+  pages: { n: number; text: string; artPrompt: string; adultLine?: string }[];
 };
 // Appearance locks for every recurring character other than the hero.
 const castText = (d: Draft | null) =>
   (d?.castDescriptions?.length ? d.castDescriptions.join(" ") : d?.companionDescription || "").trim() || undefined;
-type Check = { pass: boolean; problems: string[]; stats: { totalWords: number; pages: number } };
+type Check = { pass: boolean; problems: string[]; warnings?: string[]; stats: { totalWords: number; pages: number } };
 type Grade = { pass: boolean; score: number; issues: string[]; praise: string };
 type ArtQA = { pass: boolean; issues: string[] };
 
@@ -57,6 +57,12 @@ async function downscale(dataUrl: string, w: number, q: number): Promise<string>
 
 function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("image decode failed")); i.src = src; });
+}
+
+// Natural pixel dimensions of a base64 image — used by the print pre-flight guard.
+async function imgDims(b64: string): Promise<{ w: number; h: number }> {
+  const i = await loadImg("data:image/png;base64," + b64);
+  return { w: i.naturalWidth || i.width, h: i.naturalHeight || i.height };
 }
 
 async function fileToJpegB64(file: File): Promise<string> {
@@ -106,18 +112,22 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
 // Per-book interior text-band top (the art→text cutoff). Sized once per book to
 // fit its wordiest page, then reused on EVERY interior page — so the cutoff can
 // vary book to book but never page to page within a book. Clamped to a sane band.
-function interiorBandTop(maxLines: number): number {
+function interiorBandTop(maxLines: number, maxAdultLines = 0): number {
   const fs = pt(36), lh = fs * 1.32, pad = pt(30);
-  const blockH = Math.max(1, maxLines) * lh;
-  const top = (PAGE_H - SAFE) - blockH - pad * 2;
-  return Math.min(Math.max(top, Math.round(PAGE_H * 0.58)), Math.round(PAGE_H * 0.82));
+  const afs = pt(19), alh = afs * 1.34;
+  const childH = Math.max(1, maxLines) * lh;
+  const adultH = maxAdultLines > 0 ? maxAdultLines * alh + pt(14) : 0;
+  const top = (PAGE_H - SAFE) - childH - adultH - pad * 2;
+  // Allow a lower band start when there are read-along lines (taller text block).
+  const minTop = Math.round(PAGE_H * (maxAdultLines > 0 ? 0.5 : 0.58));
+  return Math.min(Math.max(top, minTop), Math.round(PAGE_H * 0.82));
 }
 
 // Composite a print-ready book page: full-bleed art (to the 0.125" bleed edge) +
 // typeset text kept inside the 0.5" safe area. Text is never AI-rendered.
 // Interior text is Andika at ~36pt (brand-required 32-40pt); cover is Montserrat.
 // bandTop (interior only) is the fixed cutoff line, computed once per book.
-async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean, bandTop?: number): Promise<string> {
+async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean, bandTop?: number, adultLine?: string): Promise<string> {
   const W = PAGE_W, H = PAGE_H;
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const ctx = c.getContext("2d")!;
@@ -156,12 +166,29 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
   ctx.font = `700 ${fs}px Andika, "Comic Sans MS", system-ui, sans-serif`;
   const lines = wrapText(ctx, text, maxW);
   const lh = fs * 1.32;
-  const blockH = lines.length * lh;
+  const childH = lines.length * lh;
+  // Parent Read-Along Lines: a smaller, italic, muted grown-up line under the
+  // child line. Distinguished by type alone (the front-of-book key explains it).
+  const afs = pt(19), alh = afs * 1.34, gap = adultLine ? pt(14) : 0;
+  let adultLines: string[] = [];
+  if (adultLine) {
+    ctx.font = `italic 400 ${afs}px Andika, "Comic Sans MS", system-ui, sans-serif`;
+    adultLines = wrapText(ctx, adultLine, maxW);
+  }
+  const adultH = adultLines.length ? adultLines.length * alh : 0;
+  const blockH = childH + gap + adultH;
   const areaBottom = H - SAFE; // never let text cross the safe-area line
   const center = Math.min((BAND_TOP + areaBottom) / 2, areaBottom - blockH / 2);
-  const startY = center - blockH / 2 + lh / 2;
+  const top = center - blockH / 2;
+  ctx.font = `700 ${fs}px Andika, "Comic Sans MS", system-ui, sans-serif`;
   ctx.fillStyle = "#2f2a24";
-  lines.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lh));
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, top + lh / 2 + i * lh));
+  if (adultLines.length) {
+    ctx.font = `italic 400 ${afs}px Andika, "Comic Sans MS", system-ui, sans-serif`;
+    ctx.fillStyle = "#6b6257";
+    const aTop = top + childH + gap;
+    adultLines.forEach((l, i) => ctx.fillText(l, W / 2, aTop + alh / 2 + i * alh));
+  }
 
   // Page number — small, inside the safe area.
   ctx.fillStyle = "#8c5b37";
@@ -215,6 +242,28 @@ function copyrightPage(childName: string, year: number): string {
   [`This book was made with love for ${childName}.`,
    `© ${year} Custom Learn to Read · customlearntoread.com`,
    "All rights reserved."].forEach((l, i) => ctx.fillText(l, PAGE_W / 2, PAGE_H - SAFE - pt(52) + i * fs * 1.7));
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+// Front-of-book key for Parent Read-Along Lines: taught once, then the two type
+// styles do the work on every page.
+function readAlongKeyPage(): string {
+  const { c, ctx } = newTypesetPage();
+  ctx.fillStyle = NAVY;
+  ctx.font = `800 ${pt(22)}px ${MONTSERRAT}`;
+  ctx.fillText("How to read this book together", PAGE_W / 2, PAGE_H * 0.30);
+  ctx.fillStyle = INKC;
+  ctx.font = `700 ${pt(28)}px ${ANDIKA}`;
+  ctx.fillText("The big words", PAGE_W / 2, PAGE_H * 0.44);
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `400 ${pt(15)}px ${ANDIKA}`;
+  ctx.fillText("are for your child to read.", PAGE_W / 2, PAGE_H * 0.44 + pt(34));
+  ctx.fillStyle = "#6b6257";
+  ctx.font = `italic 400 ${pt(20)}px ${ANDIKA}`;
+  ctx.fillText("The small words in italics", PAGE_W / 2, PAGE_H * 0.58);
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `400 ${pt(15)}px ${ANDIKA}`;
+  ctx.fillText("are for a grown-up to read aloud.", PAGE_W / 2, PAGE_H * 0.58 + pt(34));
   return c.toDataURL("image/jpeg", 0.92);
 }
 
@@ -350,9 +399,6 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const [photoB64, setPhotoB64] = useState("");
   const photoInput = useRef<HTMLInputElement>(null);
   const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA; accepted?: boolean }>>({});
-  // Per-illustration art-director edit notes + reference photos (keyed by page n; 0 = cover).
-  const [pageNotes, setPageNotes] = useState<Record<number, string>>({});
-  const [pageRefs, setPageRefs] = useState<Record<number, string[]>>({}); // base64 JPEG reference photos
   const [artBusy, setArtBusy] = useState("");
   const [assembling, setAssembling] = useState("");
   const [pdfUrl, setPdfUrl] = useState(""); // customer home-print PDF (trim size)
@@ -368,10 +414,20 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     [initialOrders],
   );
   const selected = candidates.find((o) => o.id === selectedId) || initialOrders.find((o) => o.id === selectedId);
+  // Digital-only orders don't need print resolution — save cost with 2K; every
+  // physical format gets 4K so print art is downscaled to 300 DPI, never upscaled.
+  const digitalOnly = !!selected && field(selected, "Product") === "Digital Book";
+  const artImageSize = digitalOnly ? "2K" : "4K";
+  // Parent Read-Along Lines: auto-checked when the order carries the flag (an
+  // "Parent read-along" = "Yes" Airtable field), and operator-toggleable.
+  const [readAlong, setReadAlong] = useState(false);
+  useEffect(() => {
+    setReadAlong(!!selected && field(selected, "Parent read-along") === "Yes");
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function resetAll() {
     setDraft(null); setGrade(null); setCheck(null); setSaved("");
-    setCharRef(""); setArts({}); setPageNotes({}); setPageRefs({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
+    setCharRef(""); setArts({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
   }
 
   async function generate() {
@@ -379,7 +435,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setError(""); resetAll();
     try {
       setBusy("Writing the story…");
-      const g = await story({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined, emotionalGoal: emotionalGoal || undefined, mustUseWords: mustUseWords.trim() || undefined, avoidWords: avoidWords.trim() || undefined });
+      const g = await story({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined, emotionalGoal: emotionalGoal || undefined, mustUseWords: mustUseWords.trim() || undefined, avoidWords: avoidWords.trim() || undefined, readAlong });
       let d: Draft = g.draft; let c: Check = g.check;
       setDraft(d); setCheck(c); setOrder(g.order); setParentEmail(g.parentEmail || "");
       if (!c.pass) {
@@ -431,7 +487,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     if (!draft) return;
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
-      const r = await art({ action: "character", description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined });
+      const r = await art({ action: "character", description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, imageSize: artImageSize });
       setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
@@ -455,25 +511,18 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     const page = n === 0
       ? { n: 0, text: draft.title, artPrompt: draft.coverArtPrompt }
       : draft.pages.find((p) => p.n === n)!;
-    // Refs: character sheet first, then any reference photos the art director
-    // attached for THIS illustration (their explicit intent wins over anchors),
-    // then up to 2 already-passing pages as style anchors so every page matches
-    // both the character AND the book's style.
+    // Refs: character sheet first, then up to 2 already-passing pages as style
+    // anchors so every page matches both the character AND the book's style.
     const anchors = Object.entries(arts)
       .filter(([k, v]) => Number(k) !== n && Number(k) !== 0 && v.qa?.pass)
       .sort((a, b) => Number(a[0]) - Number(b[0]))
       .slice(-2)
       .map(([, v]) => v.img);
-    const myPhotos = pageRefs[n] || [];
-    const ordered = [charRef, ...myPhotos, ...anchors].slice(0, 3);
-    const refPhotoCount = Math.min(myPhotos.length, Math.max(0, ordered.length - 1));
-    const refs = await Promise.all(ordered.map((b) => refJpeg(b)));
-    const userNotes = (pageNotes[n] || "").trim() || undefined;
+    const refs = await Promise.all([charRef, ...anchors].slice(0, 3).map((b) => refJpeg(b)));
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
-    // The art director's own edit note (userNotes) is sent on every attempt.
     let img = "", qa: ArtQA | undefined, notes = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await art({ action: "page", artPrompt: page.artPrompt, characterDescription: draft.characterDescription, cast: castText(draft), refs, refPhotoCount, userNotes, fixNotes: notes || undefined });
+      const r = await art({ action: "page", artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, fixNotes: notes || undefined, imageSize: artImageSize });
       img = r.image;
       qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
       if (!qa || qa.pass || !qa.issues?.length) break;
@@ -540,6 +589,21 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   async function assemble() {
     if (!draft) return;
     setError(""); setDelivered(null);
+    // Print pre-flight: for physical books, no art may be upscaled below the
+    // full-bleed print size (that's how soft, sub-300-DPI pages shipped before).
+    if (!digitalOnly) {
+      const soft: string[] = [];
+      for (const n of [0, ...draft.pages.map((p) => p.n)]) {
+        const a = arts[n];
+        if (!a?.img) continue;
+        const { w, h } = await imgDims(a.img);
+        if (Math.max(PAGE_W / w, PAGE_H / h) > 1.02) soft.push(n === 0 ? "cover" : `page ${n}`);
+      }
+      if (soft.length) {
+        setError(`Low-resolution art for print (would upscale below 300 DPI): ${soft.join(", ")}. Regenerate these at 4K before assembling a printed book.`);
+        return;
+      }
+    }
     try {
       setAssembling("Typesetting pages…");
       await ensureBookFonts();
@@ -550,22 +614,28 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       mctx.font = `700 ${pt(36)}px Andika, "Comic Sans MS", system-ui, sans-serif`;
       let maxLines = 1;
       for (const p of draft.pages) maxLines = Math.max(maxLines, wrapText(mctx, p.text, PAGE_W - SAFE * 2).length);
-      const bandTop = interiorBandTop(maxLines);
+      const hasReadAlong = draft.pages.some((p) => p.adultLine && p.adultLine.trim());
+      let maxAdult = 0;
+      if (hasReadAlong) {
+        mctx.font = `italic 400 ${pt(19)}px Andika, "Comic Sans MS", system-ui, sans-serif`;
+        for (const p of draft.pages) if (p.adultLine) maxAdult = Math.max(maxAdult, wrapText(mctx, p.adultLine, PAGE_W - SAFE * 2).length);
+      }
+      const bandTop = interiorBandTop(maxLines, maxAdult);
       const cover = await compositePage(arts[0].img, draft.title, 0, true, bandTop);
       const story: string[] = [];
-      for (const p of draft.pages) story.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop));
+      for (const p of draft.pages) story.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop, p.adultLine));
       const vocab = [...new Set(draft.pages.flatMap((p) => p.text.split(/\s+/).map((w) => w.toLowerCase().replace(/[^a-z'’]/g, "")).filter(Boolean)))].sort();
 
       // Interior (what gets bound): front matter + story + back matter, padded
       // to an even count and the perfect-bound minimum of MIN_INTERIOR pages.
-      const front = [titlePage(draft.title, draft.childName), copyrightPage(draft.childName, year)];
+      const front = [titlePage(draft.title, draft.childName), copyrightPage(draft.childName, year), ...(hasReadAlong ? [readAlongKeyPage()] : [])];
       const back = [endPage(draft.childName), wordsPage(vocab)];
       const interior = [...front, ...story, ...back];
       while (interior.length < MIN_INTERIOR || interior.length % 2 !== 0) interior.push(drawingPage());
 
       // Digital book (flipbook + customer home-print PDF): cover→back cover, no pad pages.
       const digital = [cover, ...front, ...story, ...back, backCoverPage(draft.title, draft.childName)];
-      const labels = ["Cover", "Title page", "Dedication", ...draft.pages.map((p) => `Page ${p.n}`), "The End", "Words I can read", "Back cover"];
+      const labels = ["Cover", "Title page", "Dedication", ...(hasReadAlong ? ["Read-along key"] : []), ...draft.pages.map((p) => `Page ${p.n}`), "The End", "Words I can read", "Back cover"];
       setPageImages(digital); setPageLabels(labels);
 
       setAssembling("Building the PDFs…");
@@ -657,6 +727,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
             {field(selected, "Child name")}, age {field(selected, "Age") || "?"} · {field(selected, "Reading level") || "level not set"} · loves: {[field(selected, "Theme 1"), field(selected, "Theme 2"), field(selected, "Theme 3")].filter(Boolean).join(", ") || "—"}
           </p>
         )}
+        {selected && field(selected, "Reading feedback") && (
+          <p className="crt-note">
+            Last book feedback: <strong>{field(selected, "Reading feedback")}</strong>
+            {field(selected, "Reading feedback") === "Too hard" && " — consider an easier level below."}
+            {field(selected, "Reading feedback") === "Too easy" && " — consider a harder level below."}
+          </p>
+        )}
         <div className="crt-row">
           <label>Story pages
             <input type="number" min={4} max={24} value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 10)} />
@@ -688,6 +765,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           <label>Words to avoid (optional)
             <input value={avoidWords} onChange={(e) => setAvoidWords(e.target.value)} placeholder="scary, monster" />
           </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={readAlong} onChange={(e) => setReadAlong(e.target.checked)} style={{ width: "auto" }} />
+            Parent Read-Along Lines {selected && field(selected, "Parent read-along") === "Yes" ? "(ordered)" : "(add grown-up read-aloud line)"}
+          </label>
         </div>
         <button className="crt-btn crt-primary" disabled={!selectedId || !!busy} onClick={generate}>
           {busy || (draft ? "Regenerate from scratch" : "Generate story draft")}
@@ -703,6 +784,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
             <span className="badge">{check?.stats.totalWords ?? "?"} words · {draft.pages.length} pages</span>
           </div>
           {check && !check.pass && <ul className="crt-issues">{check.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>}
+          {check && check.warnings && check.warnings.length > 0 && <ul className="crt-warnings">{check.warnings.map((p, i) => <li key={i}>{p}</li>)}</ul>}
           {grade && !grade.pass && <ul className="crt-issues">{grade.issues.map((p, i) => <li key={i}>{p}</li>)}</ul>}
           {grade?.praise && <p className="hint">“{grade.praise}”</p>}
           <div className="crt-pages">
@@ -766,45 +848,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
                         {a?.qa && !a.qa.pass && !a.accepted && <p className="tissue">{a.qa.issues.join("; ")}</p>}
                         {a && !a.qa && !a.accepted && <p className="tissue">QA couldn&rsquo;t verify this page — Redo it or Use anyway.</p>}
                         {a?.accepted && <p className="hint">accepted despite QA</p>}
-                        <textarea
-                          className="tnote"
-                          rows={2}
-                          placeholder="Notes / edits for this illustration…"
-                          value={pageNotes[t.n] || ""}
-                          onChange={(e) => setPageNotes((s) => ({ ...s, [t.n]: e.target.value }))}
-                        />
-                        <div className="trefs">
-                          {(pageRefs[t.n] || []).map((p, i) => (
-                            <span className="trefchip" key={i}>
-                              <img src={"data:image/jpeg;base64," + p} alt="reference" />
-                              <button
-                                type="button"
-                                aria-label="Remove reference photo"
-                                onClick={() => setPageRefs((s) => ({ ...s, [t.n]: (s[t.n] || []).filter((_, j) => j !== i) }))}
-                              >×</button>
-                            </span>
-                          ))}
-                          <label className="crt-btn tsmall trefadd">
-                            + Reference photo
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png"
-                              multiple
-                              style={{ display: "none" }}
-                              onChange={async (e) => {
-                                const input = e.currentTarget;
-                                const files = Array.from(input.files || []);
-                                if (!files.length) return;
-                                const b64s = await Promise.all(files.map(fileToJpegB64));
-                                setPageRefs((s) => ({ ...s, [t.n]: [...(s[t.n] || []), ...b64s] }));
-                                input.value = "";
-                              }}
-                            />
-                          </label>
-                        </div>
-                        <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>
-                          {(pageNotes[t.n]?.trim() || (pageRefs[t.n]?.length ?? 0) > 0) ? "Redo with edits" : "Redo"}
-                        </button>
+                        <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>Redo</button>
                         {a && !a.accepted && (!a.qa || !a.qa.pass) && (
                           <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => setArts((s) => ({ ...s, [t.n]: { ...s[t.n], accepted: true } }))}>Use anyway</button>
                         )}
@@ -881,6 +925,8 @@ const CSS = `
   .badge { font-size: .78rem; font-weight: 700; padding: 5px 11px; border-radius: 999px; background: #f6f0e4; }
   .badge.ok { background: #e3efdd; color: #2f5e38; } .badge.bad { background: #f7e0dd; color: #8c2f25; }
   .crt-issues { margin: 8px 0; padding-left: 20px; font-size: .85rem; color: #8c2f25; }
+  .crt-warnings { margin: 8px 0; padding-left: 20px; font-size: .82rem; color: #8c5b37; }
+  .crt-note { margin: 6px 0 0; font-size: .85rem; color: #b96e3c; background: #fff3e6; border-radius: 8px; padding: 8px 12px; }
   .crt-pages { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
   .crt-page { border: 1px solid #efe8da; border-radius: 12px; padding: 10px 12px; background: #fffdf8; }
   .crt-page .pn { font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #b96e3c; margin-bottom: 6px; }
@@ -899,12 +945,6 @@ const CSS = `
   .crt-tile .tlabel { font-size: .74rem; font-weight: 800; color: #7a7164; margin-bottom: 4px; }
   .crt-tile .tissue { font-size: .7rem; color: #8c2f25; }
   .crt-tile .tsmall { padding: 4px 12px; font-size: .76rem; margin-top: 4px; }
-  .crt-tile .tnote { width: 100%; box-sizing: border-box; margin-top: 6px; padding: 6px 8px; font-size: .76rem; border: 1.5px solid #e0d8c8; border-radius: 8px; background: #fffdf8; resize: vertical; font-family: inherit; text-align: left; }
-  .crt-tile .trefs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin-top: 6px; }
-  .crt-tile .trefchip { position: relative; display: inline-flex; }
-  .crt-tile .trefchip img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; box-shadow: 0 1px 4px rgba(47,42,36,.2); }
-  .crt-tile .trefchip button { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; line-height: 14px; padding: 0; border: none; border-radius: 999px; background: #8c2f25; color: #fff; font-size: .7rem; cursor: pointer; }
-  .crt-tile .trefadd { margin-top: 0; }
   .tempty { height: 180px; background: #f6f0e4; border-radius: 8px; }
   .crt-preview { width: 100%; height: 560px; border: 1px solid #e7e0d4; border-radius: 12px; margin: 14px 0; background: #fff; }
   .crt-done .big { color: #2f5e38; font-weight: 800; font-size: 1.05rem; }

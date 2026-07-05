@@ -1,14 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrderRecord, updateOrderRecord } from "@/lib/airtable";
+import { getOrderRecord, updateOrderRecord, listOrders } from "@/lib/airtable";
 import { claude, llmConfigured, parseJsonBlock } from "@/lib/llm";
 import { LEVELS, resolveLevel, checkStory, type StoryDraft } from "@/lib/leveling";
 import {
   orderInfoFromFields, buildGeneratePrompt, buildGradePrompt, buildRevisePrompt,
   STORY_SYSTEM, type OrderInfo, type StoryExtras,
 } from "@/lib/story";
+import { pickCombination } from "@/lib/reading/storySystem";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+// Variety memory: gather the combination keys of this child's previous books so
+// the new one can be made different. Best-effort — never blocks generation.
+async function priorCombinationKeys(email?: string, childName?: string, excludeId?: string): Promise<string[]> {
+  try {
+    const orders = await listOrders();
+    const keys: string[] = [];
+    for (const o of orders) {
+      if (o.id === excludeId) continue;
+      const f = (o.fields || {}) as Record<string, any>;
+      const sameChild = (!!email && f["Parent email"] === email) || (!!childName && f["Child name"] === childName);
+      if (!sameChild) continue;
+      const raw = f["Story draft"];
+      if (typeof raw !== "string" || !raw.trim()) continue;
+      try {
+        const key = JSON.parse(raw)?.combination?.key;
+        if (typeof key === "string" && key) keys.push(key);
+      } catch { /* skip unparseable draft */ }
+    }
+    return keys;
+  } catch {
+    return [];
+  }
+}
 
 // One pipeline step per request so each call stays well under function limits.
 // Actions: generate | grade | revise | save
@@ -36,11 +61,17 @@ export async function POST(req: NextRequest) {
         emotionalGoal: body.emotionalGoal || undefined,
         mustUseWords: body.mustUseWords || undefined,
         avoidWords: body.avoidWords || undefined,
+        readAlong: !!body.readAlong,
       };
-      const raw = await claude({ system: STORY_SYSTEM, user: buildGeneratePrompt(order, level, pageCount, extras), maxTokens: 6000 });
+      // Variety engine: pick a fresh template × arc × setting × tone × objective
+      // that differs from this child's previous books.
+      const avoidKeys = await priorCombinationKeys(rec.fields["Parent email"], order.childName, body.recordId);
+      const plan = pickCombination(level.id, avoidKeys);
+      const raw = await claude({ system: STORY_SYSTEM, user: buildGeneratePrompt(order, level, pageCount, extras, plan), maxTokens: 6000 });
       const draft = parseJsonBlock<StoryDraft>(raw);
+      draft.combination = { key: plan.key, template: plan.template, arc: plan.arc, setting: plan.setting, tone: plan.tone, objective: plan.objective };
       const check = checkStory(draft, level);
-      return NextResponse.json({ draft, check, levelId: level.id, order, parentEmail: rec.fields["Parent email"] || "" });
+      return NextResponse.json({ draft, check, levelId: level.id, order, parentEmail: rec.fields["Parent email"] || "", plan: { template: plan.templateName, arc: plan.arcName, setting: plan.setting, tone: plan.tone, objective: plan.objective, priorBooks: avoidKeys.length } });
     }
 
     if (action === "grade") {

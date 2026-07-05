@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "story-arcs",
+  "version": 2,
+  "description": "Arcs set the emotional/genre shape layered over a template. Each arc defines its energy, tension curve, the kind of (always mild) conflict, and how it resolves. All arcs resolve warmly and safely; conflict never involves real peril, injury, cruelty, or an adult rescuing a passive child (see story-framework.json child_agency).",
+  "fields": {
+    "energy": "calm | gentle | lively | exciting",
+    "peak_position": "0-1, where in the book tension is highest (fraction of pages)",
+    "conflict_type": "the mild problem that drives the middle",
+    "resolution_style": "how the child resolves it (their agency)"
+  },
+  "arcs": [
+    { "id": "adventure", "name": "Adventure", "energy": "exciting", "peak_position": 0.7,
+      "tone_lexicon": ["brave", "eager", "off we go", "at last"], "conflict_type": "a place to reach or cross",
+      "resolution_style": "courage + effort", "note": "Movement and discovery; the challenge is the journey itself." },
+    { "id": "funny", "name": "Funny", "energy": "lively", "peak_position": 0.6,
+      "tone_lexicon": ["silly", "oops", "giggle", "what a mess"], "conflict_type": "a mix-up or silly mistake",
+      "resolution_style": "cleverness + good humor", "note": "The 'challenge' is comic, never embarrassing or mean." },
+    { "id": "competition", "name": "Friendly Contest", "energy": "lively", "peak_position": 0.75,
+      "tone_lexicon": ["ready", "go", "so close", "proud"], "conflict_type": "a race or game",
+      "resolution_style": "effort + good sportsmanship", "note": "Everyone stays friends; winning is not the point, trying is." },
+    { "id": "mystery", "name": "Little Mystery", "energy": "gentle", "peak_position": 0.65,
+      "tone_lexicon": ["hmm", "clue", "who could it be", "aha"], "conflict_type": "a small puzzle or missing thing",
+      "resolution_style": "cleverness + noticing", "note": "Curiosity, not fear; the 'mystery' is cozy." },
+    { "id": "discovery", "name": "Discovery", "energy": "gentle", "peak_position": 0.6,
+      "tone_lexicon": ["wow", "look", "I wonder", "amazing"], "conflict_type": "something new to understand",
+      "resolution_style": "curiosity + observing", "note": "Wonder-building; knowledge is the reward." },
+    { "id": "helping", "name": "Helping", "energy": "gentle", "peak_position": 0.6,
+      "tone_lexicon": ["kind", "here you go", "thank you", "warm"], "conflict_type": "someone who needs a hand",
+      "resolution_style": "kindness + teamwork", "note": "Empathy-forward; the child chooses to help." },
+    { "id": "learning", "name": "Learning a Skill", "energy": "gentle", "peak_position": 0.7,
+      "tone_lexicon": ["try", "not yet", "almost", "I did it"], "conflict_type": "something hard to learn",
+      "resolution_style": "practice + persistence", "note": "Models productive struggle; failure is safe and temporary." },
+    { "id": "cozy", "name": "Cozy / Calm", "energy": "calm", "peak_position": 0.5,
+      "tone_lexicon": ["gentle", "happy", "snug", "goodnight"], "conflict_type": "a small wish or quiet moment",
+      "resolution_style": "warmth + contentment", "note": "Very low tension; ideal for the youngest levels and bedtime." }
+  ]
+}

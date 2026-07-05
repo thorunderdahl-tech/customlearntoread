@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "gpc-table",
+  "version": 1,
+  "description": "Grapheme-Phoneme Correspondences as DATA (the phonics scope-and-sequence a computer can check). Each entry ties a spelling to a sound and the level it is taught. A grapheme may appear more than once with different phonemes (e.g., 'ow' = /oe/ then /ow/); the decodability engine uses the MINIMUM level for tokenization. Reference accent: General American.",
+  "legend": {
+    "type": "vowel | consonant | consonant_digraph | split_vowel | vowel_team | diphthong | r_controlled | trigraph | silent",
+    "level": "matches reading-levels.json (1-10)",
+    "note_split_vowel": "a_e etc. represent the split (silent-e) pattern; handled specially by the engine (magic-e).",
+    "note_multi_sound": "Where a grapheme has a second, later sound, a separate entry records it for teaching; the engine tokenizes at the min level."
+  },
+  "graphemes": [
+    { "grapheme": "a", "type": "vowel", "phonemes": ["/a/"], "level": 1, "example": "cat" },
+    { "grapheme": "m", "type": "consonant", "phonemes": ["/m/"], "level": 1, "example": "man" },
+    { "grapheme": "s", "type": "consonant", "phonemes": ["/s/"], "level": 1, "example": "sun" },
+    { "grapheme": "f", "type": "consonant", "phonemes": ["/f/"], "level": 1, "example": "fan" },
+    { "grapheme": "n", "type": "consonant", "phonemes": ["/n/"], "level": 1, "example": "net" },
+    { "grapheme": "l", "type": "consonant", "phonemes": ["/l/"], "level": 1, "example": "log" },
+    { "grapheme": "r", "type": "consonant", "phonemes": ["/r/"], "level": 1, "example": "rat" },
+    { "grapheme": "t", "type": "consonant", "phonemes": ["/t/"], "level": 1, "example": "top" },
+    { "grapheme": "p", "type": "consonant", "phonemes": ["/p/"], "level": 1, "example": "pig" },
+    { "grapheme": "c", "type": "consonant", "phonemes": ["/k/"], "level": 1, "example": "cat" },
+    { "grapheme": "d", "type": "consonant", "phonemes": ["/d/"], "level": 1, "example": "dog" },
+    { "grapheme": "g", "type": "consonant", "phonemes": ["/g/"], "level": 1, "example": "gap" },
+    { "grapheme": "b", "type": "consonant", "phonemes": ["/b/"], "level": 1, "example": "bat" },
+    { "grapheme": "h", "type": "consonant", "phonemes": ["/h/"], "level": 1, "example": "hat" },
+
+    { "grapheme": "i", "type": "vowel", "phonemes": ["/i/"], "level": 2, "example": "sit" },
+    { "grapheme": "o", "type": "vowel", "phonemes": ["/o/"], "level": 2, "example": "hot" },
+    { "grapheme": "k", "type": "consonant", "phonemes": ["/k/"], "level": 2, "example": "kit" },
+    { "grapheme": "v", "type": "consonant", "phonemes": ["/v/"], "level": 2, "example": "van" },
+    { "grapheme": "w", "type": "consonant", "phonemes": ["/w/"], "level": 2, "example": "win" },
+    { "grapheme": "j", "type": "consonant", "phonemes": ["/j/"], "level": 2, "example": "jam" },
+
+    { "grapheme": "e", "type": "vowel", "phonemes": ["/e/"], "level": 3, "example": "bed" },
+    { "grapheme": "u", "type": "vowel", "phonemes": ["/u/"], "level": 3, "example": "cup" },
+    { "grapheme": "x", "type": "consonant", "phonemes": ["/ks/"], "level": 3, "example": "fox" },
+    { "grapheme": "z", "type": "consonant", "phonemes": ["/z/"], "level": 3, "example": "zip" },
+    { "grapheme": "y", "type": "consonant", "phonemes": ["/y/"], "level": 3, "example": "yes" },
+    { "grapheme": "qu", "type": "consonant_digraph", "phonemes": ["/kw/"], "level": 3, "example": "quit" },
+
+    { "grapheme": "sh", "type": "consonant_digraph", "phonemes": ["/sh/"], "level": 4, "example": "ship" },
+    { "grapheme": "ch", "type": "consonant_digraph", "phonemes": ["/ch/"], "level": 4, "example": "chip" },
+    { "grapheme": "th", "type": "consonant_digraph", "phonemes": ["/th/ (voiced & unvoiced)"], "level": 4, "example": "thin / this" },
+    { "grapheme": "wh", "type": "consonant_digraph", "phonemes": ["/w/"], "level": 4, "example": "whip" },
+    { "grapheme": "ck", "type": "consonant_digraph", "phonemes": ["/k/"], "level": 4, "example": "duck" },
+
+    { "grapheme": "ng", "type": "consonant_digraph", "phonemes": ["/ng/"], "level": 5, "example": "ring" },
+
+    { "grapheme": "a_e", "type": "split_vowel", "phonemes": ["/ae/"], "level": 6, "example": "cake" },
+    { "grapheme": "i_e", "type": "split_vowel", "phonemes": ["/ie/"], "level": 6, "example": "bike" },
+    { "grapheme": "o_e", "type": "split_vowel", "phonemes": ["/oe/"], "level": 6, "example": "home" },
+    { "grapheme": "u_e", "type": "split_vowel", "phonemes": ["/ue/"], "level": 6, "example": "cube" },
+    { "grapheme": "e_e", "type": "split_vowel", "phonemes": ["/ee/"], "level": 6, "example": "these" },
+
+    { "grapheme": "ai", "type": "vowel_team", "phonemes": ["/ae/"], "level": 7, "example": "rain" },
+    { "grapheme": "ay", "type": "vowel_team", "phonemes": ["/ae/"], "level": 7, "example": "play" },
+    { "grapheme": "ee", "type": "vowel_team", "phonemes": ["/ee/"], "level": 7, "example": "feet" },
+    { "grapheme": "ea", "type": "vowel_team", "phonemes": ["/ee/"], "level": 7, "example": "seat" },
+    { "grapheme": "oa", "type": "vowel_team", "phonemes": ["/oe/"], "level": 7, "example": "boat" },
+    { "grapheme": "ow", "type": "vowel_team", "phonemes": ["/oe/"], "level": 7, "example": "snow" },
+    { "grapheme": "igh", "type": "trigraph", "phonemes": ["/ie/"], "level": 7, "example": "night" },
+
+    { "grapheme": "ar", "type": "r_controlled", "phonemes": ["/ar/"], "level": 8, "example": "car" },
+    { "grapheme": "or", "type": "r_controlled", "phonemes": ["/or/"], "level": 8, "example": "fork" },
+    { "grapheme": "er", "type": "r_controlled", "phonemes": ["/er/"], "level": 8, "example": "her" },
+    { "grapheme": "ir", "type": "r_controlled", "phonemes": ["/er/"], "level": 8, "example": "bird" },
+    { "grapheme": "ur", "type": "r_controlled", "phonemes": ["/er/"], "level": 8, "example": "turn" },
+
+    { "grapheme": "oi", "type": "diphthong", "phonemes": ["/oi/"], "level": 9, "example": "coin" },
+    { "grapheme": "oy", "type": "diphthong", "phonemes": ["/oi/"], "level": 9, "example": "boy" },
+    { "grapheme": "ou", "type": "diphthong", "phonemes": ["/ow/"], "level": 9, "example": "out" },
+    { "grapheme": "ow", "type": "diphthong", "phonemes": ["/ow/"], "level": 9, "example": "cow", "second_sound_of": "ow" },
+    { "grapheme": "oo", "type": "vowel_team", "phonemes": ["/oo/ long", "/oo/ short"], "level": 9, "example": "moon / book" },
+    { "grapheme": "aw", "type": "vowel_team", "phonemes": ["/aw/"], "level": 9, "example": "saw" },
+    { "grapheme": "au", "type": "vowel_team", "phonemes": ["/aw/"], "level": 9, "example": "haul" },
+    { "grapheme": "ea", "type": "vowel_team", "phonemes": ["/e/ short"], "level": 9, "example": "bread", "second_sound_of": "ea" },
+
+    { "grapheme": "tch", "type": "trigraph", "phonemes": ["/ch/"], "level": 10, "example": "catch" },
+    { "grapheme": "ph", "type": "consonant_digraph", "phonemes": ["/f/"], "level": 10, "example": "phone" },
+    { "grapheme": "kn", "type": "silent", "phonemes": ["/n/ (k silent)"], "level": 10, "example": "knot" },
+    { "grapheme": "wr", "type": "silent", "phonemes": ["/r/ (w silent)"], "level": 10, "example": "write" },
+    { "grapheme": "y", "type": "vowel", "phonemes": ["/ie/ or /ee/"], "level": 10, "example": "fly / happy", "second_sound_of": "y" }
+  ]
+}

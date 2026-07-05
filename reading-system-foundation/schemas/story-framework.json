@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "story-framework",
+  "version": 1,
+  "description": "The rules and guardrails that turn (level + template + arc + theme + personalization) into a safe, coherent, fresh book. This is the 'Adventure System' layer: story structure, pacing, emotional goals, variety, and the generation contract. It sits ON TOP of the reading engine and never overrides it — reading constraints always win.",
+
+  "story_guardrails": [
+    { "id": "four_questions_required", "type": "hard",
+      "rule": "The book must answer Who, What, Why, and How (see book-spec.four_questions). No 'things just happen' plots." },
+    { "id": "child_protagonist", "type": "hard",
+      "rule": "The child (from the profile) is the protagonist or co-protagonist and is present on most pages." },
+    { "id": "child_agency", "type": "hard",
+      "rule": "The child drives the resolution through effort, practice, kindness, cleverness, creativity, or teamwork. The problem is NOT solved by luck, coincidence, magic hand-wave, or an adult stepping in to fix it while the child watches." },
+    { "id": "single_problem", "type": "hard", "applies_to_levels": [1, 2, 3, 4],
+      "rule": "Exactly one goal/problem per book. No subplots or second problems at early levels." },
+    { "id": "safe_stakes", "type": "hard",
+      "rule": "Stakes are mild and resolvable. No injury, illness, death, real danger, being lost-and-frightened, cruelty, bullying that isn't resolved kindly, or threatening villains." },
+    { "id": "positive_resolution", "type": "hard",
+      "rule": "The problem is actually resolved and the ending is warm and hopeful. Nothing is left hanging or bleak." },
+    { "id": "emotional_return", "type": "hard",
+      "rule": "Any worry or sadness introduced must be relieved by the end. The child ends safe, capable, and okay." },
+    { "id": "respectful_representation", "type": "hard",
+      "rule": "Inclusive, respectful, stereotype-free portrayal of all people and roles." },
+    { "id": "earned_resolution", "type": "soft",
+      "rule": "The 'How' should follow from something set up earlier in the book (e.g., the red ball appears before it helps), not arrive from nowhere." },
+    { "id": "show_dont_moralize", "type": "soft",
+      "rule": "Convey the value through action, not a lecture. Avoid tacked-on morals ('Remember, always share!')." },
+    { "id": "one_value_per_book", "type": "soft",
+      "rule": "Focus on a single value or skill (the 'How') per book, so the emotional goal is clear." }
+  ],
+
+  "objective_taxonomy": {
+    "description": "The book's core verb (book-spec.objective). One per book; a key variety axis.",
+    "objectives": [
+      { "id": "find", "def": "locate or recover something", "example": "find the lost puppy" },
+      { "id": "build", "def": "make or create something", "example": "build a fort" },
+      { "id": "learn", "def": "gain a skill or understanding", "example": "learn to ride" },
+      { "id": "help", "def": "assist someone in need", "example": "help a stuck friend" },
+      { "id": "celebrate", "def": "share a happy event", "example": "throw a birthday" },
+      { "id": "explore", "def": "discover a place", "example": "explore a cave" },
+      { "id": "solve", "def": "figure out a small puzzle", "example": "solve who took the hat" }
+    ]
+  },
+
+  "pacing_by_level": {
+    "description": "How much story the reading level can carry. Page/sentence caps come from reading-levels.json; this maps them to story shape.",
+    "bands": [
+      { "levels": [1, 2], "beats": [4, 5], "sentences_per_page": [1, 2], "tension": "very low", "notes": "Barely-there conflict; the 'challenge' beat is a tiny wobble. Cozy/helping/discovery arcs fit best." },
+      { "levels": [3, 4], "beats": [5, 6], "sentences_per_page": [2, 3], "tension": "low", "notes": "One clear problem, one or two attempts, warm win." },
+      { "levels": [5, 6], "beats": [6, 6], "sentences_per_page": [2, 3], "tension": "low-medium", "notes": "Dialogue and compound sentences allow more character voice." },
+      { "levels": [7, 8], "beats": [6, 7], "sentences_per_page": [3, 4], "tension": "medium", "notes": "Complex sentences (because/when) allow real cause-and-effect; feelings can be named." },
+      { "levels": [9, 10], "beats": [6, 8], "sentences_per_page": [3, 5], "tension": "medium", "notes": "Multi-step problems and a short paragraph per page; still one core goal." }
+    ]
+  },
+
+  "variety": {
+    "description": "Guarantees no two books feel the same for a child, even at the same theme + level. The educational progression is identical; the experience is fresh.",
+    "combination_key_axes": ["template", "arc", "setting", "tone_primary", "objective"],
+    "anti_repeat_rules": [
+      { "id": "no_exact_repeat", "rule": "A child must never receive two books with an identical combination_key (all 5 axes the same)." },
+      { "id": "min_difference", "rule": "Within the same theme + level, each new book must differ from each of the child's previous 3 books on at least 3 of the 5 axes." },
+      { "id": "rotate_objective_and_setting", "rule": "Prefer changing 'objective' and 'setting' first — they most change the felt experience." }
+    ],
+    "per_child_memory": "Store the combination_key of every book produced for a child; the selector reads it before choosing the next combination."
+  },
+
+  "beat_guardrails": {
+    "description": "Generic do/don't for common beat roles, independent of template. The assembler distributes the level's page budget across beats by the template's weights.",
+    "roles": {
+      "opening": { "do": ["establish the child and setting fast", "make it inviting"], "dont": ["info-dump", "introduce the problem before the child"] },
+      "goal": { "do": ["state one concrete want and why it matters"], "dont": ["multiple goals", "abstract wants"] },
+      "middle": { "do": ["show the child acting", "reveal the theme world"], "dont": ["passive child", "adult doing the work"] },
+      "challenge": { "do": ["a mild, resolvable wobble", "keep it age-safe"], "dont": ["real danger", "meanness", "fear without relief"] },
+      "turn": { "do": ["the child applies the value/skill (the How)"], "dont": ["luck", "rescue by adult", "magic fix"] },
+      "resolution": { "do": ["resolve the goal", "warm, hopeful close", "return to safety"], "dont": ["cliffhanger", "tacked-on moral", "bleak note"] }
+    }
+  },
+
+  "generation_contract": {
+    "description": "The structured process that produces one book. Reading constraints are enforced at every text step; story guardrails shape the content.",
+    "steps": [
+      "1. INPUTS: child profile, target level, theme.",
+      "2. SELECT (variety engine): choose template + arc + setting + tone_primary + objective, respecting anti_repeat_rules and the child's combination memory.",
+      "3. RESOLVE tokens: child name + allowed out-of-level theme/personal tokens (personalization.json caps).",
+      "4. FRAME four_questions: fill Who/What/Why/How; pick the value that will drive the How.",
+      "5. ASSEMBLE beats: distribute the level's page budget across the template beats (pacing_by_level).",
+      "6. GENERATE per page: write the child-decodable text within all reading constraints. (An optional adult read-aloud track exists in the schema but is PARKED/unused in current books.)",
+      "7. SELF-CHECK (below) before validation.",
+      "8. VALIDATE: run validation-rules (word eligibility, sentence length, practices_own_level, cumulative_review, story guardrails, safety). On hard fail, regenerate the flagged pages with tightened constraints.",
+      "9. ILLUSTRATE: per-page prompts threaded with the reference sheet.",
+      "10. RECORD: save combination_key to the child's memory for future variety."
+    ],
+    "self_check": [
+      "Is every child-track word decodable-at-level, a live heart word, or an allowed token?",
+      "Does the book answer Who/What/Why/How?",
+      "Does the CHILD solve it (effort/kindness/cleverness/practice/teamwork), not luck or an adult?",
+      "Is the 'How' set up earlier in the book?",
+      "One problem, resolved, with a warm ending and no lingering worry?",
+      "Does the book practice this level's new focus, not just review?",
+      "Is the combination_key sufficiently different from this child's recent books?"
+    ]
+  }
+}

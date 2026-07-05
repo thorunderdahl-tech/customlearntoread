@@ -48,9 +48,12 @@ export async function generateImage(
   prompt: string,
   referenceImagesB64: string[] = [],
   aspectRatio = "2:3",
+  imageSizeOverride?: string,
 ): Promise<{ data: string; mime: string }> {
   const model = process.env.ART_MODEL || "gemini-3-pro-image-preview";
-  const imageSize = process.env.ART_IMAGE_SIZE || "2K";
+  // Caller decides resolution (4K for print/physical, 2K for digital-only) so we
+  // pay for 4K only where print sharpness matters. Falls back to env then 2K.
+  const imageSize = imageSizeOverride || process.env.ART_IMAGE_SIZE || "2K";
   const parts: Part[] = [
     ...referenceImagesB64.map((d) => ({ inline_data: { mime_type: "image/jpeg", data: d } })),
     { text: prompt },

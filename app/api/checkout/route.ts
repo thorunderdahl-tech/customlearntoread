@@ -97,6 +97,10 @@ export async function POST(req: NextRequest) {
     if (themePhotos.length > 0) {
       metadata.theme_photos = truncate(themePhotos.join(" "));
     }
+    // Optional, free content option (opt-in). Carried as metadata only — no line item.
+    if (body.parent_read_along) {
+      metadata.parent_read_along = "Yes";
+    }
 
     // Save the FULL, untruncated order to Airtable before payment so nothing
     // is ever lost (Stripe metadata caps each value at 500 chars). We stash the
@@ -123,7 +127,7 @@ export async function POST(req: NextRequest) {
       mode: isSubscription ? "subscription" : "payment",
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: body.parent_email,
-      success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}${body.parent_read_along ? "&rla=1" : ""}&pid=${encodeURIComponent(product.id)}${metadata.airtable_record_id ? `&oid=${metadata.airtable_record_id}` : ""}`,
       cancel_url: `${siteUrl}/order/cancel`,
       allow_promotion_codes: true,
       metadata,

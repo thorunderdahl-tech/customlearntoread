@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "story-templates",
+  "version": 1,
+  "description": "Reusable narrative skeletons made of BEATS, not stories. Theme- and arc-agnostic. Each beat carries a purpose and a page-budget weight; the assembler distributes a level's page count across beats by weight.",
+  "templates": [
+    {
+      "id": "meet-goal-explore-challenge-learn-celebrate",
+      "name": "Journey to a Goal",
+      "beats": [
+        { "id": "meet", "purpose": "Introduce the character (usually the child) and their world", "weight": 1, "answers": ["who"] },
+        { "id": "goal", "purpose": "Introduce what they want and why it matters", "weight": 1, "answers": ["what", "why"] },
+        { "id": "explore", "purpose": "Character acts toward the goal; theme world is shown", "weight": 2, "answers": [] },
+        { "id": "challenge", "purpose": "A small, resolvable obstacle raises tension", "weight": 1, "answers": [] },
+        { "id": "learn", "purpose": "Character overcomes via a repeatable value (practice, help, kindness, creativity)", "weight": 1, "answers": ["how"] },
+        { "id": "celebrate", "purpose": "Goal achieved; warm resolution", "weight": 1, "answers": [] }
+      ]
+    },
+    {
+      "id": "problem-try-try-succeed",
+      "name": "Try, Try Again",
+      "beats": [
+        { "id": "meet", "purpose": "Character and setting", "weight": 1, "answers": ["who"] },
+        { "id": "problem", "purpose": "A problem appears; character wants to solve it", "weight": 1, "answers": ["what", "why"] },
+        { "id": "attempt1", "purpose": "First attempt; gentle failure", "weight": 1, "answers": [] },
+        { "id": "attempt2", "purpose": "Second attempt; learns something", "weight": 1, "answers": ["how"] },
+        { "id": "succeed", "purpose": "It works; character is proud", "weight": 1, "answers": [] },
+        { "id": "share", "purpose": "Shares the win with others", "weight": 1, "answers": [] }
+      ]
+    },
+    {
+      "id": "discovery-wonder-reveal",
+      "name": "Discovery",
+      "beats": [
+        { "id": "meet", "purpose": "Character notices something curious", "weight": 1, "answers": ["who", "what"] },
+        { "id": "wonder", "purpose": "Character asks questions and investigates", "weight": 2, "answers": ["why"] },
+        { "id": "clues", "purpose": "Gathers clues; theme world revealed", "weight": 1, "answers": [] },
+        { "id": "reveal", "purpose": "The discovery is understood", "weight": 1, "answers": ["how"] },
+        { "id": "delight", "purpose": "Shares the wonder", "weight": 1, "answers": [] }
+      ]
+    },
+    {
+      "id": "helper-need-act-thanks",
+      "name": "Someone Needs Help",
+      "beats": [
+        { "id": "meet", "purpose": "Character and friend/creature", "weight": 1, "answers": ["who"] },
+        { "id": "need", "purpose": "Someone needs help", "weight": 1, "answers": ["what", "why"] },
+        { "id": "plan", "purpose": "Character decides to help", "weight": 1, "answers": [] },
+        { "id": "act", "purpose": "Helps through effort/kindness/teamwork", "weight": 2, "answers": ["how"] },
+        { "id": "thanks", "purpose": "Gratitude and warmth", "weight": 1, "answers": [] }
+      ]
+    }
+  ]
+}

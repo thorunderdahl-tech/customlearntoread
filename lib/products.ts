@@ -132,7 +132,7 @@ export const productByName = (name: string): Product | undefined =>
 // Optional extras offered on the final order step. Priced inline at checkout via
 // Stripe `price_data`, so no extra Stripe Price IDs are needed. All add-ons are
 // one-time charges and only appear for one-time orders (not the monthly club).
-export type AddOnId = "rush" | "extra_character";
+export type AddOnId = "digital_copy" | "extra_character" | "dedication" | "rush";
 
 export type AddOn = {
   id: AddOnId;
@@ -142,15 +142,19 @@ export type AddOn = {
   priceLabel: string;
   /** Hide for the digital PDF (nothing to wrap / ship). */
   physicalOnly?: boolean;
+  /** Show a free-text field when selected (e.g. the dedication message). */
+  requiresText?: boolean;
+  textPlaceholder?: string;
 };
 
 export const ADDONS: AddOn[] = [
   {
-    id: "rush",
-    name: "Rush production",
-    blurb: "Jump to the front of the queue — your book is designed first.",
-    priceCents: 1500,
-    priceLabel: "+$15",
+    id: "digital_copy",
+    name: "Add the digital book",
+    blurb: "Get the flip-the-page digital book + printable PDF alongside your printed copy — read it tonight and share with grandparents.",
+    priceCents: 800,
+    priceLabel: "+$8",
+    physicalOnly: true, // only meaningful when they've already bought a printed book
   },
   {
     id: "extra_character",
@@ -158,6 +162,22 @@ export const ADDONS: AddOn[] = [
     blurb: "Write in a sibling, friend, or pet as a second star of the story.",
     priceCents: 1200,
     priceLabel: "+$12",
+  },
+  {
+    id: "dedication",
+    name: "Dedication page message",
+    blurb: "A personal message printed on the dedication page — perfect for a gift.",
+    priceCents: 500,
+    priceLabel: "+$5",
+    requiresText: true,
+    textPlaceholder: "Happy 5th birthday, Mia — love, Grandma",
+  },
+  {
+    id: "rush",
+    name: "Rush production",
+    blurb: "Jump to the front of the queue — your book is designed first.",
+    priceCents: 1500,
+    priceLabel: "+$15",
   },
 ];
 

@@ -1,10 +1,17 @@
 import ClearDraft from "./ClearDraft";
+import UpsellOffers from "./UpsellOffers";
 
 export const metadata = {
   title: "Order received | CustomLearnToRead",
 };
 
-export default function SuccessPage() {
+export default function SuccessPage({
+  searchParams,
+}: {
+  searchParams: { rla?: string; pid?: string; oid?: string; addon?: string };
+}) {
+  const readAlong = searchParams?.rla === "1";
+  const addonDone = searchParams?.addon === "done";
   return (
     <div className="center-narrow">
       <ClearDraft />
@@ -15,6 +22,19 @@ export default function SuccessPage() {
         receipt with all the details. We&apos;ll get started on your book right
         away.
       </p>
+      {addonDone && (
+        <p><strong>Your add-on is confirmed too</strong> — it&apos;s attached to this order.</p>
+      )}
+      {!addonDone && searchParams?.pid && (
+        <UpsellOffers productId={searchParams.pid} orderId={searchParams?.oid || ""} />
+      )}
+      {readAlong && (
+        <p>
+          <strong>Parent Read-Along Lines:</strong> added. Each page will include
+          a small grown-up read-aloud line alongside your child&apos;s own line,
+          with a short note inside explaining how to read it together.
+        </p>
+      )}
       <h2>What happens next</h2>
       <p>
         For one-time orders, most paperback and hardcover sets ship within 7–10

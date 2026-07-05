@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/#how", label: "How it works" },
   { href: "/#formats", label: "Formats" },
   { href: "/#subscription", label: "Book Club" },
+  { href: "/reading-approach", label: "Our approach" },
   { href: "/about", label: "About" },
   { href: "/#faq", label: "FAQ" },
 ];

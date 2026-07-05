@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { Resend } from "resend";
 import type Stripe from "stripe";
-import { updateOrderRecord, getOrderRecord } from "@/lib/airtable";
+import { updateOrderRecord, getOrderRecord, createOrderRecord, orderToAirtableFields, listOrders, airtableConfigured } from "@/lib/airtable";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +27,7 @@ function buildOrderEmail(meta: Record<string, string>, opts: { orderType: string
     field("Child name", meta.child_name),
     field("Age", meta.child_age),
     field("Reading level", meta.reading_level),
+    field("Parent read-along", meta.parent_read_along),
     field("Pronouns", meta.pronouns),
     field("Hair", meta.hair),
     field("Eyes", meta.eyes),
@@ -46,8 +47,8 @@ function buildOrderEmail(meta: Record<string, string>, opts: { orderType: string
   return `<div style="font-family:Inter,system-ui,sans-serif;max-width:680px"><h2 style="font-size:22px;margin:0 0 12px">New order - ${escapeHtml(meta.product_name || "Custom book")}</h2><p style="color:#665d52;margin:0 0 18px">Charged successfully through Stripe.</p><table style="border-collapse:collapse;width:100%;font-size:14px">${rows}</table></div>`;
 }
 
-function buildCustomerEmail(childName: string, productName: string, isSub: boolean) {
-  return `<div style="font-family:Inter,system-ui,sans-serif;max-width:600px;color:#2f2a24"><h2 style="font-size:22px">Thanks - we got your order!</h2><p>We're so glad you're making a custom book for ${escapeHtml(childName) || "your reader"}.</p><p><strong>Order:</strong> ${escapeHtml(productName)}</p>${isSub ? `<p>You're enrolled in the Monthly Book Club. A new personalized book will ship each month. You can manage or cancel any time by replying to this email.</p>` : `<p>We'll start working on your book right away. Most one-time orders ship within 7-10 business days; digital PDFs are emailed within 5 business days.</p>`}<p>If anything about your child's details needs to change, just reply to this email - we read every reply.</p><p style="color:#665d52;font-size:13px;margin-top:24px">CustomLearnToRead</p></div>`;
+function buildCustomerEmail(childName: string, productName: string, isSub: boolean, readAlong = false) {
+  return `<div style="font-family:Inter,system-ui,sans-serif;max-width:600px;color:#2f2a24"><h2 style="font-size:22px">Thanks - we got your order!</h2><p>We're so glad you're making a custom book for ${escapeHtml(childName) || "your reader"}.</p><p><strong>Order:</strong> ${escapeHtml(productName)}</p>${readAlong ? `<p><strong>Parent Read-Along Lines:</strong> added. Each page will include a small grown-up read-aloud line alongside your child's own line, with a short note inside explaining how to read it together.</p>` : ``}${isSub ? `<p>You're enrolled in the Monthly Book Club. A new personalized book will ship each month. You can manage or cancel any time by replying to this email.</p>` : `<p>We'll start working on your book right away. Most one-time orders ship within 7-10 business days; digital PDFs are emailed within 5 business days.</p>`}<p>If anything about your child's details needs to change, just reply to this email - we read every reply.</p><p style="color:#665d52;font-size:13px;margin-top:24px">CustomLearnToRead</p></div>`;
 }
 
 export async function POST(req: NextRequest) {
@@ -70,6 +71,42 @@ export async function POST(req: NextRequest) {
       const session = event.data.object as Stripe.Checkout.Session;
       const full = (await stripe.checkout.sessions.retrieve(session.id)) as unknown as Stripe.Checkout.Session & Record<string, any>;
       const meta = (full.metadata || {}) as Record<string, string>;
+
+      // Post-purchase add-on upsell (a separate transaction). Record the extras on
+      // the original order and notify the owner; do NOT run the new-order flow.
+      if (meta.kind === "addon") {
+        const amount = full.amount_total ? `$${(full.amount_total / 100).toFixed(2)}` : "-";
+        if (meta.airtable_record_id) {
+          try {
+            const existing = await getOrderRecord(meta.airtable_record_id);
+            const prior = (existing?.fields?.["Add-ons"] as string) || "";
+            const merged = [prior, meta.add_ons].filter((s) => s && s.trim()).join(", ");
+            const fields: Record<string, string> = { "Add-ons": merged };
+            if (meta.dedication_message) fields["Dedication"] = meta.dedication_message;
+            await updateOrderRecord(meta.airtable_record_id, fields);
+          } catch (e) {
+            console.error("addon: airtable update failed", e);
+          }
+        }
+        const resendKey = process.env.RESEND_API_KEY;
+        const ownerEmails = (process.env.OWNER_EMAIL || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";
+        if (resendKey && ownerEmails.length) {
+          try {
+            const resend = new Resend(resendKey);
+            await resend.emails.send({
+              from: fromEmail,
+              to: ownerEmails,
+              subject: `Add-on purchased (${amount}) - ${meta.add_ons || "extras"}`,
+              html: `<div style="font-family:Inter,system-ui,sans-serif;color:#2f2a24"><p>An add-on was purchased for order <strong>${escapeHtml(meta.airtable_record_id || "unknown")}</strong>.</p><p>Add-ons: <strong>${escapeHtml(meta.add_ons || "")}</strong> (${amount})</p>${meta.dedication_message ? `<p>Dedication: ${escapeHtml(meta.dedication_message)}</p>` : ""}</div>`,
+            });
+          } catch (e) {
+            console.error("addon owner email failed", e);
+          }
+        }
+        return NextResponse.json({ received: true, addon: true });
+      }
+
       const isSub = full.mode === "subscription";
       let stripeShipping: { name?: string | null; address?: any } | null = null;
       if (full.shipping_details) {
@@ -141,7 +178,7 @@ export async function POST(req: NextRequest) {
               to: meta.parent_email,
               reply_to: ownerEmails,
               subject: `Your CustomLearnToRead order is in!`,
-              html: buildCustomerEmail(meta.child_name || "your reader", meta.product_name || "Custom book", isSub),
+              html: buildCustomerEmail(meta.child_name || "your reader", meta.product_name || "Custom book", isSub, meta.parent_read_along === "Yes"),
             });
           } catch (e) {
             console.error("customer confirmation email failed", e);
@@ -192,6 +229,27 @@ export async function POST(req: NextRequest) {
       if (invoice.billing_reason === "subscription_cycle" && subId) {
         const sub = await stripe.subscriptions.retrieve(subId);
         const meta = (sub.metadata || {}) as Record<string, string>;
+
+        // Create a fresh order row for this month's book. This puts the cycle in
+        // the fulfillment queue AND lets the variety engine see the child's prior
+        // books (it reads past orders by parent email). Idempotent on invoice id.
+        if (airtableConfigured()) {
+          try {
+            const dup = (await listOrders()).some((o) => (o.fields?.["Stripe ID"] as string) === invoice.id);
+            if (!dup) {
+              await createOrderRecord({
+                ...orderToAirtableFields({ ...meta, product_name: meta.product_name || "Monthly Book Club" }),
+                Status: "Paid",
+                "Story status": "Cycle - not started",
+                "Stripe ID": invoice.id || "",
+                Amount: invoice.amount_paid ? `$${(invoice.amount_paid / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || ""}` : "",
+              });
+            }
+          } catch (e) {
+            console.error("subscription cycle: airtable order create failed", e);
+          }
+        }
+
         const resendKey = process.env.RESEND_API_KEY;
         const ownerEmails = (process.env.OWNER_EMAIL || "").split(",").map((s) => s.trim()).filter(Boolean);
         const fromEmail = process.env.FROM_EMAIL || "orders@customlearntoread.com";

@@ -12,6 +12,8 @@ type FormState = {
   child_name: string;
   child_age: string;
   reading_level: string;
+  read_check_behavior: string;
+  parent_read_along: boolean;
   pronouns: string;
   hair: string;
   eyes: string;
@@ -42,13 +44,56 @@ const US_STATES = [
   "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC",
 ];
 
+// Level options carry a sample sentence so both the dropdown AND the helper are
+// concrete, not abstract. The "Level N — " prefix is load-bearing: resolveLevel()
+// matches on it and the order summary splits on " — ", so keep it.
+const LEVEL_STRINGS = [
+  "",
+  "Level 1 — brand-new reader · “Sam can run.”",
+  "Level 2 — very early reader · “Sam runs to the ball.”",
+  "Level 3 — growing reader · “Sam sees the big red ball.”",
+  "Level 4 — confident reader · “Sam kicks the ball down the hill.”",
+];
+const NOT_SURE_LEVEL = "Not sure — we'll match their age";
+
+// Optional placement helper: ONE passive-observation question a parent can answer
+// without quizzing their child. Combined with the age they already gave, it lands
+// a good-enough starting level; the post-delivery feedback loop fine-tunes it.
+const READ_BEHAVIOR = [
+  { v: "listens", label: "mostly listens and looks at the pictures", delta: -99 }, // floors to Level 1
+  { v: "chimes", label: "chimes in on words they know", delta: -1 },
+  { v: "help", label: "reads simple sentences with a little help", delta: 0 },
+  { v: "own", label: "reads most of it on their own", delta: 1 },
+];
+
+function baseLevelFromAge(ageStr: string): number {
+  const age = parseInt(ageStr, 10);
+  if (!Number.isFinite(age)) return 2; // neutral prior when age unknown
+  if (age <= 5) return 1;
+  if (age === 6) return 2;
+  if (age === 7) return 3;
+  return 4;
+}
+
+// Age sets the starting point; the observation nudges it (confidence-first — the
+// lowest-engagement answer floors to Level 1, only "reads on their own" pushes up).
+function inferReadingLevel(ageStr: string, behavior: string): string {
+  const b = READ_BEHAVIOR.find((o) => o.v === behavior);
+  if (!b) return NOT_SURE_LEVEL;
+  if (b.v === "listens") return LEVEL_STRINGS[1];
+  const lvl = Math.max(1, Math.min(4, baseLevelFromAge(ageStr) + b.delta));
+  return LEVEL_STRINGS[lvl];
+}
+
 const initial: FormState = {
   product: "paperback_set",
   parent_name: "",
   parent_email: "",
   child_name: "",
   child_age: "",
-  reading_level: "Level 1 — brand-new reader (1 short sentence per page, lots of repetition)",
+  reading_level: NOT_SURE_LEVEL,
+  read_check_behavior: "",
+  parent_read_along: false,
   pronouns: "",
   hair: "",
   eyes: "",
@@ -93,6 +138,9 @@ export default function OrderForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showThemeIdeas, setShowThemeIdeas] = useState(false);
+  const [showPhotoInfo, setShowPhotoInfo] = useState(false);
+  const [showReadAlongInfo, setShowReadAlongInfo] = useState(false);
+  const [showReadCheck, setShowReadCheck] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeFileInputRef = useRef<HTMLInputElement>(null);
@@ -356,13 +404,78 @@ export default function OrderForm() {
                   value={state.reading_level}
                   onChange={(e) => update("reading_level", e.target.value)}
                 >
-                  <option>Level 1 — brand-new reader (1 short sentence per page, lots of repetition)</option>
-                  <option>Level 2 — very early reader (simple patterns, familiar action words)</option>
-                  <option>Level 3 — growing reader (short story arc, more variety)</option>
-                  <option>Level 4 — more confident reader (short paragraphs, wider vocab)</option>
-                  <option>Not sure — pick the best fit for me</option>
+                  <option>{LEVEL_STRINGS[1]}</option>
+                  <option>{LEVEL_STRINGS[2]}</option>
+                  <option>{LEVEL_STRINGS[3]}</option>
+                  <option>{LEVEL_STRINGS[4]}</option>
+                  <option>{NOT_SURE_LEVEL}</option>
                 </select>
-                <span className="hint">When in doubt, choose the easier one.</span>
+                <span className="hint">
+                  Not sure? Leave it on &ldquo;we&apos;ll match their age,&rdquo; or{" "}
+                  <button
+                    type="button"
+                    className="photo-info-link"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowReadCheck((v) => !v); }}
+                  >
+                    {showReadCheck ? "hide the level helper" : "answer one quick question →"}
+                  </button>
+                </span>
+              </label>
+
+              {showReadCheck && (
+                <div style={{ border: "1px solid var(--line, #eadccb)", borderRadius: 10, padding: "12px 14px", margin: "4px 0 8px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <label>
+                    When you read a simple book with {state.child_name.trim() || "your child"} together, they usually&hellip;
+                    <select
+                      value={state.read_check_behavior}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setState((s) => ({ ...s, read_check_behavior: v, reading_level: v ? inferReadingLevel(s.child_age, v) : s.reading_level }));
+                      }}
+                    >
+                      <option value="">Choose one&hellip;</option>
+                      {READ_BEHAVIOR.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                    </select>
+                  </label>
+                  {state.read_check_behavior && (
+                    <p className="hint" style={{ margin: 0 }}>
+                      We&apos;ll start {state.child_name.trim() || "your child"} at <strong>{state.reading_level.split(" — ")[0]}</strong>. You can change it above, and we&apos;ll fine-tune it after the first book.
+                    </p>
+                  )}
+                </div>
+              )}
+              <label
+                style={{
+                  flexDirection: "row",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  fontWeight: 500,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={state.parent_read_along}
+                  onChange={(e) => update("parent_read_along", e.target.checked)}
+                  style={{ width: "auto", marginTop: 4 }}
+                />
+                <span>
+                  Add Parent Read-Along Lines{" "}
+                  <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span>
+                  <span className="hint" style={{ fontWeight: 400 }}>
+                    Add a second line on each page for a grown-up to read aloud &mdash; richer
+                    words and a fuller story &mdash; while your child reads their own simple line. A
+                    lovely way to support reading comprehension. Your child&apos;s reading stays
+                    exactly at their level.{" "}
+                    <button
+                      type="button"
+                      className="photo-info-link"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowReadAlongInfo(true); }}
+                    >
+                      How this works &rarr;
+                    </button>
+                  </span>
+                </span>
               </label>
               <label>
                 Pronouns (optional)
@@ -653,8 +766,17 @@ export default function OrderForm() {
                 />
                 <span>
                   We have kids too, and privacy matters. The details you share are used
-                  only to make your child&apos;s book - nothing is shared publicly.
-                  Any photos you upload are deleted after your first book is delivered. *
+                  only to make your child&apos;s book - nothing is shared publicly, and any
+                  photos you upload are deleted after your first book is delivered. I confirm
+                  I have the right to use any photos I&apos;ve uploaded, including any photos of
+                  children. *{" "}
+                  <button
+                    type="button"
+                    className="photo-info-link"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPhotoInfo(true); }}
+                  >
+                    How we use your photos &rarr;
+                  </button>
                 </span>
               </label>
             </div>
@@ -709,6 +831,33 @@ export default function OrderForm() {
               </div>
             </div>
           )}
+
+          {showPhotoInfo && (
+            <div className="modal-overlay" onClick={() => setShowPhotoInfo(false)} role="dialog" aria-modal="true" aria-label="How we use your photos">
+              <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="modal-close" onClick={() => setShowPhotoInfo(false)} aria-label="Close">&times;</button>
+                <h3 style={{ marginTop: 0 }}>How we use your photos</h3>
+                <p style={{ color: "var(--muted)" }}>Reference photos are optional. They help us make your book&apos;s characters look like your child and the things they love.</p>
+                <p><strong>Your rights.</strong> Only upload photos you have the right to use, including any photos of children. Please don&apos;t upload photos that belong to someone else or that could harm or mislead others.</p>
+                <p><strong>How we use them.</strong> We use your photos only to create your book — including using AI to help create the illustrations. We don&apos;t sell them, share them for advertising, or use them for marketing.</p>
+                <p><strong>How long we keep them.</strong> We delete uploaded photos after your first book is delivered.</p>
+                <button type="button" className="button primary" onClick={() => setShowPhotoInfo(false)} style={{ marginTop: 8 }}>Got it</button>
+              </div>
+            </div>
+          )}
+
+          {showReadAlongInfo && (
+            <div className="modal-overlay" onClick={() => setShowReadAlongInfo(false)} role="dialog" aria-modal="true" aria-label="About Parent Read-Along Lines">
+              <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="modal-close" onClick={() => setShowReadAlongInfo(false)} aria-label="Close">&times;</button>
+                <h3 style={{ marginTop: 0 }}>Parent Read-Along Lines</h3>
+                <p>Every book is written so your child can read it themselves. Turn this on and each page gets one extra line &mdash; smaller and in italics &mdash; for you to read aloud. It uses richer words and tells a fuller story, while your child proudly reads their own simple line.</p>
+                <p>Reading has two halves: sounding out words, and understanding language. Parent Read-Along Lines are a gentle way to support both at once &mdash; especially at the earliest levels, where a child&apos;s own text is necessarily simple. It&apos;s completely optional, and it never changes the words your child reads.</p>
+                <p>Inside the book, a short note up front explains which line is which. After that, the two styles make it obvious.</p>
+                <button type="button" className="button primary" onClick={() => setShowReadAlongInfo(false)} style={{ marginTop: 8 }}>Got it</button>
+              </div>
+            </div>
+          )}
         </form>
       </main>
 
@@ -728,6 +877,9 @@ export default function OrderForm() {
           )}
           {state.theme_1 && (
             <p className="summary-row"><strong>Themes:</strong> {[state.theme_1, state.theme_2, state.theme_3].filter(Boolean).join(", ")}</p>
+          )}
+          {state.parent_read_along && (
+            <p className="summary-row"><strong>Read-Along:</strong> Parent lines added</p>
           )}
           {(state.photos.length + state.theme_photos.length) > 0 && (
             <p className="summary-row"><strong>Photos:</strong> {state.photos.length + state.theme_photos.length} attached</p>
