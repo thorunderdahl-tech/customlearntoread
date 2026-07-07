@@ -106,12 +106,12 @@ export function pickCombination(levelId: string, avoidKeys: string[] = []): Stor
 
 /** Prompt-ready description of the plan, telling the model exactly what to write. */
 export function describePlan(plan: StoryPlan): string {
-  return `STORY PLAN — make this book specific and fresh (do not default to a generic outline):
-- Structure: follow the "${plan.templateName}" shape — ${plan.beats.join(" → ")}.
+  return `STORY PLAN — this is a STORY with a real beginning, middle, and end, NOT a list of similar pages. Make it specific and fresh:
+- Structure: follow the "${plan.templateName}" shape — ${plan.beats.join(" → ")}. Walk through these beats IN ORDER across the pages: open on the child and their goal, build through the middle beats, hit the small challenge around two-thirds of the way in, then land the final beat on the LAST page(s) as a clear, happy resolution. Each page advances to the next beat — no page could be shuffled or removed without breaking the story.
 - Arc & feeling: ${plan.arcName} — ${plan.arcTone}. Overall tone: ${plan.tone}.
 - Setting: ${plan.setting} (adapt it naturally to the book's topic).
-- The child's goal: they want to ${plan.objectivePhrase}.
-- How it resolves: through ${plan.arcResolution}. The CHILD succeeds through their own effort, kindness, or cleverness — never luck, coincidence, or an adult taking over.
+- The child's goal: they want to ${plan.objectivePhrase}. Establish it early; the whole book is the child working toward it.
+- How it resolves: through ${plan.arcResolution}. The CHILD succeeds through their own effort, kindness, or cleverness — never luck, coincidence, or an adult taking over. The final page MUST show that success and a warm, satisfying ending — do not just stop.
 
 FOUR QUESTIONS — the story must answer these, and you must fill the "fourQuestions" field:
 - who: who it's about (usually the child)

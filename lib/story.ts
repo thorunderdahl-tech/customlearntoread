@@ -78,7 +78,7 @@ ${describePhonicsScope(level.rules.phonicsCeiling, level.rules.decodability)}
 
 ${plan ? describePlan(plan) + "\n\n" : ""}${extras.readAlong ? `PARENT READ-ALONG LINES (this order includes them): for EVERY page, also write an "adultLine" — ONE richer sentence for a grown-up to read ALOUD. It describes the SAME moment as the page's "text" but may use bigger words and fuller sentences; it is NOT limited by the child's reading level. Keep it warm and age-appropriate. The child's "text" stays exactly at level and is unchanged by this. Do not reference the adultLine in the illustration.\n\n` : ""}FORMAT:
 - Exactly ${pageCount} interior pages. ONE sentence per page. ONE illustration per page. No paragraphs, no text blocks.
-- Spread the story across the pages following the STORY PLAN above (or, if none, a simple beginning → small challenge → happy ending). One clear problem, resolved warmly.
+- NARRATIVE ARC IS REQUIRED — this is a story, not a word list. Map the STORY PLAN's beats across the ${pageCount} pages in order: the opening pages set up the child and their goal, the middle pages build the action through a small challenge, and the FINAL 1-2 pages MUST resolve it — the child succeeds and the book ends on a happy, satisfying beat that pays off the "how". The repeated sentence PATTERN stays (for decodability), but what HAPPENS must change and move forward every page — never a flat catalog whose pages could be reordered. (If no plan is given, use a simple beginning → small challenge → happy resolution.) One clear problem, resolved warmly.
 - Repeat key vocabulary throughout so earlier pages teach the words later pages use.
 
 ILLUSTRATION DIRECTIONS:
@@ -123,7 +123,7 @@ FINAL CHECK — verify each:
 1. CHILD CAN READ IT: every page is ONE short sentence the child can decode at this exact level. Flag ANY word or sentence that breaks the rules. This is a book the child reads themselves, not a read-aloud.
 2. Repetition & predictability: vocabulary and sentence patterns repeat like early BOB Books; one action per page; concrete nouns; familiar actions.
 3. Child is the hero: ${o.childName} stars on every page; topic stays consistent; the ordered details genuinely shape the story.
-4. Story arc: introduction → discovery → fun activity → small challenge → success → celebration → positive ending.
+4. Story arc & resolution (grade strictly): the pages move through a real beginning → middle → end — setup, a small challenge, then a clear resolution where ${o.childName} SUCCEEDS, with the last page(s) delivering a happy, satisfying ending that pays off the fourQuestions "how". FAIL the draft if it reads as a flat list/catalog of similar pages with no rising action or no real ending — even if every page is individually on-level.
 5. Illustration directions: concrete, uncluttered, consistent character, visually tell the story, contain NO text/brands/logos. Every recurring character other than the hero has a castDescriptions entry locking skin tone, hair and clothing — flag any recurring character that lacks one.
 6. Safety & rights: positive tone, nothing scary; NO trademarked characters or copyrighted brands anywhere.
 
