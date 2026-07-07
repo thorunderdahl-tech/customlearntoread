@@ -48,7 +48,7 @@ export const LEVELS: Level[] = [
     formPrefixes: ["Level 1"],
     rules: { sentencesPerPage: [1, 1], minWordsPerPage: 1, maxWordsPerPage: 3, maxAvgWordLength: 4.0, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "strict", phonicsCeiling: 3, sightWordBudget: [8, 10], sightWordFlex: 2 },
     promptRules:
-      "This book TEACHES a sight-word set, like BOB Books and Scholastic Sight Word Readers. FIRST choose the book's teaching set: 8-10 different words from the Dolch Pre-Primer list ONLY: a, and, away, big, blue, can, come, down, find, for, funny, go, help, here, I, in, is, it, jump, little, look, make, me, my, not, one, play, red, run, said, see, the, three, to, two, up, we, where, yellow, you. At most 2 of the 8-10 may instead be short phonetic CVC words (like hop, sit, nap) if the story needs an action word. THEN write every page using ONLY: that teaching set + the child's name + the book's topic word(s) (like dinosaur — repetition and pictures teach those). Reuse every teaching word on multiple pages — a word used once teaches nothing. Exactly ONE tiny sentence or label per page, 1-3 words (e.g. 'A cat.', 'Sam hops.', 'Big dog!'). One strong repeating sentence pattern with one slot changing. NO two pages may have identical text. Present tense. No commas, no dialogue.",
+      "This book TEACHES a sight-word set, like BOB Books and Scholastic Sight Word Readers. FIRST choose the book's teaching set: 8-10 different words from the Dolch Pre-Primer list ONLY: a, and, away, big, blue, can, come, down, find, for, funny, go, help, here, I, in, is, it, jump, little, look, make, me, my, not, one, play, red, run, said, see, the, three, to, two, up, we, where, yellow, you. At most 2 of the 8-10 may instead be short phonetic CVC words (like hop, sit, nap) if the story needs an action word. THEN write every page using ONLY: that teaching set + the child's name + the book's topic word(s) (like dinosaur — repetition and pictures teach those). Reuse every teaching word on multiple pages — a word used once teaches nothing. Exactly ONE tiny sentence or label per page, 1-3 words (e.g. 'A cat.', 'Sam hops.', 'Big dog!'). Use a few (2-3) simple sentence frames and ROTATE them — never use the same frame on more than two pages in a row (e.g. 'Sam sees a ball.' 'Sam sees a bat.' is fine twice, then switch to a different frame like 'Sam can run!'). Reuse the teaching words throughout the book, but SPREAD them out — sprinkle repeated words across the story rather than stacking near-identical pages. NO two pages may have identical text. Present tense. No commas, no dialogue.",
   },
   {
     id: "beginner",
@@ -56,7 +56,7 @@ export const LEVELS: Level[] = [
     formPrefixes: ["Level 2"],
     rules: { sentencesPerPage: [1, 1], minWordsPerPage: 3, maxWordsPerPage: 6, maxAvgWordLength: 4.4, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "moderate", phonicsCeiling: 6, newFocusFrom: 4 },
     promptRules:
-      "Exactly ONE sentence per page, 3-6 words, like early BOB Books: 'I see a cat.' 'I can run.' 'We can play.' 'The dog is here.' 'Sam can hop.' Repeat sentence structures across pages with one word changing. High-frequency sight words (Dolch Pre-Primer + Primer) plus simple decodable words; reuse the same sight words throughout so the book teaches them. NO two pages may have identical text. ONE action per page. Present tense. No commas, no dialogue, no contractions. EXCEPTION: the book's main topic word (like dinosaur or princess) is allowed even if long — repetition and the pictures teach it.",
+      "Exactly ONE sentence per page, 3-6 words, like early BOB Books: 'I see a cat.' 'I can run.' 'We can play.' 'The dog is here.' 'Sam can hop.' Use a few simple sentence structures and ROTATE them — the same structure may run at most two pages in a row before you switch to a different one (e.g. 'I see a cat.' 'I see a dog.' then change to 'The dog can run.'). High-frequency sight words (Dolch Pre-Primer + Primer) plus simple decodable words; reuse the same sight words throughout so the book teaches them, but SPREAD the repetition across the book rather than repeating the same frame page after page. NO two pages may have identical text. ONE action per page. Present tense. No commas, no dialogue, no contractions. EXCEPTION: the book's main topic word (like dinosaur or princess) is allowed even if long — repetition and the pictures teach it.",
   },
   {
     id: "growing",
@@ -64,7 +64,7 @@ export const LEVELS: Level[] = [
     formPrefixes: ["Level 3", "Level 4"],
     rules: { sentencesPerPage: [1, 1], minWordsPerPage: 4, maxWordsPerPage: 10, maxAvgWordLength: 5.0, nameOnPageShare: 0.4, allowCommas: false, allowContractions: false, allowDialogue: true, decodability: "none", newFocusFrom: 7 },
     promptRules:
-      "Exactly ONE sentence per page, 4-10 words. Still predictable and patterned, but with a fuller story arc and a few new words a growing reader can decode from context. Mostly one- and two-syllable words. NO two pages may have identical text. ONE action per page. Simple connectors allowed (and, but, so). Present tense. No dialogue longer than three words. EXCEPTION: the book's main topic word is allowed even if long — repetition and the pictures teach it.",
+      "Exactly ONE sentence per page, 4-10 words. Still predictable and patterned, but with a fuller story arc and a few new words a growing reader can decode from context. Vary the sentence structure so no single frame runs more than two pages in a row; reuse key words across the book but sprinkle them throughout rather than repeating near-identical pages. Mostly one- and two-syllable words. NO two pages may have identical text. ONE action per page. Simple connectors allowed (and, but, so). Present tense. No dialogue longer than three words. EXCEPTION: the book's main topic word is allowed even if long — repetition and the pictures teach it.",
   },
 ];
 
@@ -316,6 +316,27 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
         warnings.push(`Cumulative review: only ${Math.round(reviewRatio * 100)}% of decodable words review earlier (below-level) patterns — aim for ≥40% familiar words so the book reinforces, not just introduces.`);
       if (focusWords.size < 2)
         warnings.push(`Practices its level: only ${focusWords.size} word(s) use this level's new patterns — include at least 2 so the book actually teaches its level, not just reviews.`);
+    }
+  }
+
+  // Sentence-frame variety (soft): repetition teaches, but the same frame — same
+  // length, differing in at most one word slot — should not run more than two pages
+  // in a row. "X saw a ball / Y saw a ball / Z saw a ball" page after page reads flat.
+  {
+    const pp = draft.pages ?? [];
+    const sameFrame = (a: string, b: string) => {
+      const wa = words(a).map(norm), wb = words(b).map(norm);
+      if (!wa.length || wa.length !== wb.length) return false;
+      let diff = 0;
+      for (let i = 0; i < wa.length; i++) if (wa[i] !== wb[i]) diff++;
+      return diff <= 1;
+    };
+    let start = 0;
+    for (let i = 1; i <= pp.length; i++) {
+      if (i < pp.length && sameFrame(pp[i - 1].text, pp[i].text)) continue;
+      if (i - start >= 3)
+        warnings.push(`Sentence-frame variety: pages ${pp[start].n}-${pp[i - 1].n} (${i - start} in a row) reuse the same sentence frame with one word changing — rotate structures so no frame runs more than two pages before switching.`);
+      start = i;
     }
   }
 
