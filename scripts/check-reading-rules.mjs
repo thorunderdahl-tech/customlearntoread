@@ -69,11 +69,11 @@ expectPass("L1 on-level book", "Level 1 — brand-new reader", book("tiny", [
   A(6,"Reeva can see."),A(7,"Run Reeva run!"),A(8,"See the ball."),A(9,"Reeva can go."),A(10,"Go Aviva go!"),
   A(11,"Reeva can play."),A(12,"Play ball play!"),A(13,"Look Reeva look!"),A(14,"Look up now."),A(15,"Up Reeva up!"),A(16,"We can all play."),
 ]));
-expectPass("L2 on-level book", "Level 2 — very early reader", book("beginner", [
+expectPass("L2 on-level book (incl. one 7-word stretch page)", "Level 2 — very early reader", book("beginner", [
   A(1,"Reeva has a red ball."),A(2,"Reeva can kick the ball."),A(3,"Hazel can kick it up."),A(4,"Aviva can kick it up."),
   A(5,"The ball can go up."),A(6,"Reeva and Hazel can run."),A(7,"Aviva can run and kick."),A(8,"Reeva can get the ball."),
   A(9,"Look at the red ball!"),A(10,"Reeva can look up."),A(11,"Hazel and Aviva look up."),A(12,"Reeva can get it."),
-  A(13,"Reeva has the ball!"),A(14,"We can run and play."),A(15,"Reeva and Aviva can play."),A(16,"We can all play ball."),
+  A(13,"Reeva has the ball!"),A(14,"We can run and play."),A(15,"Reeva and Aviva can play."),A(16,"We can all run and play ball."),
 ]));
 expectPass("L3 on-level book", "Level 3 — growing reader", book("growing", [
   A(1,"Reeva and Hazel ran to the park."),A(2,"Aviva had a big green ball."),A(3,"Reeva can kick the ball far."),
@@ -117,6 +117,10 @@ expectReject("L1 undecodable word", bad, book("tiny", [A(1,"See the cloud.")]), 
 expectReject("L1 comma", bad, book("tiny", [A(1,"Run, Reeva.")]), "comma");
 expectReject("L1 dialogue", bad, book("tiny", [A(1,'"Go!" Reeva.')]), "dialogue");
 expectReject("L2 word above ceiling (where)", "Level 2 — very early reader", book("beginner", [A(1,"Reeva can see where.")]), "decode");
+expectReject("L2 sentence too long (8 words)", "Level 2 — very early reader", book("beginner", [A(1,"Reeva can run and kick the big ball.")]), "level allows 3-6");
+expectReject("L2 too many 7-word pages (>30%)", "Level 2 — very early reader", book("beginner", [A(1,"Reeva can run and kick the ball."),A(2,"Hazel can run and kick the ball."),A(3,"Reeva naps.")]), "too many long pages");
+// Adversarial decodability trap: a heart word that isn't taught until a later level.
+expectReject("L1 undecodable heart word too early (said)", bad, book("tiny", [A(1,"Reeva said go.")]), "decode");
 expectReject("L3 contraction", "Level 3 — growing reader", book("growing", [A(1,"Reeva can not stop but she can't wait.")]), "contraction");
 expectReject("L3 two sentences on a page", "Level 3 — growing reader", book("growing", [A(1,"Reeva ran home. Reeva sat down.")]), "sentence");
 expectReject("L4 too many words", "Level 4 — confident reader", book("confident", [A(1,"Reeva and Hazel and Aviva all ran down the long green hill to the little pond.")]), "level allows");
@@ -128,6 +132,7 @@ const goodL1Pages = [
   A(11,"Reeva can play."),A(12,"Play ball play!"),A(13,"Look Reeva look!"),A(14,"Look up now."),A(15,"Up Reeva up!"),A(16,"We all play."),
 ];
 expectReject("L1 hero name missing from pages", bad, book("tiny", goodL1Pages, { childName: "Zamir" }), "name appears");
+expectReject("L1 hard title word (storm)", bad, book("tiny", goodL1Pages, { title: "Reeva and the Storm" }), "title");
 expectReject("L1 missing four-questions spine", bad, book("tiny", goodL1Pages, { fourQuestions: undefined }), "four-questions");
 expectReject("L1 duplicate page text", bad, book("tiny", goodL1Pages.map((p, i) => (i === 13 ? A(14, "Look Reeva look!") : p))), "identical");
 expectReject("L1 no repetition (every word unique)", bad, book("tiny", [

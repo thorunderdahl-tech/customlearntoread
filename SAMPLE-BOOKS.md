@@ -137,5 +137,110 @@ Generated 2026-07-08.
 
 ---
 
+## New validated batch (2026-07-09)
+
+Five more heroes/themes, each cleared by `checkStory` at its level (including the new
+Level 1 / Level 2 "stretch" word budget). One hero, sometimes plus a single companion.
+
+### Level 1 — Tiny Reader
+
+**Sam and the Cat** · *one kid + a pet*
+1. See Sam.
+2. See the cat.
+3. Sam can run.
+4. Run Sam run!
+5. Sam can hop.
+6. Hop Sam hop!
+7. The cat can go.
+8. Go cat go!
+9. Sam can look.
+10. Look Sam look!
+11. Sam can see.
+12. See the cat go.
+13. The cat can run.
+14. Run cat run!
+15. Sam can play.
+16. Sam and the cat.
+
+**Mila Can Jump** · *one kid who loves to move*
+1. See Mila.
+2. Mila can hop.
+3. Hop Mila hop!
+4. Mila can jump.
+5. Jump Mila jump!
+6. Mila can go up.
+7. Up Mila up!
+8. Mila can look.
+9. Mila can try.
+10. Try Mila try!
+11. Mila can jump up.
+12. Jump up Mila!
+13. Look Mila go.
+14. Mila can win.
+15. Win Mila win!
+16. We can all jump.
+
+### Level 2 — Beginner Reader
+
+**Max and His Dog** · *one kid + a dog*
+1. Max has a big dog.
+2. Max can run fast.
+3. The dog can run fast.
+4. Max and the dog run.
+5. The dog can jump up.
+6. Max can look up.
+7. Max can get a ball.
+8. Max can kick the ball.
+9. The dog can get it.
+10. Look at the red ball!
+11. Max and the dog play.
+12. The dog can run and jump.
+13. Max can run and play.
+14. Max has the ball now.
+15. Max and the dog win.
+16. We can all play now.
+
+### Level 3 — Growing Reader
+
+**Theo and the Kite** · *one kid + a kite (a small arc)*
+1. Theo made a big red kite.
+2. Theo ran with it in the park.
+3. The kite went up in the wind.
+4. But then the wind just stopped.
+5. The kite fell down to the grass.
+6. Theo can not get it to fly.
+7. Theo had a good new plan.
+8. Theo ran fast down the hill.
+9. The kite lifted up high.
+10. The wind came back with a gust.
+11. The kite went up and up.
+12. Theo let the string go long.
+13. The red kite flew so high!
+14. Theo can see it in the sky.
+15. Theo felt so glad and free.
+16. Theo had the best kite day.
+
+### Level 4 — Confident Reader
+
+**Luna Paints the Stars** · *one kid who is an artist*
+1. Luna wanted to paint the night sky for the school show.
+2. She mixed deep blue and swirled it across the paper.
+3. But the stars she dabbed looked flat and dull.
+4. "They need to sparkle," Luna said with a frown.
+5. She tried adding tiny dots of bright white paint.
+6. The little dots began to glow like real stars.
+7. Luna painted a glowing moon in the corner.
+8. Then she brushed a soft trail of silver light.
+9. Her friends walked in and gasped at the sky.
+10. "It looks like the real night!" cried her teacher.
+11. On show night, they hung Luna's painting on the stage.
+12. The lights dimmed and the painted stars seemed to shine.
+13. The whole crowd looked up and smiled together.
+14. Luna felt proud of every careful little dot.
+15. Her friends hugged her tight behind the curtain.
+16. It was the best painting Luna had ever made.
+
+---
+
 *Every title above cleared the automated reading-level check. To make a finished book,
 run the draft through the admin art pipeline (character sheet → page art → assembly).*
