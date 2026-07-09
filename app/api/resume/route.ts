@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     const priceId = process.env[product.stripePriceEnvKey];
     if (!priceId) return fallback;
 
-    const isSubscription = product.cadence === "monthly";
+    const isSubscription = product.cadence === "quarterly";
     const isDigital = product.id === "digital";
 
     const metadata: Record<string, string> = orderToCheckoutMetadata(body, product);
