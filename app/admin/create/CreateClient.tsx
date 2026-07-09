@@ -776,19 +776,25 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       setAssembling("Building the PDFs…");
       await ensurePdfLib();
       const { PDFDocument, rgb } = (window as any).PDFLib;
-      // 1) Customer home-print PDF: trim size (5.5 × 8.5), bleed cropped off, no marks.
+      // Customer digital PDF: trim size (5.5 × 8.5), bleed cropped off, no marks. Always built.
       const homeBlob = await imagesToPdf(PDFDocument, digital, [HOME_PT_W, HOME_PT_H], { x: -BLEED_OFF_PT, y: -BLEED_OFF_PT, width: TRIM_PT_W, height: TRIM_PT_H });
-      // 2) Printer interior: full-bleed pages (trim 5.5×8.5 + 0.125" bleed) WITH crop marks +
-      //    Trim/Bleed boxes so it passes print-shop pre-flight. No cover, even count ≥ MIN_INTERIOR.
-      const interiorBlob = await imagesToPrintPdf(PDFDocument, rgb, interior.map((img) => ({ img, bleedW: TRIM_PT_W, bleedH: TRIM_PT_H })));
-      // 3) Printer wraparound cover: back + spine (sized to page count) + front, with barcode zone + crop marks.
-      setAssembling("Building the wraparound cover…");
-      const wrap = await buildCoverWrap(cover, draft.title, draft.childName, interior.length);
-      const coverBlob = await imagesToPrintPdf(PDFDocument, rgb, [{ img: wrap.dataUrl, bleedW: wrap.wPt, bleedH: wrap.hPt }]);
-
       pdfBlobRef.current = homeBlob;
       setPdfUrl(URL.createObjectURL(homeBlob));
-      setPrintUrls({ interior: URL.createObjectURL(interiorBlob), cover: URL.createObjectURL(coverBlob) });
+
+      // Print-shop files are ONLY produced for physical books (softcover / hardcover).
+      // A Digital Book order stays purely digital — flipbook + the customer PDF, no print files.
+      if (digitalOnly) {
+        setPrintUrls(null);
+      } else {
+        // Printer interior: full-bleed pages (trim 5.5×8.5 + 0.125" bleed) WITH crop marks +
+        // Trim/Bleed boxes so it passes print-shop pre-flight. No cover, even count ≥ MIN_INTERIOR.
+        const interiorBlob = await imagesToPrintPdf(PDFDocument, rgb, interior.map((img) => ({ img, bleedW: TRIM_PT_W, bleedH: TRIM_PT_H })));
+        // Printer wraparound cover: back + spine (sized to page count) + front, with barcode zone + crop marks.
+        setAssembling("Building the wraparound cover…");
+        const wrap = await buildCoverWrap(cover, draft.title, draft.childName, interior.length);
+        const coverBlob = await imagesToPrintPdf(PDFDocument, rgb, [{ img: wrap.dataUrl, bleedW: wrap.wPt, bleedH: wrap.hPt }]);
+        setPrintUrls({ interior: URL.createObjectURL(interiorBlob), cover: URL.createObjectURL(coverBlob) });
+      }
       setAssembling("");
     } catch (e: any) { setError(e?.message || String(e)); setAssembling(""); }
   }
@@ -1016,11 +1022,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
             <>
               <iframe className="crt-preview" src={pdfUrl} title="Book preview" />
               <p>
-                <a className="crt-btn" href={pdfUrl} download={(slugify(draft!.title) || "book") + ".pdf"}>Home-print PDF (5.5×8.5)</a>{" "}
+                <a className="crt-btn" href={pdfUrl} download={(slugify(draft!.title) || "book") + ".pdf"}>{digitalOnly ? "Digital PDF (5.5×8.5)" : "Home-print PDF (5.5×8.5)"}</a>{" "}
                 {printUrls && <a className="crt-btn" href={printUrls.interior} download={(slugify(draft!.title) || "book") + "-interior-print.pdf"}>Printer interior (bleed, 300 DPI)</a>}{" "}
                 {printUrls && <a className="crt-btn" href={printUrls.cover} download={(slugify(draft!.title) || "book") + "-cover-wrap.pdf"}>Printer cover wrap (spine + barcode zone)</a>}
               </p>
-              <p className="hint">Send the two printer files (not the home-print PDF) to the print shop — see docs/print-spec.md.</p>
+              {printUrls
+                ? <p className="hint">Softcover/hardcover order: send the two printer files (not the home-print PDF) to the print shop — see docs/print-spec.md.</p>
+                : <p className="hint">Digital Book order: digital only — the flipbook + the customer PDF. No print files are produced.</p>}
               <div className="crt-row">
                 <label>Customer email
                   <input value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} placeholder="parent@example.com" />
