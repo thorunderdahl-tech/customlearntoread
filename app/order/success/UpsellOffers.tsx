@@ -10,15 +10,13 @@ export default function UpsellOffers({ productId, orderId }: { productId: string
   const product = productById(productId);
   const addons = product ? addOnsFor(product) : [];
   const [sel, setSel] = useState<string[]>([]);
-  const [dedication, setDedication] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   if (!product || addons.length === 0) return null;
 
-  const chosen = addons.filter((a) => sel.includes(a.id));
+  const chosen = addons.filter((a) => sel.includes(a.id) && !a.comingSoon);
   const total = chosen.reduce((s, a) => s + a.priceCents, 0);
-  const dedicationSelected = sel.includes("dedication");
   const toggle = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   async function addToOrder() {
@@ -28,7 +26,7 @@ export default function UpsellOffers({ productId, orderId }: { productId: string
       const res = await fetch("/api/checkout-addon", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ product: productId, orderId, addOnIds: sel, dedication }),
+        body: JSON.stringify({ product: productId, orderId, addOnIds: sel }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong");
@@ -49,6 +47,19 @@ export default function UpsellOffers({ productId, orderId }: { productId: string
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {addons.map((a) => {
           const on = sel.includes(a.id);
+          if (a.comingSoon) {
+            return (
+              <div key={a.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", border: "1px dashed #e6dcc9", borderRadius: 10, padding: "10px 12px", background: "#fdfaf4", opacity: 0.85 }}>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, color: "#6b6257" }}>
+                    <span>{a.name}</span>
+                    <span style={{ color: "#8c8478", whiteSpace: "nowrap", textTransform: "uppercase", fontSize: ".75rem", letterSpacing: ".06em" }}>{a.priceLabel}</span>
+                  </span>
+                  <span style={{ display: "block", color: "#6b6257", fontSize: ".9rem", marginTop: 2 }}>{a.blurb}</span>
+                </span>
+              </div>
+            );
+          }
           return (
             <div key={a.id}>
               <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", border: `1px solid ${on ? "#f5b78d" : "#f0e7d8"}`, borderRadius: 10, padding: "10px 12px", background: on ? "#fff4e9" : "#fff" }}>
@@ -61,16 +72,6 @@ export default function UpsellOffers({ productId, orderId }: { productId: string
                   <span style={{ display: "block", color: "#6b6257", fontSize: ".9rem", marginTop: 2 }}>{a.blurb}</span>
                 </span>
               </label>
-              {a.requiresText && on && (
-                <input
-                  type="text"
-                  value={dedication}
-                  onChange={(e) => setDedication(e.target.value)}
-                  placeholder={a.textPlaceholder || "Your message"}
-                  maxLength={200}
-                  style={{ width: "100%", marginTop: 6, padding: "8px 10px", borderRadius: 8, border: "1px solid #eadccb" }}
-                />
-              )}
             </div>
           );
         })}
@@ -83,7 +84,7 @@ export default function UpsellOffers({ productId, orderId }: { productId: string
           type="button"
           className="button primary"
           onClick={addToOrder}
-          disabled={busy || chosen.length === 0 || (dedicationSelected && !dedication.trim())}
+          disabled={busy || chosen.length === 0}
         >
           {busy ? "Redirecting…" : chosen.length ? `Add to my order · $${(total / 100).toFixed(2)}` : "Select an add-on"}
         </button>

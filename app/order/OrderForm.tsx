@@ -33,6 +33,7 @@ type FormState = {
   shipping_state: string;
   shipping_zip: string;
   other_notes: string;
+  gift_message: string;
   consent: boolean;
 };
 
@@ -113,6 +114,7 @@ const initial: FormState = {
   shipping_state: "",
   shipping_zip: "",
   other_notes: "",
+  gift_message: "",
   consent: false,
 };
 
@@ -192,7 +194,7 @@ export default function OrderForm() {
   }, [state]);
 
   const product = PRODUCTS.find((p) => p.id === state.product)!;
-  const isSubscription = product.cadence === "monthly";
+  const isSubscription = product.cadence !== "one_time";
   const isDigital = product.id === "digital";
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -365,7 +367,7 @@ export default function OrderForm() {
                     <span className="desc">{p.blurb}</span>
                     <span className="price-row">
                       <span>{p.priceLabel}</span>
-                      <span>{p.cadence === "monthly" ? "Subscription" : "One-time"}</span>
+                      <span>{p.cadence !== "one_time" ? "Subscription" : "One-time"}</span>
                     </span>
                   </label>
                 ))}
@@ -740,6 +742,16 @@ export default function OrderForm() {
               )}
 
               <label>
+                Gift message <span className="hint">(optional &mdash; free, printed inside the front cover)</span>
+                <input
+                  value={state.gift_message}
+                  onChange={(e) => update("gift_message", e.target.value)}
+                  placeholder="To Reeva — love, Grandma. Read it a hundred times!"
+                  maxLength={160}
+                />
+              </label>
+
+              <label>
                 Anything else we should know?
                 <textarea
                   value={state.other_notes}
@@ -866,7 +878,7 @@ export default function OrderForm() {
           <p className="summary-eyebrow">Your order</p>
           <h3 className="summary-product">{product.name}</h3>
           <p className="summary-price">{product.priceLabel}</p>
-          {product.cadence === "monthly" && <p className="summary-billed">Billed monthly · cancel any time</p>}
+          {product.cadence !== "one_time" && <p className="summary-billed">First season $89, then $69 each season · cancel any time</p>}
           {product.perBookLabel && <p className="summary-per">{product.perBookLabel}</p>}
           <hr />
           {state.child_name && (

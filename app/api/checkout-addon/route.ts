@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!product) {
       return NextResponse.json({ error: "Unknown product" }, { status: 400 });
     }
-    const available = addOnsFor(product);
+    const available = addOnsFor(product).filter((a) => !a.comingSoon);
     const ids: string[] = Array.isArray(body.addOnIds) ? body.addOnIds : [];
     const selected = available.filter((a) => ids.includes(a.id));
     if (!selected.length) {
@@ -23,10 +23,6 @@ export async function POST(req: NextRequest) {
     }
 
     const orderId = typeof body.orderId === "string" ? body.orderId : "";
-    const dedication =
-      selected.some((a) => a.id === "dedication") && typeof body.dedication === "string"
-        ? body.dedication.trim().slice(0, 300)
-        : "";
 
     const stripe = getStripe();
     const siteUrl =
@@ -37,7 +33,6 @@ export async function POST(req: NextRequest) {
       airtable_record_id: orderId,
       add_ons: selected.map((a) => a.name).join(", "),
     };
-    if (dedication) metadata.dedication_message = dedication;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",

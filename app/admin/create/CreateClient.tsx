@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { AirtableOrder } from "@/lib/airtable";
+import { LEVELS, patternWords, wordKind } from "@/lib/leveling";
 
 type Draft = {
   title: string;
@@ -267,6 +268,34 @@ function readAlongKeyPage(): string {
   return c.toDataURL("image/jpeg", 0.92);
 }
 
+// Inside-front-cover bookplate: "This book belongs to <name>" (pre-printed — a
+// young child recognizing their own name is a small reading win), plus an optional
+// gift message from the giver. The warmest page in the book, and near-zero effort.
+function bookplatePage(childName: string, giftMessage: string): string {
+  const { c, ctx } = newTypesetPage();
+  const cx = PAGE_W / 2;
+  const msg = (giftMessage || "").trim();
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `700 ${pt(13)}px ${MONTSERRAT}`;
+  ctx.fillText("This book belongs to", cx, PAGE_H * 0.34);
+  ctx.fillStyle = NAVY;
+  ctx.font = `800 ${pt(34)}px ${MONTSERRAT}`;
+  ctx.fillText(childName || "________", cx, PAGE_H * 0.42);
+  ctx.fillStyle = CARAMEL;
+  ctx.fillRect(cx - pt(30), PAGE_H * 0.42 + pt(32), pt(60), pt(3));
+  if (msg) {
+    ctx.fillStyle = "#6b6257";
+    const fs = pt(15);
+    ctx.font = `italic 400 ${fs}px ${ANDIKA}`;
+    let y = PAGE_H * 0.6;
+    wrapText(ctx, msg, PAGE_W - SAFE * 2.4).forEach((l) => { ctx.fillText(l, cx, y); y += fs * 1.5; });
+  }
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `600 ${pt(9.5)}px ${MONTSERRAT}`;
+  ctx.fillText("Custom Learn to Read", cx, PAGE_H - SAFE - pt(8));
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
 function endPage(childName: string): string {
   const { c, ctx } = newTypesetPage();
   ctx.fillStyle = NAVY;
@@ -278,22 +307,74 @@ function endPage(childName: string): string {
   return c.toDataURL("image/jpeg", 0.92);
 }
 
-function wordsPage(vocab: string[]): string {
-  const { c, ctx } = newTypesetPage();
+// "The End" page: reuse the character reference sheet — it already shows the
+// child + the book's companion/favorite-thing (dinosaur, pet, friend) on a plain
+// cream background, exactly what this page wants: just those characters, very
+// little else. A warm caption sits below. No extra AI generation needed.
+async function endArtPage(charB64: string, childName: string): Promise<string> {
+  const { c, ctx } = newTypesetPage(); // cream ground, centered text
+  const img = await loadImg("data:image/png;base64," + charB64);
+  const boxTop = SAFE + pt(8), boxH = PAGE_H * 0.62, boxW = PAGE_W - SAFE * 2;
+  const s = Math.min(boxW / img.width, boxH / img.height);
+  const dw = img.width * s, dh = img.height * s;
+  ctx.drawImage(img, (PAGE_W - dw) / 2, boxTop + (boxH - dh) / 2, dw, dh);
   ctx.fillStyle = NAVY;
-  ctx.font = `800 ${pt(26)}px ${MONTSERRAT}`;
-  ctx.fillText("Words I can read", PAGE_W / 2, PAGE_H * 0.14);
-  const words = vocab.slice(0, 30);
-  const fs = pt(16);
-  ctx.font = `700 ${fs}px ${ANDIKA}`; ctx.fillStyle = INKC;
-  const cols = words.length > 12 ? 2 : 1;
-  const rows = Math.ceil(words.length / cols);
-  const y0 = PAGE_H * 0.22, rowH = Math.min(fs * 2, (PAGE_H - SAFE - pt(30) - y0) / Math.max(rows, 1));
-  words.forEach((w, i) => {
-    const col = Math.floor(i / rows);
-    const x = cols === 1 ? PAGE_W / 2 : PAGE_W * (col === 0 ? 0.32 : 0.68);
-    ctx.fillText(w, x, y0 + (i % rows) * rowH);
-  });
+  ctx.font = `800 ${pt(40)}px ${MONTSERRAT}`;
+  ctx.fillText("The End", PAGE_W / 2, PAGE_H * 0.80);
+  ctx.fillStyle = CARAMEL_DARK;
+  ctx.font = `700 ${pt(18)}px ${ANDIKA}`;
+  ctx.fillText(`You did it, ${childName || "friend"}!`, PAGE_W / 2, PAGE_H * 0.80 + pt(48));
+  return c.toDataURL("image/jpeg", 0.92);
+}
+
+// Inside-back-cover "Why These Words?": parent/educator-facing. Splits the book's
+// practiced words into SOUND-OUT (decodable at this level) and LEARN-BY-HEART
+// (high-frequency / heart words) — the structured-literacy distinction — and
+// explains WHY each word is there. Method language, not efficacy claims. The whole
+// block is measured, then vertically centred, so it stays balanced no matter how
+// many words each group has.
+function wordsPage(soundOut: string[], heart: string[], childName: string): string {
+  const { c, ctx } = newTypesetPage();
+  const name = childName || "Your child";
+  const cx = PAGE_W / 2, maxW = PAGE_W - SAFE * 2.1;
+  const startY0 = SAFE + pt(6);
+
+  // Lay the page out once to MEASURE, then again (offset) to DRAW it centred.
+  const render = (top: number, dry: boolean): number => {
+    let y = top;
+    const block = (t: string, size: number, color: string, weight: string, fam: string, gapBefore: number, gapAfter: number) => {
+      y += pt(gapBefore);
+      ctx.font = `${weight} ${pt(size)}px ${fam}`;
+      wrapText(ctx, t, maxW).forEach((l) => { y += pt(size) * 1.4; if (!dry) { ctx.fillStyle = color; ctx.fillText(l, cx, y); } });
+      y += pt(gapAfter);
+    };
+    const wordRow = (list: string[]) => { if (list.length) block(list.join("   ·   "), 14, INKC, "700", ANDIKA, 0, 6); };
+
+    block("Why These Words?", 20, NAVY, "800", MONTSERRAT, 12, 4);
+    block("Every word in this book was chosen for a reason.", 10.5, CARAMEL_DARK, "700", ANDIKA, 0, 8);
+    if (soundOut.length) {
+      block("Words to sound out", 10.5, CARAMEL_DARK, "700", MONTSERRAT, 6, 2);
+      wordRow(soundOut);
+      block(`These are decodable words. ${name} can read them by applying the letter-sound patterns they have already learned — not by guessing.`, 9.5, "#5f5952", "400", ANDIKA, 0, 6);
+    }
+    if (heart.length) {
+      block("Words to learn by heart", 10.5, CARAMEL_DARK, "700", MONTSERRAT, 6, 2);
+      wordRow(heart);
+      block("These are high-frequency words that appear often in children's books. Many can still be sounded out, while a few contain an unexpected spelling that readers learn through repeated reading.", 9.5, "#5f5952", "400", ANDIKA, 0, 8);
+    }
+    block("A child's name, favorite interests, and a handful of carefully chosen story words make each book personal and engaging while keeping the text overwhelmingly decodable.", 9.5, "#5f5952", "400", ANDIKA, 0, 6);
+    block("Children become confident readers when they practice books that match what they have been taught — so nearly every word here can be decoded using the phonics skills at this reading level.", 9.5, "#5f5952", "400", ANDIKA, 0, 8);
+    block("The illustrations support understanding — but the words do the reading.", 10, "#6b6257", "italic 400", ANDIKA, 0, 12);
+    block("Informed by the science of reading", 10.5, NAVY, "700", MONTSERRAT, 4, 4);
+    block("Structured literacy • Systematic phonics • Decodable text • High-frequency word practice", 8.5, CARAMEL_DARK, "700", MONTSERRAT, 0, 8);
+    block("Because every child deserves books that are both joyful and instructionally meaningful.", 9, "#8c8478", "italic 400", ANDIKA, 0, 0);
+    return y;
+  };
+
+  const contentH = render(startY0, true) - startY0;
+  const usableH = (PAGE_H - SAFE) - startY0;
+  const offset = Math.max(0, (usableH - contentH) / 2);
+  render(startY0 + offset, false);
   return c.toDataURL("image/jpeg", 0.92);
 }
 
@@ -310,20 +391,18 @@ function drawingPage(): string {
   return c.toDataURL("image/jpeg", 0.92);
 }
 
-function backCoverPage(title: string, childName: string): string {
+// Back cover: just the Custom Learn to Read wordmark, small and centered — no
+// title, no child name. (Swap in an image logo asset here later if desired.)
+function backCoverPage(): string {
   const { c, ctx } = newTypesetPage();
   ctx.fillStyle = NAVY;
-  const fs = pt(26);
-  ctx.font = `800 ${fs}px ${MONTSERRAT}`;
-  const lines = wrapText(ctx, title, PAGE_W * 0.72);
-  const lh = fs * 1.28;
-  const cy = PAGE_H * 0.4 - ((lines.length - 1) * lh) / 2;
-  lines.forEach((l, i) => ctx.fillText(l, PAGE_W / 2, cy + i * lh));
+  ctx.font = `800 ${pt(15)}px ${MONTSERRAT}`;
+  ctx.fillText("Custom Learn to Read", PAGE_W / 2, PAGE_H / 2 - pt(6));
+  ctx.fillStyle = CARAMEL;
+  ctx.fillRect(PAGE_W / 2 - pt(22), PAGE_H / 2 + pt(9), pt(44), pt(2.5));
   ctx.fillStyle = CARAMEL_DARK;
-  ctx.font = `700 ${pt(15)}px ${ANDIKA}`;
-  ctx.fillText(`A book made just for ${childName}`, PAGE_W / 2, cy + lines.length * lh + pt(46));
-  ctx.font = `600 ${pt(11)}px ${MONTSERRAT}`;
-  ctx.fillText("customlearntoread.com", PAGE_W / 2, PAGE_H - SAFE - pt(12));
+  ctx.font = `600 ${pt(9)}px ${MONTSERRAT}`;
+  ctx.fillText("customlearntoread.com", PAGE_W / 2, PAGE_H / 2 + pt(28));
   return c.toDataURL("image/jpeg", 0.92);
 }
 
@@ -380,7 +459,7 @@ async function refJpeg(b64: string, w = 900): Promise<string> {
 export default function CreateClient({ initialOrders, loadError }: { initialOrders: AirtableOrder[]; loadError: string | null }) {
   const params = useSearchParams();
   const [selectedId, setSelectedId] = useState(params.get("recordId") || "");
-  const [pageCount, setPageCount] = useState(20);
+  const [pageCount, setPageCount] = useState(16);
   const [levelId, setLevelId] = useState("");
   const [emotionalGoal, setEmotionalGoal] = useState("");
   const [mustUseWords, setMustUseWords] = useState("");
@@ -421,8 +500,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   // Parent Read-Along Lines: auto-checked when the order carries the flag (an
   // "Parent read-along" = "Yes" Airtable field), and operator-toggleable.
   const [readAlong, setReadAlong] = useState(false);
+  const [giftMessage, setGiftMessage] = useState("");
   useEffect(() => {
     setReadAlong(!!selected && field(selected, "Parent read-along") === "Yes");
+    setGiftMessage((selected && field(selected, "Gift message")) || "");
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function resetAll() {
@@ -487,7 +568,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     if (!draft) return;
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
-      const r = await art({ action: "character", description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, imageSize: artImageSize });
+      const r = await art({ action: "character", recordId: selectedId || undefined, description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, imageSize: artImageSize });
       setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
@@ -522,7 +603,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
     let img = "", qa: ArtQA | undefined, notes = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await art({ action: "page", artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, fixNotes: notes || undefined, imageSize: artImageSize });
+      const r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, fixNotes: notes || undefined, imageSize: artImageSize });
       img = r.image;
       qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
       if (!qa || qa.pass || !qa.issues?.length) break;
@@ -607,7 +688,6 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     try {
       setAssembling("Typesetting pages…");
       await ensureBookFonts();
-      const year = new Date().getFullYear();
       // Size the text band to THIS book's wordiest page, then use that same cutoff
       // on every page (varies by book, never by page — so cutoffs line up in the book).
       const mctx = document.createElement("canvas").getContext("2d")!;
@@ -624,18 +704,25 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const cover = await compositePage(arts[0].img, draft.title, 0, true, bandTop);
       const story: string[] = [];
       for (const p of draft.pages) story.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop, p.adultLine));
-      const vocab = [...new Set(draft.pages.flatMap((p) => p.text.split(/\s+/).map((w) => w.toLowerCase().replace(/[^a-z'’]/g, "")).filter(Boolean)))].sort();
+      // "Words in This Book" lists only the PATTERN words the book actually teaches
+      // (repeated backbone) — never the child's name, topic-cluster words, or one-off
+      // story words. Same source as the QA validator, so the two can't disagree.
+      const bookLevel = LEVELS.find((l) => l.id === draft.levelId) || LEVELS[0];
+      const vocab = patternWords(draft, bookLevel);
+      const soundOut = vocab.filter((w) => wordKind(w, bookLevel) === "sound-out");
+      const heartWds = vocab.filter((w) => wordKind(w, bookLevel) === "heart");
 
       // Interior (what gets bound): front matter + story + back matter, padded
       // to an even count and the perfect-bound minimum of MIN_INTERIOR pages.
-      const front = [titlePage(draft.title, draft.childName), copyrightPage(draft.childName, year), ...(hasReadAlong ? [readAlongKeyPage()] : [])];
-      const back = [endPage(draft.childName), wordsPage(vocab)];
+      // No title page and no dedication (by design — nothing per-book to fill in).
+      const front = [bookplatePage(draft.childName, giftMessage), ...(hasReadAlong ? [readAlongKeyPage()] : [])];
+      const back = [charRef ? await endArtPage(charRef, draft.childName) : endPage(draft.childName), wordsPage(soundOut, heartWds, draft.childName)];
       const interior = [...front, ...story, ...back];
       while (interior.length < MIN_INTERIOR || interior.length % 2 !== 0) interior.push(drawingPage());
 
       // Digital book (flipbook + customer home-print PDF): cover→back cover, no pad pages.
-      const digital = [cover, ...front, ...story, ...back, backCoverPage(draft.title, draft.childName)];
-      const labels = ["Cover", "Title page", "Dedication", ...(hasReadAlong ? ["Read-along key"] : []), ...draft.pages.map((p) => `Page ${p.n}`), "The End", "Words I can read", "Back cover"];
+      const digital = [cover, ...front, ...story, ...back, backCoverPage()];
+      const labels = ["Cover", "Bookplate", ...(hasReadAlong ? ["Read-along key"] : []), ...draft.pages.map((p) => `Page ${p.n}`), "The End", "Why These Words?", "Back cover"];
       setPageImages(digital); setPageLabels(labels);
 
       setAssembling("Building the PDFs…");
@@ -736,7 +823,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         )}
         <div className="crt-row">
           <label>Story pages
-            <input type="number" min={4} max={24} value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 10)} />
+            <input type="number" min={4} max={24} value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 16)} />
           </label>
           <label>Level override (optional)
             <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
@@ -744,6 +831,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
               <option value="tiny">Tiny Reader — 1-3 words a page</option>
               <option value="beginner">Beginner Reader — 3-6 words a page</option>
               <option value="growing">Growing Reader — one fuller sentence a page</option>
+              <option value="confident">Confident Reader — short paragraph a page</option>
             </select>
           </label>
         </div>
@@ -768,6 +856,11 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <input type="checkbox" checked={readAlong} onChange={(e) => setReadAlong(e.target.checked)} style={{ width: "auto" }} />
             Parent Read-Along Lines {selected && field(selected, "Parent read-along") === "Yes" ? "(ordered)" : "(add grown-up read-aloud line)"}
+          </label>
+        </div>
+        <div className="crt-row">
+          <label style={{ flex: 1 }}>Gift message (optional — prints on the inside front cover)
+            <input value={giftMessage} onChange={(e) => setGiftMessage(e.target.value)} placeholder="To Reeva — love, Grandma" />
           </label>
         </div>
         <button className="crt-btn crt-primary" disabled={!selectedId || !!busy} onClick={generate}>

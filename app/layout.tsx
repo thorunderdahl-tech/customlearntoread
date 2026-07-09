@@ -49,7 +49,8 @@ export default function RootLayout({
           <FooterSignup />
           <p>CustomLearnToRead &mdash; Personalized beginning-reader books.</p>
           <p className="fine-print">
-            <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot;
+            <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot;{" "}
+            <a href="/guarantee">Guarantee</a> &middot;
             Privacy-first. Kid-centered. Built for early reading confidence.
           </p>
         </footer>

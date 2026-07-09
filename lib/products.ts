@@ -5,7 +5,7 @@ export type ProductId =
   | "hardcover_single"
   | "paperback_set"
   | "hardcover_set"
-  | "subscription_monthly";
+  | "subscription_quarterly";
 
 export type Product = {
   id: ProductId;
@@ -14,7 +14,11 @@ export type Product = {
   priceCents: number;
   priceLabel: string;
   perBookLabel?: string;
-  cadence: "one_time" | "monthly";
+  cadence: "one_time" | "quarterly";
+  /** One-time surcharge added to the FIRST invoice only (in cents). Used so the
+   * first quarterly shipment is full price and the discount applies from Q2 on —
+   * one-and-done subscribers never get the subscribe-and-save discount. */
+  firstInvoiceSurchargeCents?: number;
   stripePriceEnvKey: string;
   popular?: boolean;
   bestValue?: boolean;
@@ -59,23 +63,23 @@ export const PRODUCTS: Product[] = [
     id: "hardcover_single",
     name: "Single Hardcover",
     blurb: "One personalized hardcover — a keepsake single, built to last.",
-    priceCents: 5400,
-    priceLabel: "$54",
+    priceCents: 5900,
+    priceLabel: "$59",
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_HARDCOVER_SINGLE",
     bookCount: 1,
-    gift: "A keepsake single — gift-ready with a dedication page",
+    gift: "A keepsake single — gift-ready, with a free gift message inside",
     includes: [
       "One fully personalized hardcover",
       "Sewn binding, heavier stock — built to last",
-      "Gift-ready with a dedication page",
+      "Gift-ready — free gift message inside",
       "Free US shipping",
     ],
   },
   {
     id: "paperback_set",
     name: "Paperback Set of 3",
-    blurb: "Three personalized stories with repeated words and familiar themes.",
+    blurb: "Three personalized stories starring your child, with familiar characters and themes.",
     priceCents: 8900,
     priceLabel: "$89",
     perBookLabel: "$29.67 per book",
@@ -85,7 +89,7 @@ export const PRODUCTS: Product[] = [
     bookCount: 3,
     includes: [
       "3 fully personalized paperbacks",
-      "Themes & reading level build together",
+      "The same hero and familiar themes across all three",
       "Thick matte paper, full-color art",
       "Free US shipping",
     ],
@@ -94,9 +98,9 @@ export const PRODUCTS: Product[] = [
     id: "hardcover_set",
     name: "Hardcover Set of 3",
     blurb: "A polished keepsake gift version for families and grandparents.",
-    priceCents: 12900,
-    priceLabel: "$129",
-    perBookLabel: "$43 per book",
+    priceCents: 13900,
+    priceLabel: "$139",
+    perBookLabel: "$46.33 per book",
     cadence: "one_time",
     stripePriceEnvKey: "STRIPE_PRICE_HARDCOVER_SET",
     bestValue: true,
@@ -105,20 +109,33 @@ export const PRODUCTS: Product[] = [
     includes: [
       "3 fully personalized hardcovers",
       "Sewn binding, heavier stock — built to last",
-      "Gift-ready with a dedication page",
+      "Gift-ready — free gift message inside",
       "Free US shipping",
     ],
   },
   {
-    id: "subscription_monthly",
-    name: "Monthly Book Club",
+    id: "subscription_quarterly",
+    name: "Quarterly Reading Club",
     blurb:
-      "One new personalized paperback book every month. Cancel any time. Themes change as your reader grows.",
-    priceCents: 2400,
-    priceLabel: "$24/mo",
-    perBookLabel: "Just $24 per book",
-    cadence: "monthly",
-    stripePriceEnvKey: "STRIPE_PRICE_SUBSCRIPTION_MONTHLY",
+      "Three new personalized paperbacks every season, always matched to where your reader actually is — we check in before each set and adjust the level and topics as your child grows. Cancel any time.",
+    // Recurring price is $69/quarter; the first shipment is billed at $89 (same
+    // as the one-time set) via firstInvoiceSurchargeCents, so subscribers only
+    // get the ~22% saving once they continue past the first season.
+    priceCents: 6900,
+    priceLabel: "$69/season",
+    perBookLabel: "$23 per book after your first set",
+    cadence: "quarterly",
+    stripePriceEnvKey: "STRIPE_PRICE_SUBSCRIPTION_QUARTERLY",
+    firstInvoiceSurchargeCents: 2000,
+    bookCount: 3,
+    gift: "Give a year of reading — a season-by-season gift for grandparents",
+    includes: [
+      "3 personalized paperbacks each season (4 sets a year)",
+      "We check your child's reading level before every set — the books grow with them",
+      "Fresh topics each season — new favorite things, new adventures",
+      "First season $89, then $69 every season · cancel any time",
+      "Free US shipping",
+    ],
   },
 ];
 
@@ -132,7 +149,7 @@ export const productByName = (name: string): Product | undefined =>
 // Optional extras offered on the final order step. Priced inline at checkout via
 // Stripe `price_data`, so no extra Stripe Price IDs are needed. All add-ons are
 // one-time charges and only appear for one-time orders (not the monthly club).
-export type AddOnId = "digital_copy" | "extra_character" | "dedication" | "rush";
+export type AddOnId = "digital_copy" | "extra_character" | "practice_cards" | "rush";
 
 export type AddOn = {
   id: AddOnId;
@@ -145,6 +162,8 @@ export type AddOn = {
   /** Show a free-text field when selected (e.g. the dedication message). */
   requiresText?: boolean;
   textPlaceholder?: string;
+  /** Teaser only — shown but not selectable/purchasable yet. */
+  comingSoon?: boolean;
 };
 
 export const ADDONS: AddOn[] = [
@@ -158,19 +177,18 @@ export const ADDONS: AddOn[] = [
   },
   {
     id: "extra_character",
-    name: "Add a 2nd character",
-    blurb: "Write in a sibling, friend, or pet as a second star of the story.",
+    name: "Add a loved one to the story",
+    blurb: "Write a grandparent, the gift-giver, a sibling, friend, or pet into the story as a special guest — they appear on a few pages, and in every book you order. (A gift message is always free.)",
     priceCents: 1200,
     priceLabel: "+$12",
   },
   {
-    id: "dedication",
-    name: "Dedication page message",
-    blurb: "A personal message printed on the dedication page — perfect for a gift.",
-    priceCents: 500,
-    priceLabel: "+$5",
-    requiresText: true,
-    textPlaceholder: "Happy 5th birthday, Mia — love, Grandma",
+    id: "practice_cards",
+    name: "Reading practice pack",
+    blurb: "Cut-out flashcards and a matching game built from your book's own words — extra decoding practice at home.",
+    priceCents: 0,
+    priceLabel: "Coming soon",
+    comingSoon: true,
   },
   {
     id: "rush",
@@ -187,7 +205,7 @@ export const addOnById = (id: string): AddOn | undefined =>
 /** Add-ons available for a given product (filters out physical-only on digital,
  * and hides all add-ons for the subscription). */
 export function addOnsFor(product: Product): AddOn[] {
-  if (product.cadence === "monthly") return [];
+  if (product.cadence !== "one_time") return [];
   const isDigital = product.id === "digital";
   return ADDONS.filter((a) => !(a.physicalOnly && isDigital));
 }

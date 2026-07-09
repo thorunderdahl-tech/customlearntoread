@@ -91,6 +91,26 @@ export async function updateOrderRecord(
   );
 }
 
+/**
+ * Best-effort per-book AI image spend counter. Reads the current "AI images"
+ * count on the order and writes count+1. Fire-and-forget: callers should NOT
+ * await this on the image-generation hot path, and any failure (missing column,
+ * Airtable down) is swallowed so it can never break book generation. If the
+ * "AI images" column doesn't exist yet, writeWithFieldFallback drops it silently
+ * and this becomes a no-op until the column is added.
+ */
+export async function bumpImageCount(recordId: string): Promise<void> {
+  const c = cfg();
+  if (!c || !recordId) return;
+  try {
+    const rec = await getOrderRecord(recordId);
+    const current = Number(rec?.fields?.["AI images"] ?? 0) || 0;
+    await updateOrderRecord(recordId, { "AI images": current + 1 });
+  } catch (e) {
+    console.warn("bumpImageCount failed (continuing):", (e as Error)?.message || e);
+  }
+}
+
 /** Maps a raw order (full, untruncated) to Airtable column names. */
 export function orderToAirtableFields(o: Record<string, any>): Fields {
   const photos = Array.isArray(o.photos)
@@ -121,6 +141,7 @@ export function orderToAirtableFields(o: Record<string, any>): Fields {
     "Theme 2": o.theme_2 || "",
     "Theme 3": o.theme_3 || "",
     "Special details": o.special_details || "",
+    "Gift message": o.gift_message || "",
     "Add-ons": o.add_ons || "",
     "Shipping address": o.shipping_address || "",
     "Other notes": o.other_notes || "",
@@ -154,6 +175,7 @@ export function airtableFieldsToOrder(f: Record<string, any>): Record<string, an
     theme_2: f["Theme 2"] || "",
     theme_3: f["Theme 3"] || "",
     special_details: f["Special details"] || "",
+    gift_message: f["Gift message"] || "",
     shipping_address: f["Shipping address"] || "",
     other_notes: f["Other notes"] || "",
     photos: lines(f["Reference photos"]),

@@ -101,7 +101,7 @@ export function describePhonicsScope(ceiling: number | undefined, decodability: 
   const avoidStr = avoid.length
     ? ` Do NOT use spelling patterns not yet taught — especially ${avoid.join(", ")}.`
     : "";
-  return `DECODABLE WORDS — a systematic phonics check rejects anything off-scope, so stay inside it. Every word (other than the child's name, the taught high-frequency sight words, and the book's topic word) must be sound-out-able using ONLY these letter-sounds: ${allow}.${avoidStr} If a word would need an untaught pattern, choose a simpler word or a taught sight word instead.`;
+  return `DECODABLE WORDS — a systematic phonics check rejects anything off-scope, so stay inside it. Every word (other than the child's name, the taught high-frequency / heart words, and the book's topic word) must be sound-out-able using ONLY these letter-sounds: ${allow}.${avoidStr} If a word would need an untaught pattern, choose a simpler word or a taught heart word instead.`;
 }
 
 /** Highest grapheme level needed to decode a word (null if undecodable). Handy

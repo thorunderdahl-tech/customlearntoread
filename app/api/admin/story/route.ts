@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       const level = body.levelId
         ? LEVELS.find((l) => l.id === body.levelId) || resolveLevel(rec.fields["Reading level"], order.age)
         : resolveLevel(rec.fields["Reading level"], order.age);
-      const pageCount = Math.min(Math.max(parseInt(body.pageCount, 10) || 20, 4), 24);
+      const pageCount = Math.min(Math.max(parseInt(body.pageCount, 10) || 16, 4), 24);
       const extras: StoryExtras = {
         emotionalGoal: body.emotionalGoal || undefined,
         mustUseWords: body.mustUseWords || undefined,

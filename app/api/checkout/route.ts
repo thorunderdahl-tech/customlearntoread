@@ -6,6 +6,7 @@ import {
   orderToAirtableFields,
   airtableConfigured,
 } from "@/lib/airtable";
+import { screenFields } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 
@@ -49,14 +50,62 @@ export async function POST(req: NextRequest) {
     }
     body.parent_email = body.parent_email.trim();
 
+    // Privacy/consent must be accepted server-side, not just in the browser — a
+    // crafted request could otherwise skip the checkbox. Photos raise the bar:
+    // uploading a child's photo requires the same accepted consent.
+    if (body.consent !== true) {
+      return NextResponse.json(
+        { error: "Please accept the privacy terms to continue." },
+        { status: 400 },
+      );
+    }
+
+    // Content moderation: nothing offensive can reach a printed, permanent book.
+    // Screen every free-text field the customer can type (and the gift message).
+    const screen = screenFields({
+      parent_name: body.parent_name,
+      child_name: body.child_name,
+      look_notes: body.look_notes,
+      clothing: body.clothing,
+      special_details: body.special_details,
+      other_notes: body.other_notes,
+      gift_message: body.gift_message,
+      loved_one: body.loved_one,
+      theme_1: body.theme_1,
+      theme_2: body.theme_2,
+      theme_3: body.theme_3,
+    });
+    if (!screen.ok) {
+      return NextResponse.json(
+        { error: "Sorry — one of your entries contains language we can't print in a children's book. Please edit it and try again." },
+        { status: 400 },
+      );
+    }
+
     const stripe = getStripe();
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
       req.headers.get("origin") ||
       "http://localhost:3000";
 
-    const isSubscription = product.cadence === "monthly";
+    const isSubscription = product.cadence !== "one_time";
     const isDigital = product.id === "digital";
+
+    // Subscription line items: the recurring price plus, for plans that set it,
+    // a one-time surcharge added to the FIRST invoice only. This makes the first
+    // shipment full price ($89) and the discounted rate ($69) apply from the
+    // second season on — a one-and-done subscriber never gets the discount.
+    const lineItems: any[] = [{ price: priceId, quantity: 1 }];
+    if (isSubscription && product.firstInvoiceSurchargeCents) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: { name: "First season — full-price setup" },
+          unit_amount: product.firstInvoiceSurchargeCents,
+        },
+        quantity: 1,
+      });
+    }
 
     // Only accept photo URLs from our own Cloudinary account (these get embedded
     // as <img> in the owner email and stored in Airtable), and cap at 3 each.
@@ -88,6 +137,7 @@ export async function POST(req: NextRequest) {
       theme_2: truncate(body.theme_2),
       theme_3: truncate(body.theme_3),
       special_details: truncate(body.special_details),
+      gift_message: truncate(body.gift_message),
       shipping_address: truncate(body.shipping_address),
       other_notes: truncate(body.other_notes),
     };
@@ -125,7 +175,7 @@ export async function POST(req: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       mode: isSubscription ? "subscription" : "payment",
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: lineItems,
       customer_email: body.parent_email,
       success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}${body.parent_read_along ? "&rla=1" : ""}&pid=${encodeURIComponent(product.id)}${metadata.airtable_record_id ? `&oid=${metadata.airtable_record_id}` : ""}`,
       cancel_url: `${siteUrl}/order/cancel`,

@@ -19,7 +19,7 @@ const productSchema = {
 };
 
 export default function Home() {
-  const sub = PRODUCTS.find((p) => p.cadence === "monthly")!;
+  const sub = PRODUCTS.find((p) => p.cadence === "quarterly")!;
   const single = productById("paperback_single")!;
   const featuredOneTime = [
     productById("digital")!,
@@ -36,12 +36,13 @@ export default function Home() {
 
       <section className="hero" id="top">
         <div className="hero-copy">
-          <p className="eyebrow">Personalized books for beginning readers</p>
-          <h1>Get early readers excited about books.</h1>
+          <p className="eyebrow">Personalized books, built on the science of reading</p>
+          <h1>A book that stars your child &mdash; and teaches them to read.</h1>
           <p className="subhead">
-            Personalized learn-to-read books your child will actually want to
-            read &mdash; made with their name, their look, and the things they
-            love.
+            Most personalized books just put your child&apos;s name in the story.
+            Ours does that too &mdash; their name, their look, the things they love
+            &mdash; and it&apos;s built to actually teach reading, with every word
+            decodable at their level.
           </p>
           <div className="cta-row">
             <Link className="button primary" href="/order">
@@ -223,26 +224,30 @@ export default function Home() {
       <section id="subscription" className="section">
         <div className="subscription-card">
           <div>
-            <p className="eyebrow">Monthly Book Club</p>
-            <h2>A new personalized book every month.</h2>
+            <p className="eyebrow">Quarterly Reading Club</p>
+            <h2>Three new books every season &mdash; always at your child&apos;s level.</h2>
             <p style={{ color: "var(--ink)", fontWeight: 600 }}>
-              Each month, your child gets a brand-new paperback book starring
-              themselves &mdash; new themes, new adventures, same simple words
-              that build confidence.
+              Before each shipment, we check in on how the reading is going and
+              build the next set around your actual child &mdash; the right level
+              for where they are today, and fresh topics for whatever they&apos;re
+              obsessed with this season. (Kids contain multitudes: today&apos;s
+              devoted mac &apos;n&apos; cheese loyalist is tomorrow&apos;s sworn
+              noodle skeptic. We roll with it.) The books grow with your reader
+              &mdash; not on a fixed schedule.
             </p>
             <ul>
-              <li>1 new personalized paperback per month</li>
-              <li>Themes refresh &mdash; reading level grows with them</li>
-              <li>Free shipping in the US</li>
-              <li>Pause or cancel any time</li>
+              <li>3 personalized paperbacks each season &mdash; 12 books a year</li>
+              <li>We check your child&apos;s reading level before every set</li>
+              <li>Fresh topics each season &mdash; new favorite things, new adventures</li>
+              <li>Free shipping in the US &middot; cancel any time</li>
             </ul>
           </div>
           <div className="price-tag">
             <p className="big-price">{sub.priceLabel}</p>
-            <p className="per">billed monthly</p>
+            <p className="per">first season $89, then billed every season</p>
             <p className="per-book" style={{ marginBottom: 14 }}>{sub.perBookLabel}</p>
-            <Link className="button primary" href="/order?plan=subscription_monthly">
-              Start the book club
+            <Link className="button primary" href="/order?plan=subscription_quarterly">
+              Start the reading club
             </Link>
           </div>
         </div>
@@ -253,6 +258,11 @@ export default function Home() {
           <p className="eyebrow">Reading level approach</p>
           <h2>Built for confidence first</h2>
           <p>Pick the level that matches your reader &mdash; or pick easier. Confidence comes before challenge.</p>
+          <p style={{ fontSize: "0.95rem" }}>
+            Every level is built on a structured, systematic phonics
+            scope-and-sequence &mdash; decodable text, not picture-guessing.{" "}
+            <Link href="/reading-approach">See how we choose every word &rarr;</Link>
+          </p>
         </div>
         <div className="levels-grid">
           <article className="level-card">
@@ -407,6 +417,25 @@ export default function Home() {
             </p>
           </details>
           <details>
+            <summary>Is this decodable, or just &ldquo;leveled&rdquo;?</summary>
+            <p>
+              Decodable. Words are restricted to the phonics patterns taught
+              by that level, plus a small, tracked set of high-frequency
+              &ldquo;heart words.&rdquo; Illustrations support meaning, but
+              your child reads the words &mdash; not the picture.{" "}
+              <Link href="/reading-approach">See how we choose every word &rarr;</Link>
+            </p>
+          </details>
+          <details>
+            <summary>What&apos;s your evidence it works?</summary>
+            <p>
+              We don&apos;t claim proven outcomes. We build on
+              structured-literacy principles and publish our method &mdash;
+              the skills matrix, the word-choice rules, even the word list at
+              the back of every book &mdash; so you can judge it yourself.
+            </p>
+          </details>
+          <details>
             <summary>What makes this different from other personalized books?</summary>
             <p>
               Most personalized books just insert your child&apos;s name into a
@@ -434,11 +463,15 @@ export default function Home() {
             </p>
           </details>
           <details>
-            <summary>How does the monthly book club work?</summary>
+            <summary>How does the quarterly reading club work?</summary>
             <p>
-              Each month we ship a new personalized paperback book featuring
-              your child. You&apos;re billed monthly and can pause or cancel any
-              time from your receipt email.
+              Each season we ship a set of three new personalized paperbacks
+              featuring your child. Before each set, we check in on how the reading
+              is going and match the next books to your child&apos;s level and
+              current interests &mdash; so the books grow with your reader at their
+              own pace, not on a fixed schedule. Your first season is $89 &mdash;
+              the same as our one-time set of three &mdash; and every season after
+              is $69. You can cancel any time from your receipt email.
             </p>
           </details>
           <details>
