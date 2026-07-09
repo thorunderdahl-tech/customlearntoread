@@ -202,6 +202,8 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
 // ---- printer-file geometry (softcover): home PDF is trim size; printer files keep bleed ----
 const HOME_PT_W = 5.5 * 72, HOME_PT_H = 8.5 * 72; // 396 × 612 — customer home-print PDF (bleed cropped)
 const BLEED_OFF_PT = 0.125 * 72;                  // 9 pt
+const MARK_MARGIN_PT = 0.25 * 72;                 // 18 pt white margin around the bleed to hold crop marks
+const CROP_MARK_PT = 0.167 * 72;                  // ~12 pt crop-mark length
 const SPINE_IN_PER_PAGE = 0.002252;               // 50 lb white paper (KDP/Lulu)
 const MIN_INTERIOR = 24;                          // perfect-bound minimum; interior count must also be even
 const NAVY = "#1f2a44", INKC = "#2f2a24", CREAMC = "#faf7f2", CARAMEL = "#c68a52", CARAMEL_DARK = "#8c5b37";
@@ -687,6 +689,32 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     return new Blob([await doc.save()], { type: "application/pdf" });
   }
 
+  // Print-shop-ready PDF: each full-bleed page image is centered in a slightly larger
+  // sheet with a white margin, visible CROP MARKS at the four trim corners, and proper
+  // TrimBox/BleedBox metadata — so it passes print-shop pre-flight that requires
+  // "include crop marks and bleed" (trim = ordered size, 0.125" bleed beyond, marks).
+  // Each input page is a full-bleed image (trim + 0.125" bleed on every side).
+  async function imagesToPrintPdf(PDFDocument: any, rgb: any, pages: { img: string; bleedW: number; bleedH: number }[]): Promise<Blob> {
+    const doc = await PDFDocument.create();
+    const M = MARK_MARGIN_PT, K = CROP_MARK_PT, black = rgb(0, 0, 0);
+    for (const pg of pages) {
+      const imgW = pg.bleedW, imgH = pg.bleedH;
+      const imgL = M, imgB = M, imgR = M + imgW, imgT = M + imgH;
+      const trimL = imgL + BLEED_OFF_PT, trimR = imgR - BLEED_OFF_PT, trimB = imgB + BLEED_OFF_PT, trimT = imgT - BLEED_OFF_PT;
+      const jpg = await doc.embedJpg(await fetch(pg.img).then((r) => r.arrayBuffer()));
+      const page = doc.addPage([imgW + 2 * M, imgH + 2 * M]);
+      page.drawImage(jpg, { x: imgL, y: imgB, width: imgW, height: imgH });
+      const seg = (x1: number, y1: number, x2: number, y2: number) => page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: 0.5, color: black });
+      // 8 crop marks: aligned to the trim lines, sitting in the white margin outside the bleed.
+      seg(imgL - K, trimB, imgL, trimB); seg(trimL, imgB - K, trimL, imgB);   // bottom-left
+      seg(imgR, trimB, imgR + K, trimB); seg(trimR, imgB - K, trimR, imgB);   // bottom-right
+      seg(imgL - K, trimT, imgL, trimT); seg(trimL, imgT, trimL, imgT + K);   // top-left
+      seg(imgR, trimT, imgR + K, trimT); seg(trimR, imgT, trimR, imgT + K);   // top-right
+      try { page.setBleedBox(imgL, imgB, imgW, imgH); page.setTrimBox(trimL, trimB, trimR - trimL, trimT - trimB); } catch { /* older pdf-lib: marks alone still suffice */ }
+    }
+    return new Blob([await doc.save()], { type: "application/pdf" });
+  }
+
   async function assemble() {
     if (!draft) return;
     setError(""); setDelivered(null);
@@ -747,19 +775,16 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
       setAssembling("Building the PDFs…");
       await ensurePdfLib();
-      const { PDFDocument } = (window as any).PDFLib;
-      // 1) Customer home-print PDF: trim size (5.5 × 8.5), bleed cropped off.
+      const { PDFDocument, rgb } = (window as any).PDFLib;
+      // 1) Customer home-print PDF: trim size (5.5 × 8.5), bleed cropped off, no marks.
       const homeBlob = await imagesToPdf(PDFDocument, digital, [HOME_PT_W, HOME_PT_H], { x: -BLEED_OFF_PT, y: -BLEED_OFF_PT, width: TRIM_PT_W, height: TRIM_PT_H });
-      // 2) Printer interior: full bleed size (5.75 × 8.75), no cover, even count ≥ MIN_INTERIOR.
-      const interiorBlob = await imagesToPdf(PDFDocument, interior, [TRIM_PT_W, TRIM_PT_H], { x: 0, y: 0, width: TRIM_PT_W, height: TRIM_PT_H });
-      // 3) Printer wraparound cover: back + spine (sized to page count) + front, with barcode zone.
+      // 2) Printer interior: full-bleed pages (trim 5.5×8.5 + 0.125" bleed) WITH crop marks +
+      //    Trim/Bleed boxes so it passes print-shop pre-flight. No cover, even count ≥ MIN_INTERIOR.
+      const interiorBlob = await imagesToPrintPdf(PDFDocument, rgb, interior.map((img) => ({ img, bleedW: TRIM_PT_W, bleedH: TRIM_PT_H })));
+      // 3) Printer wraparound cover: back + spine (sized to page count) + front, with barcode zone + crop marks.
       setAssembling("Building the wraparound cover…");
       const wrap = await buildCoverWrap(cover, draft.title, draft.childName, interior.length);
-      const coverDoc = await PDFDocument.create();
-      const wrapJpg = await coverDoc.embedJpg(await fetch(wrap.dataUrl).then((r) => r.arrayBuffer()));
-      const coverPage = coverDoc.addPage([wrap.wPt, wrap.hPt]);
-      coverPage.drawImage(wrapJpg, { x: 0, y: 0, width: wrap.wPt, height: wrap.hPt });
-      const coverBlob = new Blob([await coverDoc.save()], { type: "application/pdf" });
+      const coverBlob = await imagesToPrintPdf(PDFDocument, rgb, [{ img: wrap.dataUrl, bleedW: wrap.wPt, bleedH: wrap.hPt }]);
 
       pdfBlobRef.current = homeBlob;
       setPdfUrl(URL.createObjectURL(homeBlob));
