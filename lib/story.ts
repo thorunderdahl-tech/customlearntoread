@@ -161,7 +161,7 @@ Make concrete:
 - Composition: subject in the UPPER TWO-THIRDS; keep the bottom of the frame simple (a reading-text band covers it); keep every story-critical element at least 8% inside all four edges (print trimming crops the borders).
 - A setting with just 1-2 background elements and a sense of depth (foreground / background).
 - Warm golden-hour lighting and a cozy, harmonious color feel.
-Do NOT include any text, letters, numbers, signs, logos, or brand/franchise characters. Reply with ONLY the paragraph.`;
+Do NOT include any text, letters, numbers, signs, logos, or brand/franchise characters. If the character is posed facing away, keep the back of their clothing plain — never draw the front graphic on the back. Reply with ONLY the paragraph.`;
 }
 
 export function buildRevisePrompt(draft: StoryDraft, level: Level, issues: string[], plan?: StoryPlan): string {
