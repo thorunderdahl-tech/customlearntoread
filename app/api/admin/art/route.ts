@@ -27,19 +27,23 @@ export async function POST(req: NextRequest) {
       const desc = body.description as string;
       const companion = ((body.cast as string | undefined) ?? (body.companion as string | undefined))?.trim();
       const photo = body.photo as string | undefined; // parent-provided reference photo (base64 JPEG)
+      const note = (body.note as string | undefined)?.trim(); // admin's art-direction note
       if (!desc) return NextResponse.json({ error: "Missing description" }, { status: 400 });
       const companionLine = companion
         ? `\n\nALSO on the sheet, standing in a row beside the child: EVERY recurring character in this book — ${companion}. Draw each one unmistakably (exact skin tone, hair, eyes, clothing; or species, coloring, markings, collar). This one sheet locks the look of the ENTIRE cast for the whole book.`
+        : "";
+      const noteLine = note
+        ? `\n\nART DIRECTOR'S INSTRUCTION (follow it exactly, it overrides conflicting defaults): ${note}`
         : "";
       const prompt = photo
         ? `${STYLE}
 
 Using the attached real photo as visual reference (provided by the child's parent), create a STYLIZED storybook character version of the child — warm illustrated picture-book style, clearly NOT photorealistic. Faithfully capture the child's hair color and texture, eye color, skin tone, and overall vibe from the photo. If a pet appears in the photo, include the pet beside the child on the sheet with its breed, coloring and fur faithfully stylized too.
 
-Character reference sheet: full body, front view, neutral happy pose, plain soft cream background. This sheet defines the look for a whole book — make every feature unmistakable. Also honor this description: ${desc}${companionLine}`
+Character reference sheet: full body, front view, neutral happy pose, plain soft cream background. This sheet defines the look for a whole book — make every feature unmistakable. Also honor this description: ${desc}${companionLine}${noteLine}`
         : `${STYLE}
 
-Character reference sheet: a single child character shown clearly — full body, front view, neutral happy pose, plain soft cream background. The character: ${desc}. This image defines the character's exact look for a whole book; make hair, eyes, skin and outfit unmistakable.${companionLine}`;
+Character reference sheet: a single child character shown clearly — full body, front view, neutral happy pose, plain soft cream background. The character: ${desc}. This image defines the character's exact look for a whole book; make hair, eyes, skin and outfit unmistakable.${companionLine}${noteLine}`;
       const img = await generateImage(prompt, photo ? [photo] : [], "2:3", body.imageSize);
       return NextResponse.json({ image: img.data, mime: img.mime });
     }
@@ -47,6 +51,7 @@ Character reference sheet: a single child character shown clearly — full body,
     if (action === "page") {
       const { artPrompt, characterDescription, refs = [], fixNotes } = body;
       const castText = ((body.cast as string | undefined) ?? (body.companionDescription as string | undefined))?.trim();
+      const directorNote = (body.directorNote as string | undefined)?.trim(); // admin's art-direction note for this page
       if (!artPrompt) return NextResponse.json({ error: "Missing artPrompt" }, { status: 400 });
       const companionLine = castText
         ? ` EVERY other recurring character on the sheet MUST also appear identical wherever the scene includes them — ${castText} — with the exact same skin tone, hair, clothing, species, coloring and markings. NEVER change any character's skin tone or hair between pages.`
@@ -66,7 +71,7 @@ Character reference sheet: a single child character shown clearly — full body,
         } catch { /* keep the raw scene */ }
       }
       const img = await generateImage(
-        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}).${companionLine} Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nScene for this page: ${scene}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
+        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair, same eyes, same skin tone, same outfit (${characterDescription}).${companionLine} Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nScene for this page: ${scene}${directorNote ? `\n\nART DIRECTOR'S INSTRUCTION (follow it exactly, it overrides conflicting defaults): ${directorNote}` : ""}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
         (refs as string[]).slice(0, 3),
         "2:3",
         body.imageSize,

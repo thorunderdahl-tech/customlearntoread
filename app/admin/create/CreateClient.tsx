@@ -477,6 +477,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const [charRef, setCharRef] = useState("");
   const [photoB64, setPhotoB64] = useState("");
   const photoInput = useRef<HTMLInputElement>(null);
+  const [artNote, setArtNote] = useState(""); // section-level art direction (character sheet + all pages)
+  const [tileNotes, setTileNotes] = useState<Record<number, string>>({}); // per-page note applied on Redo
   const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA; accepted?: boolean }>>({});
   const [artBusy, setArtBusy] = useState("");
   const [assembling, setAssembling] = useState("");
@@ -570,7 +572,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     if (!draft) return;
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
-      const r = await art({ action: "character", recordId: selectedId || undefined, description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, imageSize: artImageSize });
+      const r = await art({ action: "character", recordId: selectedId || undefined, description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, note: artNote.trim() || undefined, imageSize: artImageSize });
       setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
@@ -589,7 +591,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     return undefined; // QA unavailable — tile shows "?" and blocks until Redo or Use anyway
   }
 
-  async function genOnePage(n: number) {
+  async function genOnePage(n: number, directorNote?: string) {
     if (!draft || !charRef) return;
     const page = n === 0
       ? { n: 0, text: draft.title, artPrompt: draft.coverArtPrompt }
@@ -605,7 +607,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
     let img = "", qa: ArtQA | undefined, notes = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, fixNotes: notes || undefined, imageSize: artImageSize });
+      const r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, directorNote: directorNote || undefined, fixNotes: notes || undefined, imageSize: artImageSize });
       img = r.image;
       qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
       if (!qa || qa.pass || !qa.issues?.length) break;
@@ -625,7 +627,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       let ok = false;
       for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
         setArtBusy(`Illustrating ${label}${attempt > 1 ? " (retry)" : ""}…`);
-        try { await genOnePage(n); ok = true; }
+        try { await genOnePage(n, artNote.trim() || undefined); ok = true; }
         catch { if (attempt < 2) await new Promise((r) => setTimeout(r, 4000)); }
       }
       if (!ok) failed.push(n); // keep going — Redo buttons handle stragglers
@@ -636,7 +638,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   async function redoOne(n: number) {
     setError(""); setArtBusy(n === 0 ? "Redoing the cover…" : `Redoing page ${n}…`);
-    try { await genOnePage(n); } catch (e: any) { setError(e?.message || String(e)); }
+    const directorNote = [artNote.trim(), (tileNotes[n] || "").trim()].filter(Boolean).join(" — ") || undefined;
+    try { await genOnePage(n, directorNote); } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
   }
 
@@ -913,6 +916,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           ) : (
             <p className="hint">Optional: <button className="crt-btn tsmall" onClick={() => photoInput.current?.click()}>Attach a reference photo</button> of the child (and pet) — the character sheet will match it. JPG or PNG.</p>
           )}
+          <textarea className="crt-artnote" placeholder="Optional illustration notes — applied to the character sheet and every page. e.g. 'warm afternoon light', 'she always wears a red raincoat', 'keep backgrounds simple and uncluttered'" value={artNote} onChange={(e) => setArtNote(e.target.value)} rows={2} />
           {!charRef ? (
             <>
               <p className="hint">First, a character sheet locks {draft.childName}&rsquo;s look so every page matches.</p>
@@ -943,7 +947,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
                         {a?.qa && !a.qa.pass && !a.accepted && <p className="tissue">{a.qa.issues.join("; ")}</p>}
                         {a && !a.qa && !a.accepted && <p className="tissue">QA couldn&rsquo;t verify this page — Redo it or Use anyway.</p>}
                         {a?.accepted && <p className="hint">accepted despite QA</p>}
-                        <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>Redo</button>
+                        {a && <textarea className="crt-tilenote" placeholder="Note for redraw — e.g. 'make the dog smaller', 'add more sunlight', 'she's smiling'" value={tileNotes[t.n] || ""} onChange={(e) => setTileNotes((s) => ({ ...s, [t.n]: e.target.value }))} rows={2} />}
+                        <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => redoOne(t.n)}>{tileNotes[t.n]?.trim() ? "Redraw with note" : "Redo"}</button>
                         {a && !a.accepted && (!a.qa || !a.qa.pass) && (
                           <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => setArts((s) => ({ ...s, [t.n]: { ...s[t.n], accepted: true } }))}>Use anyway</button>
                         )}
@@ -1040,6 +1045,8 @@ const CSS = `
   .crt-tile .tlabel { font-size: .74rem; font-weight: 800; color: #7a7164; margin-bottom: 4px; }
   .crt-tile .tissue { font-size: .7rem; color: #8c2f25; }
   .crt-tile .tsmall { padding: 4px 12px; font-size: .76rem; margin-top: 4px; }
+  .crt-tile .crt-tilenote { margin-top: 6px; font-size: .78rem; padding: 6px 8px; resize: vertical; text-align: left; }
+  .crt-artnote { margin-top: 10px; resize: vertical; }
   .tempty { height: 180px; background: #f6f0e4; border-radius: 8px; }
   .crt-preview { width: 100%; height: 560px; border: 1px solid #e7e0d4; border-radius: 12px; margin: 14px 0; background: #fff; }
   .crt-done .big { color: #2f5e38; font-weight: 800; font-size: 1.05rem; }
