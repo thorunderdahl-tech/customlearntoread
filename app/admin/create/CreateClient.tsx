@@ -534,7 +534,14 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       if (!gr.pass && gr.issues?.length) {
         setBusy("Grader flagged issues — revising…");
         const r2 = await story({ action: "revise", draft: d, issues: gr.issues });
-        d = r2.draft; setDraft(d); setCheck(r2.check);
+        d = r2.draft; c = r2.check; setDraft(d); setCheck(c);
+        // Fixing the arc can reintroduce rule violations (a comma, an over-long page,
+        // a dropped backbone word) — re-converge the rules gate before re-grading.
+        for (let attempt = 1; attempt <= 3 && !c.pass; attempt++) {
+          setBusy(`Rules check after grading — revising… (pass ${attempt})`);
+          const r = await story({ action: "revise", draft: d, issues: c.problems });
+          d = r.draft; c = r.check; setDraft(d); setCheck(c);
+        }
         setBusy("Re-grading…");
         const q2 = await story({ action: "grade", draft: d, order: g.order });
         setGrade(q2.grade);
@@ -607,8 +614,15 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
     let img = "", qa: ArtQA | undefined, notes = "";
     for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, directorNote: directorNote || undefined, fixNotes: notes || undefined, imageSize: artImageSize });
-      img = r.image;
+      // The image call itself can throw transiently (Gemini overload / rate-limit
+      // bursts when many pages fire in a row). Retry it with backoff so one blip
+      // doesn't blank the page — this is separate from the QA-fix loop below.
+      let r: { image: string } | undefined;
+      for (let tries = 0; tries < 4; tries++) {
+        try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, directorNote: directorNote || undefined, fixNotes: notes || undefined, imageSize: artImageSize }); break; }
+        catch (e) { if (tries === 3) throw e; await new Promise((res) => setTimeout(res, 4000 * (tries + 1))); }
+      }
+      img = r!.image;
       qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
       if (!qa || qa.pass || !qa.issues?.length) break;
       notes = qa.issues.join("; ");
@@ -625,12 +639,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     for (const n of targets) {
       const label = n === 0 ? "the cover" : `page ${n} of ${draft.pages.length}`;
       let ok = false;
-      for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
-        setArtBusy(`Illustrating ${label}${attempt > 1 ? " (retry)" : ""}…`);
+      for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+        setArtBusy(`Illustrating ${label}${attempt > 1 ? ` (retry ${attempt - 1})` : ""}…`);
         try { await genOnePage(n, artNote.trim() || undefined); ok = true; }
-        catch { if (attempt < 2) await new Promise((r) => setTimeout(r, 4000)); }
+        catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 6000 * attempt)); }
       }
       if (!ok) failed.push(n); // keep going — Redo buttons handle stragglers
+      else await new Promise((r) => setTimeout(r, 1200)); // brief pause so we don't burst the image API
     }
     setArtBusy("");
     if (failed.length) setError(`Couldn't illustrate: ${failed.map((n) => (n === 0 ? "cover" : "page " + n)).join(", ")} — hit Redo on those tiles.`);
