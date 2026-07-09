@@ -14,6 +14,12 @@ export interface LevelRules {
   sentencesPerPage: [number, number];
   minWordsPerPage: number;
   maxWordsPerPage: number;
+  // A few pages may run ONE word past maxWordsPerPage (e.g. 4 words at Level 1) when
+  // it reads more naturally — but only on a small share of the book, so the norm
+  // stays tight. stretchWordsPerPage is the higher tolerated count; stretchPageShare
+  // is the max fraction of pages that may use it (e.g. 0.30 = up to 30% of pages).
+  stretchWordsPerPage?: number;
+  stretchPageShare?: number;
   maxAvgWordLength: number; // average characters per word, child's name excluded
   nameOnPageShare: number; // fraction of pages that must include the child's name
   allowCommas: boolean;
@@ -58,9 +64,9 @@ export const LEVELS: Level[] = [
     id: "tiny",
     parentLabel: "Tiny Reader",
     formPrefixes: ["Level 1"],
-    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 1, maxWordsPerPage: 3, maxAvgWordLength: 4.5, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "strict", phonicsCeiling: 3, heartCeiling: 2, sightWordBudget: [12, 15], patternMin: 8, storyWordMax: 5 },
+    rules: { sentencesPerPage: [1, 1], minWordsPerPage: 1, maxWordsPerPage: 3, stretchWordsPerPage: 4, stretchPageShare: 0.30, maxAvgWordLength: 4.5, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "strict", phonicsCeiling: 3, heartCeiling: 2, sightWordBudget: [12, 15], patternMin: 8, storyWordMax: 5 },
     promptRules:
-      "This book TEACHES a phonics-first backbone AND tells a real little story — decodable-reader meets a simple story arc — across about 16 pages. VOCABULARY (phonics-first): build the book from short, decodable words the child can sound out (short-vowel CVC and simple words: cat, Sam, run, hop, big, red, sit, dog, sun, bug, jump, nest) PLUS a small set of HEART WORDS — common words taught before they are decodable, learned by sounding out the regular parts and remembering the tricky part: I, the, a, is, to, see, my, look, we, go, and, you, he, she, play, down, now. PREFER words the child can SOUND OUT — reach for a heart word only when a decodable one won't fit, so the child gets as much phonics practice as possible. Do NOT use words that need vowel teams, diphthongs or other patterns a brand-new reader hasn't met (avoid: with, that, want, saw, out, where, said — these come at higher levels). Choose about 12-15 different words total. At least 8 are PATTERN words you REUSE across many pages (the practiced backbone), and up to 5 may be STORY words used on just ONE page to carry a single plot beat (the thing is lost, the search, the find). TOPIC CLUSTER: on top of that you may use the book's main topic word PLUS up to 2 related theme words (e.g. hockey + puck + goal, or princess + crown + castle) — repetition and the pictures teach those. Plus the child's name. PAGES: exactly ONE tiny sentence or label per page, 1-3 words (e.g. 'A cat.', 'Sam hops.', 'Big dog!'). STORY ARC — the pages must walk a real arc IN ORDER: meet the child, the goal/object appears, play and build, a small problem, the search, the find, a happy ending. Each page ADVANCES the story — no page could be shuffled or removed. Use one strong repeating sentence pattern with one slot changing to move the story forward. NO two pages may have identical text. Present tense. No commas, no dialogue.",
+      "This book TEACHES a phonics-first backbone AND tells a real little story — decodable-reader meets a simple story arc — across about 16 pages. VOCABULARY (phonics-first): build the book from short, decodable words the child can sound out (short-vowel CVC and simple words: cat, Sam, run, hop, big, red, sit, dog, sun, bug, jump, nest) PLUS a small set of HEART WORDS — common words taught before they are decodable, learned by sounding out the regular parts and remembering the tricky part: I, the, a, is, to, see, my, look, we, go, and, you, he, she, play, down, now. PREFER words the child can SOUND OUT — reach for a heart word only when a decodable one won't fit, so the child gets as much phonics practice as possible. Do NOT use words that need vowel teams, diphthongs or other patterns a brand-new reader hasn't met (avoid: with, that, want, saw, out, where, said — these come at higher levels). Choose about 12-15 different words total. At least 8 are PATTERN words you REUSE across many pages (the practiced backbone), and up to 5 may be STORY words used on just ONE page to carry a single plot beat (the thing is lost, the search, the find). TOPIC CLUSTER: on top of that you may use the book's main topic word PLUS up to 2 related theme words (e.g. hockey + puck + goal, or princess + crown + castle) — repetition and the pictures teach those. Plus the child's name. PAGES: exactly ONE tiny sentence or label per page, 1-3 words (e.g. 'A cat.', 'Sam hops.', 'Big dog!'). A few pages — no more than a THIRD of the book — may stretch to 4 words if it reads more naturally, but keep MOST pages at 1-3. STORY ARC — the pages must walk a real arc IN ORDER: meet the child, the goal/object appears, play and build, a small problem, the search, the find, a happy ending. Each page ADVANCES the story — no page could be shuffled or removed. Use one strong repeating sentence pattern with one slot changing to move the story forward. NO two pages may have identical text. Present tense. No commas, no dialogue.",
   },
   {
     id: "beginner",
@@ -282,6 +288,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   let totalWords = 0;
   let pagesWithName = 0;
   const vocab = new Set<string>();
+  const stretchPages: number[] = []; // pages that use the allowed "stretch" word count
 
   if (!draft.pages?.length) problems.push("Story has no pages.");
 
@@ -297,8 +304,18 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     const sentences = sentenceSplit(p.text);
     if (sentences.length < r.sentencesPerPage[0] || sentences.length > r.sentencesPerPage[1])
       problems.push(`Page ${p.n}: ${sentences.length} sentence(s) — this level requires exactly ${r.sentencesPerPage[1] === r.sentencesPerPage[0] ? r.sentencesPerPage[0] : r.sentencesPerPage.join("-")} per page.`);
-    if (ws.length > r.maxWordsPerPage || ws.length < r.minWordsPerPage)
-      problems.push(`Page ${p.n}: ${ws.length} words — level allows ${r.minWordsPerPage}-${r.maxWordsPerPage}.`);
+    // Word count per page. A level may allow a few pages to "stretch" one word past
+    // the norm (stretchWordsPerPage) — those are counted here and budget-checked
+    // after the loop; anything beyond the stretch (or below the minimum) is flagged.
+    const effMax = r.stretchWordsPerPage && r.stretchWordsPerPage > r.maxWordsPerPage ? r.stretchWordsPerPage : r.maxWordsPerPage;
+    if (ws.length < r.minWordsPerPage || ws.length > effMax) {
+      const range = effMax > r.maxWordsPerPage
+        ? `${r.minWordsPerPage}-${r.maxWordsPerPage} (up to ${effMax} on a few pages)`
+        : `${r.minWordsPerPage}-${r.maxWordsPerPage}`;
+      problems.push(`Page ${p.n}: ${ws.length} words — level allows ${range}.`);
+    } else if (ws.length > r.maxWordsPerPage) {
+      stretchPages.push(p.n);
+    }
     const nonName = ws.filter((w) => norm(w) !== nameNorm && !topicWords.has(norm(w)) && !castNames.has(norm(w)));
     if (nonName.length) {
       const avg = nonName.reduce((a, w) => a + w.length, 0) / nonName.length;
@@ -323,6 +340,13 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     if (nameNorm && p.text.split(/\s+/).some((w) => norm(w) === nameNorm)) pagesWithName++;
     if (!p.artPrompt || p.artPrompt.length < 20) problems.push(`Page ${p.n}: illustration direction missing or too thin.`);
   });
+
+  // "Stretch" word-count budget: only a small share of pages may run the extra word.
+  if (r.stretchWordsPerPage && r.stretchPageShare && draft.pages?.length) {
+    const allowed = Math.floor(r.stretchPageShare * draft.pages.length);
+    if (stretchPages.length > allowed)
+      problems.push(`Too many long pages: ${stretchPages.length} pages use ${r.stretchWordsPerPage} words (pages ${stretchPages.join(", ")}) — keep ${r.stretchWordsPerPage}-word pages to at most ${Math.round(r.stretchPageShare * 100)}% of the book (${allowed} of ${draft.pages.length}); trim the extra ones to ${r.maxWordsPerPage} words or fewer.`);
+  }
 
   // No two pages in a book may have identical text — every page must teach.
   const seenText = new Map<string, number>();

@@ -519,8 +519,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const g = await story({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined, emotionalGoal: emotionalGoal || undefined, mustUseWords: mustUseWords.trim() || undefined, avoidWords: avoidWords.trim() || undefined, readAlong });
       let d: Draft = g.draft; let c: Check = g.check;
       setDraft(d); setCheck(c); setOrder(g.order); setParentEmail(g.parentEmail || "");
-      if (!c.pass) {
-        setBusy("Rules check failed — revising…");
+      // Retry the rules-revise a few times, re-checking each pass — one pass often
+      // fixes most issues but leaves a couple; a second/third pass usually converges.
+      for (let attempt = 1; attempt <= 3 && !c.pass; attempt++) {
+        setBusy(`Rules check failed — revising… (pass ${attempt})`);
         const r = await story({ action: "revise", draft: d, issues: c.problems });
         d = r.draft; c = r.check; setDraft(d); setCheck(c);
       }

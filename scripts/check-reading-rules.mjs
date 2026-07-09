@@ -67,7 +67,7 @@ function expectReject(desc, lvlStr, draft, needle) {
 expectPass("L1 on-level book", "Level 1 — brand-new reader", book("tiny", [
   A(1,"See Reeva."),A(2,"See Hazel."),A(3,"See Aviva."),A(4,"Reeva can run."),A(5,"Hazel can run."),
   A(6,"Reeva can see."),A(7,"Run Reeva run!"),A(8,"See the ball."),A(9,"Reeva can go."),A(10,"Go Aviva go!"),
-  A(11,"Reeva can play."),A(12,"Play ball play!"),A(13,"Look Reeva look!"),A(14,"Look up now."),A(15,"Up Reeva up!"),A(16,"We all play."),
+  A(11,"Reeva can play."),A(12,"Play ball play!"),A(13,"Look Reeva look!"),A(14,"Look up now."),A(15,"Up Reeva up!"),A(16,"We can all play."),
 ]));
 expectPass("L2 on-level book", "Level 2 — very early reader", book("beginner", [
   A(1,"Reeva has a red ball."),A(2,"Reeva can kick the ball."),A(3,"Hazel can kick it up."),A(4,"Aviva can kick it up."),
@@ -110,7 +110,9 @@ expectPass("L1 undecodable topic word 'dinosaur' is exempt", "Level 1 — brand-
 
 // ---- 2. BAD books: each should trip the named rule ----
 const bad = "Level 1 — brand-new reader";
-expectReject("L1 sentence too long", bad, book("tiny", [A(1,"Reeva can run fast.")]), "level allows 1-3");
+expectReject("L1 sentence too long (5 words)", bad, book("tiny", [A(1,"Reeva can run and hop.")]), "level allows 1-3");
+// A single 4-word page is fine (stretch), but too many 4-word pages trips the budget.
+expectReject("L1 too many 4-word pages (>30%)", bad, book("tiny", [A(1,"Reeva can run fast."),A(2,"Reeva can hop fast."),A(3,"Reeva naps.")]), "too many long pages");
 expectReject("L1 undecodable word", bad, book("tiny", [A(1,"See the cloud.")]), "decode");
 expectReject("L1 comma", bad, book("tiny", [A(1,"Run, Reeva.")]), "comma");
 expectReject("L1 dialogue", bad, book("tiny", [A(1,'"Go!" Reeva.')]), "dialogue");

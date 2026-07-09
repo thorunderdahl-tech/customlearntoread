@@ -165,12 +165,35 @@ Do NOT include any text, letters, numbers, signs, logos, or brand/franchise char
 }
 
 export function buildRevisePrompt(draft: StoryDraft, level: Level, issues: string[], plan?: StoryPlan): string {
+  const r = level.rules;
+  // Levels with a bounded teaching set (1-2) are the ones where the reviser tends to
+  // drift — it fixes a flagged page by inventing a NEW word, which breaks the vocab
+  // budget elsewhere. Give it an explicit, numeric recipe so one pass converges.
+  let recipe = "";
+  if (r.sightWordBudget) {
+    const [minSet, maxSet] = r.sightWordBudget;
+    const patternMin = r.patternMin ?? minSet;
+    const storyMax = r.storyWordMax ?? 2;
+    const pageCount = draft.pages?.length || 16;
+    const wordCap = r.stretchWordsPerPage && r.stretchWordsPerPage > r.maxWordsPerPage
+      ? `${r.minWordsPerPage}-${r.maxWordsPerPage} words (at most ${Math.floor((r.stretchPageShare ?? 0) * pageCount)} pages may use ${r.stretchWordsPerPage})`
+      : `${r.minWordsPerPage}-${r.maxWordsPerPage} words`;
+    recipe = `HOW TO CONVERGE (do ALL of these — fixing one issue must not create another):
+- Work from ONE fixed teaching set of ${minSet}-${maxSet} short words total (NOT counting ${draft.childName || "the child"}'s name or the topic/theme words). Do NOT introduce extra one-off words to patch a page — reuse words already in the set.
+- Make at least ${patternMin} of those words REPEAT across 2+ pages (the practiced backbone). If a word appears on only one page, either reuse it on another page or swap it for a backbone word.
+- Keep single-use words to at most ${storyMax} in the whole book.
+- Every page's sentence must be UNIQUE — if two pages share the same words, change one.
+- Each page stays ${wordCap}. Keep the child's name on at least ${Math.round(r.nameOnPageShare * 100)}% of pages.
+- Preserve the story arc and the illustration directions; change only what the issues require.
+
+`;
+  }
   return `Revise this learn-to-read book draft. Fix EVERY issue listed while keeping everything that works. The child must be able to read every page themselves. Level rules remain hard constraints:
 ${level.promptRules}
 
 ${describePhonicsScope(level.rules.phonicsCeiling, level.rules.decodability)}
 
-${plan ? describePlan(plan) + "\n\nKeep the same story plan and fourQuestions unless an issue requires changing them.\n\n" : ""}${draft.pages?.some((p) => p.adultLine) ? "This book has Parent Read-Along Lines: keep each page's \"adultLine\" (the grown-up read-aloud line); change it only if an issue names it.\n\n" : ""}ISSUES TO FIX:
+${plan ? describePlan(plan) + "\n\nKeep the same story plan and fourQuestions unless an issue requires changing them.\n\n" : ""}${draft.pages?.some((p) => p.adultLine) ? "This book has Parent Read-Along Lines: keep each page's \"adultLine\" (the grown-up read-aloud line); change it only if an issue names it.\n\n" : ""}${recipe}ISSUES TO FIX:
 ${issues.map((i, n) => `${n + 1}. ${i}`).join("\n")}
 
 CURRENT DRAFT:
