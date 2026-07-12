@@ -53,9 +53,12 @@ export async function POST(req: NextRequest) {
           if (expanded) scene = expanded;
         } catch { /* keep the raw scene */ }
       }
+      // editPrevious: the caller appended the page's previous version as the
+      // LAST ref — the prompt applies the director note as an EDIT to it.
+      const editPrevious = !!body.editPrevious;
       const img = await generateImage(
-        pagePrompt(scene, characterDescription, castText, directorNote, fixNotes),
-        (refs as string[]).slice(0, 3),
+        pagePrompt(scene, characterDescription, castText, directorNote, fixNotes, editPrevious),
+        (refs as string[]).slice(0, 4),
         "2:3",
         body.imageSize,
       );

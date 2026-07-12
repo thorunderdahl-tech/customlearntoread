@@ -880,8 +880,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     return undefined; // QA unavailable — tile shows "?" and blocks until Redo or Use anyway
   }
 
-  async function genOnePage(n: number, directorNote?: string) {
+  async function genOnePage(n: number, directorNote?: string, editPrevious = false) {
     if (!draft || !charRef) return;
+    // True edit mode: when redoing WITH a note and the page already has art,
+    // send the previous version as the LAST reference so the model applies the
+    // note as an edit (same composition, only the named change) instead of
+    // re-rolling the whole page from scratch.
+    const prevImg = editPrevious && directorNote ? arts[n]?.img : undefined;
     const page = n === 0
       ? { n: 0, text: draft.title, artPrompt: draft.coverArtPrompt }
       : draft.pages.find((p) => p.n === n)!;
@@ -900,7 +905,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     const anchors = [...new Set([passed[0]?.img, nearest?.img].filter(Boolean) as string[])];
     // The character sheet carries the identity signal — send it sharper (1100px)
     // than the style anchors (900px) so hair length and shirt graphics survive.
-    const refs = await Promise.all([refJpeg(charRef, 1100), ...anchors.slice(0, 2).map((b) => refJpeg(b))]);
+    // In edit mode: sheet + 1 anchor + the previous version LAST (sharp, 1100px —
+    // it's the thing being edited).
+    const refs = await Promise.all([
+      refJpeg(charRef, 1100),
+      ...anchors.slice(0, prevImg ? 1 : 2).map((b) => refJpeg(b)),
+      ...(prevImg ? [refJpeg(prevImg, 1100)] : []),
+    ]);
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA
     // passes — and keep the BEST attempt seen (pass > fewest issues), not
     // whichever happened to come last.
@@ -912,7 +923,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       // doesn't blank the page — this is separate from the QA-fix loop below.
       let r: { image: string } | undefined;
       for (let tries = 0; tries < 4; tries++) {
-        try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, directorNote: directorNote || undefined, fixNotes: notes || undefined, imageSize: artImageSize }); break; }
+        try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, directorNote: directorNote || undefined, fixNotes: notes || undefined, editPrevious: !!prevImg, imageSize: artImageSize }); break; }
         catch (e) { if (tries === 3) throw e; await new Promise((res) => setTimeout(res, 4000 * (tries + 1))); }
       }
       const img = r!.image;
@@ -927,6 +938,9 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   async function genAllArt() {
     if (!draft || !charRef) return;
+    // Don't burn a whole book of image calls against a sheet that failed the
+    // photo check — every page inherits the sheet's mistakes.
+    if (sheetQa && !sheetQa.pass && !window.confirm(`The character sheet FAILED the photo check (${sheetQa.issues.join("; ")}). Illustrating now bakes that into every page. Illustrate anyway?`)) return;
     setError(""); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     const already = { ...arts }; // skip pages finished in a previous run
     const targets = [0, ...draft.pages.map((p) => p.n)].filter((n) => !already[n]);
@@ -948,8 +962,12 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   async function redoOne(n: number) {
     setError(""); setArtBusy(n === 0 ? "Redoing the cover…" : `Redoing page ${n}…`);
-    const directorNote = [artNote.trim(), (tileNotes[n] || "").trim()].filter(Boolean).join(" — ") || undefined;
-    try { await genOnePage(n, directorNote); } catch (e: any) { setError(e?.message || String(e)); }
+    const tileNote = (tileNotes[n] || "").trim();
+    const directorNote = [artNote.trim(), tileNote].filter(Boolean).join(" — ") || undefined;
+    // A per-tile note means "change THIS image" — edit the previous version
+    // rather than re-roll the page. A bare Redo still re-rolls (the admin
+    // rejected the image itself, so a fresh take is what they want).
+    try { await genOnePage(n, directorNote, !!tileNote); } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
   }
 
