@@ -216,7 +216,7 @@ function interiorBandTop(maxLines: number, maxAdultLines = 0): number {
 // typeset text kept inside the 0.5" safe area. Text is never AI-rendered.
 // Interior text is Andika at ~36pt (brand-required 32-40pt); cover is Montserrat.
 // bandTop (interior only) is the fixed cutoff line, computed once per book.
-async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean, bandTop?: number, adultLine?: string): Promise<string> {
+async function compositePage(artB64: string, text: string, pageNo: number, isCover: boolean, bandTop?: number, adultLine?: string, coverMeta?: { levelNum: number; levelLabel: string }): Promise<string> {
   const W = PAGE_W, H = PAGE_H;
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const ctx = c.getContext("2d")!;
@@ -231,23 +231,61 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
   const maxW = W - SAFE * 2; // keep all text inside the safe area
 
   if (isCover) {
-    // Shrink-to-fit: a long title wraps, but a single long word (often the
-    // child's name) can't — shrink until the widest line fits the safe area.
-    let fs = pt(40);
-    ctx.font = `800 ${fs}px Montserrat, "Segoe UI", system-ui, sans-serif`;
+    // ---- Real book cover: flashy title + series badge + small brand line ----
+    const mont = (weight: number) => (px: number) => `${weight} ${px}px Montserrat, "Segoe UI", system-ui, sans-serif`;
+    // Title: big, bold, kid-grabbing. Shrink-to-fit: a long title wraps, but a
+    // single long word (often the child's name) can't — shrink until it fits.
+    let fs = pt(46);
+    ctx.font = mont(800)(fs);
     let lines = wrapText(ctx, text, maxW);
-    while (fs > pt(22) && Math.max(...lines.map((l) => ctx.measureText(l).width)) > maxW) {
+    while (fs > pt(24) && Math.max(...lines.map((l) => ctx.measureText(l).width)) > maxW) {
       fs = Math.round(fs * 0.94);
-      ctx.font = `800 ${fs}px Montserrat, "Segoe UI", system-ui, sans-serif`;
+      ctx.font = mont(800)(fs);
       lines = wrapText(ctx, text, maxW);
     }
-    const lh = fs * 1.18;
-    const blockH = lines.length * lh;
-    const blockTop = H - SAFE - blockH; // title block ends at the safe-area bottom line
-    ctx.fillStyle = "rgba(250,247,242,0.92)";
-    ctx.fillRect(0, blockTop - pt(22), W, H - (blockTop - pt(22)));
-    ctx.fillStyle = "#1f2a44";
+    const lh = fs * 1.16;
+    const brandFs = pt(11), brandGap = pt(14);
+    const blockH = lines.length * lh + brandGap + brandFs;
+    const blockTop = H - SAFE - blockH; // block ends at the safe-area bottom line
+    const bandY = blockTop - pt(22);
+    // Cream band with a caramel accent rule so the cover reads "designed".
+    ctx.fillStyle = "rgba(250,247,242,0.94)";
+    ctx.fillRect(0, bandY, W, H - bandY);
+    ctx.fillStyle = CARAMEL;
+    ctx.fillRect(0, bandY, W, pt(3));
+    // Title in navy with a soft caramel offset shadow for storybook pop.
+    ctx.save();
+    ctx.shadowColor = "rgba(198,138,82,0.55)";
+    ctx.shadowOffsetX = pt(1.6); ctx.shadowOffsetY = pt(1.6); ctx.shadowBlur = 0;
+    ctx.font = mont(800)(fs);
+    ctx.fillStyle = NAVY;
     lines.forEach((l, i) => ctx.fillText(l, W / 2, blockTop + lh / 2 + i * lh));
+    ctx.restore();
+    // Brand line — small, letter-spaced, under the title.
+    ctx.fillStyle = CARAMEL_DARK;
+    ctx.font = mont(700)(brandFs);
+    try { (ctx as any).letterSpacing = `${pt(2)}px`; } catch { /* older canvas */ }
+    ctx.fillText("CUSTOM LEARN TO READ", W / 2, blockTop + lines.length * lh + brandGap + brandFs / 2);
+    try { (ctx as any).letterSpacing = "0px"; } catch { /* reset */ }
+    // Series badge — top-right circle: LEARN TO READ / LEVEL N / level name.
+    // Marks the book as part of a leveled learn-to-read series at a glance.
+    if (coverMeta) {
+      const r = pt(50);
+      const cx = W - SAFE - r, cy = SAFE + r;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = NAVY; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, r - pt(4), 0, Math.PI * 2);
+      ctx.lineWidth = pt(1.6); ctx.strokeStyle = "rgba(250,247,242,0.9)"; ctx.stroke();
+      ctx.fillStyle = CREAMC;
+      ctx.font = mont(700)(pt(9.5));
+      ctx.fillText("LEARN TO READ", cx, cy - pt(24));
+      ctx.font = mont(800)(pt(25));
+      ctx.fillText(`LEVEL ${coverMeta.levelNum}`, cx, cy + pt(1));
+      fitFont(ctx, coverMeta.levelLabel.toUpperCase(), r * 1.55, pt(10), mont(700));
+      ctx.fillText(coverMeta.levelLabel.toUpperCase(), cx, cy + pt(25));
+      ctx.restore();
+    }
     return c.toDataURL("image/jpeg", 0.92);
   }
 
@@ -1060,26 +1098,29 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         for (const p of draft.pages) if (p.adultLine) maxAdult = Math.max(maxAdult, wrapText(mctx, p.adultLine, PAGE_W - SAFE * 2).length);
       }
       const bandTop = interiorBandTop(maxLines, maxAdult);
-      const cover = await compositePage(arts[0].img, draft.title, 0, true, bandTop);
-      const story: string[] = [];
-      for (const p of draft.pages) story.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop, p.adultLine));
       // "Words in This Book" lists only the PATTERN words the book actually teaches
       // (repeated backbone) — never the child's name, topic-cluster words, or one-off
       // story words. Same source as the QA validator, so the two can't disagree.
       const bookLevel = LEVELS.find((l) => l.id === draft.levelId) || LEVELS[0];
+      const levelNum = Math.max(1, LEVELS.findIndex((l) => l.id === bookLevel.id) + 1);
       const vocab = patternWords(draft, bookLevel);
       const soundOut = vocab.filter((w) => wordKind(w, bookLevel) === "sound-out");
       const heartWds = vocab.filter((w) => wordKind(w, bookLevel) === "heart");
 
-      // Book structure: front matter + story + back matter. Padding to each
-      // printer's page-count rules happens per format below.
-      // No title page and no dedication (by design — nothing per-book to fill in).
+      const cover = await compositePage(arts[0].img, draft.title, 0, true, bandTop, undefined, { levelNum, levelLabel: bookLevel.parentLabel });
+      const story: string[] = [];
+      for (const p of draft.pages) story.push(await compositePage(arts[p.n].img, p.text, p.n, false, bandTop, p.adultLine));
+
+      // Book structure (the 20-page saddle format): cover, inside cover
+      // (bookplate), 16 story pages, "Why These Words?" (inside back cover),
+      // back cover — 16 story + 4 fixed = 20 exactly, no "The End" page. A
+      // read-along key (when ordered) adds one page and the saddle pads to 24.
       const front = [bookplatePage(draft.childName, giftMessage), ...(hasReadAlong ? [readAlongKeyPage()] : [])];
-      const back = [arts[0]?.img ? await endArtPage(arts[0].img, draft.childName) : endPage(draft.childName), wordsPage(soundOut, heartWds, draft.childName)];
+      const back = [wordsPage(soundOut, heartWds, draft.childName)];
 
       // Digital book (flipbook + customer home-print PDF): cover→back cover, no pad pages.
       const digital = [cover, ...front, ...story, ...back, backCoverPage()];
-      const labels = ["Cover", "Bookplate", ...(hasReadAlong ? ["Read-along key"] : []), ...draft.pages.map((p) => `Page ${p.n}`), "The End", "Why These Words?", "Back cover"];
+      const labels = ["Cover", "Inside cover", ...(hasReadAlong ? ["Read-along key"] : []), ...draft.pages.map((p) => `Page ${p.n}`), "Why These Words?", "Back cover"];
       setPageImages(digital); setPageLabels(labels);
 
       setAssembling("Building the PDFs…");
@@ -1205,7 +1246,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           </p>
         )}
         <div className="crt-row">
-          <label>Story pages
+          <label>Story pages (cover, inside cover, words page &amp; back cover are added on top — 16 story = a 20-page book)
             <input type="number" min={4} max={24} value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 16)} />
           </label>
           <label>Level override (optional)
