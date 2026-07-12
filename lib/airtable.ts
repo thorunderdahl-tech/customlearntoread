@@ -16,7 +16,21 @@ export function airtableConfigured(): boolean {
 
 type Fields = Record<string, unknown>;
 
-const UNKNOWN_FIELD_RE = /Unknown field name:\s*"?([^"]+?)"?\s*$/i;
+/** Extract the offending column from an Airtable UNKNOWN_FIELD_NAME error.
+ * Airtable returns JSON like {"error":{"type":"UNKNOWN_FIELD_NAME","message":
+ * "Unknown field name: \"Photo subject\""}} — parse the JSON first (the raw
+ * body ends in "}} so an end-anchored regex never matches), then fall back to
+ * an unanchored regex for any non-JSON shape. */
+function unknownFieldFrom(text: string): string | undefined {
+  try {
+    const msg = JSON.parse(text)?.error?.message;
+    if (typeof msg === "string") {
+      const m = msg.match(/Unknown field name:\s*"?(.+?)"?\s*$/i);
+      if (m) return m[1];
+    }
+  } catch { /* not JSON — fall through */ }
+  return text.match(/Unknown field name:\s*\\?"?([^"\\]+)/i)?.[1] || undefined;
+}
 
 /**
  * Write to Airtable, gracefully dropping any column that doesn't exist in the
@@ -44,8 +58,7 @@ async function writeWithFieldFallback(
     if (res.ok) return res;
     if (res.status === 422) {
       const text = await res.text().catch(() => "");
-      const match = text.match(UNKNOWN_FIELD_RE);
-      const missing = match?.[1];
+      const missing = unknownFieldFrom(text);
       if (missing && missing in working) {
         delete working[missing];
         console.warn(`Airtable: column "${missing}" not found — saving without it.`);
