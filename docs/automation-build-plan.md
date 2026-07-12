@@ -95,5 +95,5 @@ Do 0 and 1 first (2 days, near-zero risk). Then 2 as the main project — nothin
 
 - **Vercel function time limits.** Full-book generation can exceed serverless timeouts (`maxDuration = 300` is already set on the art route). Batch API's async model and a cron-drain design sidestep this; a synchronous "generate whole book in one request" will not.
 - **Quality regression when unattended.** The auto-retry + hard-block-on-QA-fail logic must be trustworthy before you stop watching. Roll out Phase 2 in shadow mode first: generate candidates automatically but keep approving via the old screen for a week, comparing.
-- **Model dependency.** Art runs on `gemini-3-pro-image-preview` (a preview tier). Pin a fallback model and re-test style before Google deprecates or reprices it.
+- **Model dependency.** Art runs on stable `gemini-3-pro-image` (moved off the preview alias 2026-07-12). Fallback candidate: `gemini-3.1-flash-image` via `ART_MODEL` — cheaper but only 4 character refs and no style refs; re-test style before relying on it.
 - **Batch latency.** Batch API can take minutes to hours; fine for overnight, not for Rush — keep the sync lane for paid rush orders.

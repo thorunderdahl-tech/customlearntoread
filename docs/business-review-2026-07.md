@@ -74,7 +74,7 @@ Two things fall out of this table. First, scale without automation makes losses 
 - **Hardcover fulfillment dependency on one vendor** (Lulu, due to KDP's 75-page floor). A Lulu price increase (they reprice annually) hits your two highest-priced SKUs directly.
 - **Photo handling by email reply** is friction-heavy and a consent/privacy touchpoint (photo-consent UX already flagged in legal review); it also strands order data outside Airtable.
 - **No refund/reprint reserve.** POD errors, address issues, and "art doesn't look like my kid" complaints are inevitable; budget 3–5% of revenue.
-- **Model dependency:** art quality and cost depend on a preview-tier Gemini model (`gemini-3-pro-image-preview`). Preview models get deprecated or repriced with little notice; pin a fallback and re-test the style before it happens.
+- **Model dependency:** art quality and cost depend on a single Gemini model. 2026-07-12: default moved off the preview alias to stable `gemini-3-pro-image` (Nano Banana Pro), removing the deprecation risk; `gemini-3.1-flash-image` remains the untested cheaper fallback (`ART_MODEL` override) — re-test style before relying on it.
 
 **Cost structure**
 - **Labor is 65–80% of fully-loaded unit cost.** Everything else is rounding error by comparison. (§3–4)

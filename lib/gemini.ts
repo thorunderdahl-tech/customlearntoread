@@ -50,7 +50,10 @@ export async function generateImage(
   aspectRatio = "2:3",
   imageSizeOverride?: string,
 ): Promise<{ data: string; mime: string }> {
-  const model = process.env.ART_MODEL || "gemini-3-pro-image-preview";
+  // Nano Banana Pro (stable). Strongest for character consistency: up to 5 character
+  // refs + 3 style refs + 6 object refs per request, native 2K/4K print output.
+  // (gemini-3.1-flash-image is cheaper/faster but only 4 character refs, no style refs.)
+  const model = process.env.ART_MODEL || "gemini-3-pro-image";
   // Caller decides resolution (4K for print/physical, 2K for digital-only) so we
   // pay for 4K only where print sharpness matters. Falls back to env then 2K.
   const imageSize = imageSizeOverride || process.env.ART_IMAGE_SIZE || "2K";
