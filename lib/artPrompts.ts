@@ -13,7 +13,7 @@ const STYLE = BRAND_ART_STYLE;
  * out — critical when the photo shows more than one person. */
 export function characterSheetPrompt(desc: string, cast?: string, note?: string, photo = false, photoSubject?: string): string {
   const companionLine = cast
-    ? `\n\nALSO on the sheet, standing in a row beside the child: EVERY recurring character in this book — ${cast}. Draw each one unmistakably (exact skin tone, hair, eyes, clothing; or species, coloring, markings, collar). This one sheet locks the look of the ENTIRE cast for the whole book.`
+    ? `\n\nALSO on the sheet, standing in a row beside the child, IN EXACTLY THE ORDER LISTED (left to right, so each one is identifiable by position): EVERY recurring character in this book — ${cast}. Draw each one unmistakably (exact skin tone, hair, eyes, clothing; or species, coloring, markings, collar), and keep similar-looking characters clearly DISTINCT — if two characters differ mainly by hair color or skin tone, exaggerate that difference enough that no one could confuse them. This one sheet locks the look of the ENTIRE cast for the whole book.`
     : "";
   const noteLine = note
     ? `\n\nART DIRECTOR'S INSTRUCTION (follow it exactly, it overrides conflicting defaults): ${note}`
@@ -74,7 +74,7 @@ Reply ONLY JSON:
 export function sheetQaPrompt(characterDescription: string, cast?: string, photoSubject?: string): string {
   return `You are the fidelity gate for a children's book character sheet. IMAGE 1 is a generated, stylized character reference sheet. IMAGE 2 is the real photo it was drawn from (provided by the child's parent). A sheet that fails is regenerated, so flag every real problem.
 
-The sheet was supposed to contain: the hero — ${characterDescription}${cast ? `; plus these other characters — ${cast}` : "; and NO other characters"}.${photoSubject ? ` PHOTO CAST MAP (who in the photo is who): ${photoSubject}. Anyone in the photo not named in this map must NOT appear on the sheet in any form.` : ""}
+The sheet was supposed to contain: the hero — ${characterDescription}${cast ? `; plus these other characters, drawn beside the hero in the numbered order listed (use that left-to-right order to tell similar-looking characters apart) — ${cast}` : "; and NO other characters"}.${photoSubject ? ` PHOTO CAST MAP (who in the photo is who): ${photoSubject}. Anyone in the photo not named in this map must NOT appear on the sheet in any form.` : ""}
 
 Check, comparing the sheet against the photo:
 1. SKIN TONE (most important): for every sheet character drawn from a person in the photo, is the skin tone a faithful match to THAT EXACT person — not noticeably darker, lighter, or a different complexion/ethnicity? A skin-tone mismatch is a HARD FAIL — name the character and say whether the sheet made them darker or lighter than the photo.

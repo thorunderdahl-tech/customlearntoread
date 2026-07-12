@@ -833,21 +833,34 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   async function genCharacter() {
     if (!draft) return;
-    setError(""); setArtBusy("Drawing the character sheet…");
+    setError("");
     try {
-      const r = await art({ action: "character", recordId: selectedId || undefined, description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, photoSubject: (photoB64 && photoSubject.trim()) || undefined, note: artNote.trim() || undefined, imageSize: artImageSize });
-      setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
-      // Fidelity gate: compare the sheet against the real photo BEFORE pages are
-      // drawn — a wrong skin tone or wrong hair on the sheet poisons every page.
-      setSheetQa(null);
-      if (photoB64) {
+      // Fidelity loop: draw → check against the photo → if it fails, redraw WITH
+      // the failure fed back as a fix note (a blind retry just re-rolls the same
+      // dice — the model must be told exactly what was wrong, e.g. "Aviva's hair
+      // is darker than her photo person"). Starts from the last verdict, so
+      // clicking Redraw after a red warning also carries the fix note.
+      let qa: ArtQA | null = sheetQa;
+      let img = "";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        setArtBusy(attempt === 0 ? "Drawing the character sheet…" : `Redrawing the sheet (fixing: ${qa!.issues.join("; ").slice(0, 80)}…)`);
+        const fixNote = qa && !qa.pass && qa.issues?.length
+          ? `FIX these problems from the previous sheet — each character must match their exact person in the attached reference photo (hair COLOR and skin tone especially): ${qa.issues.join("; ")}`
+          : "";
+        const note = [artNote.trim(), fixNote].filter(Boolean).join(" — ") || undefined;
+        const r = await art({ action: "character", recordId: selectedId || undefined, description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, photoSubject: (photoB64 && photoSubject.trim()) || undefined, note, imageSize: artImageSize });
+        img = r.image;
+        qa = null;
+        if (!photoB64) break;
         setArtBusy("Checking the sheet against the photo…");
         try {
           const [sheetImg, photoImg] = await Promise.all([refJpeg(r.image, 1000), refJpeg(photoB64, 1000)]);
-          const v = (await art({ action: "sheetCheck", sheet: sheetImg, photo: photoImg, characterDescription: draft.characterDescription, cast: castText(draft), photoSubject: photoSubject.trim() || undefined })).verdict;
-          if (v) setSheetQa(v);
-        } catch { /* best-effort — admin still eyeballs the sheet */ }
+          qa = (await art({ action: "sheetCheck", sheet: sheetImg, photo: photoImg, characterDescription: draft.characterDescription, cast: castText(draft), photoSubject: photoSubject.trim() || undefined })).verdict ?? null;
+        } catch { qa = null; /* best-effort — admin still eyeballs the sheet */ }
+        if (!qa || qa.pass) break;
       }
+      setCharRef(img); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
+      setSheetQa(qa);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
   }
