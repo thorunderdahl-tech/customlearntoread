@@ -82,8 +82,8 @@ export default function ReadingApproachPage() {
       <p style={{ fontStyle: "italic", color: "var(--muted)" }}>
         We don&apos;t claim proven outcomes. We build on structured-literacy
         principles and publish our method &mdash; the skills matrix below,
-        and the exact word list at the back of every book &mdash; so you can
-        judge it for yourself.
+        and the practiced-word list at the back of every book &mdash; so you
+        can judge it for yourself.
       </p>
 
       <h2>The research it draws on</h2>

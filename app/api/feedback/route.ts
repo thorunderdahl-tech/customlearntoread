@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getOrderRecord, updateOrderRecord } from "@/lib/airtable";
+import { verifyTag } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -39,43 +40,47 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const orderId = (url.searchParams.get("o") || "").trim();
   const rating = (url.searchParams.get("r") || "").toLowerCase().trim();
+  const sig = (url.searchParams.get("s") || "").trim();
   const m = MAP[rating];
   if (!m) {
     return html("Thanks!", "We couldn't read that response, but thank you for letting us know.");
   }
 
-  let child = "your reader";
-  try {
-    if (orderId) {
-      const rec = await getOrderRecord(orderId);
-      child = (rec?.fields?.["Child name"] as string)?.trim() || child;
+  // The link is signed in the delivery email (signTag over the order id). Without
+  // a valid signature we still show a friendly page but never touch Airtable or
+  // email the owner — this stops anonymous callers from enumerating order ids to
+  // tamper with the feedback field, spam the owner, or read a child's name back.
+  const authed = orderId ? await verifyTag(orderId, "feedback", sig) : false;
+
+  if (authed) {
+    try {
       // Best-effort: needs a "Reading feedback" column in Airtable; harmless if absent.
       await updateOrderRecord(orderId, { "Reading feedback": m.label });
+    } catch (e) {
+      console.error("feedback: airtable update failed (continuing)", e);
     }
-  } catch (e) {
-    console.error("feedback: airtable update failed (continuing)", e);
+    try {
+      const key = process.env.RESEND_API_KEY;
+      const owner = (process.env.OWNER_EMAIL || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const from = process.env.FROM_EMAIL || "orders@customlearntoread.com";
+      if (key && owner.length) {
+        const resend = new Resend(key);
+        await resend.emails.send({
+          from,
+          to: owner,
+          subject: `Reading feedback: ${m.label}`,
+          html: `<div style="font-family:Inter,system-ui,sans-serif;color:#2f2a24"><p>A parent rated the last book: <strong>${m.label}</strong>.</p><p>Suggestion for the next book: <strong>${m.nudge}</strong>.</p><p style="color:#6b6257;font-size:13px">Order: ${orderId}</p></div>`,
+        });
+      }
+    } catch (e) {
+      console.error("feedback: owner email failed (continuing)", e);
+    }
   }
 
-  try {
-    const key = process.env.RESEND_API_KEY;
-    const owner = (process.env.OWNER_EMAIL || "").split(",").map((s) => s.trim()).filter(Boolean);
-    const from = process.env.FROM_EMAIL || "orders@customlearntoread.com";
-    if (key && owner.length) {
-      const resend = new Resend(key);
-      await resend.emails.send({
-        from,
-        to: owner,
-        subject: `Reading feedback: ${m.label} — ${child}`,
-        html: `<div style="font-family:Inter,system-ui,sans-serif;color:#2f2a24"><p><strong>${child}</strong>'s parent rated the last book: <strong>${m.label}</strong>.</p><p>Suggestion for the next book: <strong>${m.nudge}</strong>.</p><p style="color:#6b6257;font-size:13px">Order: ${orderId || "unknown"}</p></div>`,
-      });
-    }
-  } catch (e) {
-    console.error("feedback: owner email failed (continuing)", e);
-  }
-
+  // Response is intentionally generic — no per-order data is reflected back.
   const kind =
     rating === "right"
-      ? `So glad it was a good fit for ${child}!`
-      : `Thanks for telling us — we'll use this to make ${child}'s next book just right.`;
+      ? "So glad it was a good fit! We'll keep the next book at the same level."
+      : "Thanks for telling us — we'll use this to make the next book just right.";
   return html("Thank you!", kind);
 }

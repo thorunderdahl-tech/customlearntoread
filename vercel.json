@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/abandoned",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/digest",
+      "schedule": "0 13 * * *"
     }
   ]
 }

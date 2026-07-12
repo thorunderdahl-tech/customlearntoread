@@ -22,6 +22,7 @@ type FormState = {
   clothing: string;
   look_notes: string;
   photos: string[];
+  photo_note: string;
   theme_photos: string[];
   theme_1: string;
   theme_2: string;
@@ -34,6 +35,7 @@ type FormState = {
   shipping_zip: string;
   other_notes: string;
   gift_message: string;
+  friends_code: string;
   consent: boolean;
 };
 
@@ -48,12 +50,16 @@ const US_STATES = [
 // Level options carry a sample sentence so both the dropdown AND the helper are
 // concrete, not abstract. The "Level N — " prefix is load-bearing: resolveLevel()
 // matches on it and the order summary splits on " — ", so keep it.
+// Canonical level names (Tiny/Beginner/Growing/Confident) match lib/leveling.ts
+// and the /reading-approach page. Keep the friendly descriptor after them so all
+// three customer surfaces share one vocabulary. The order summary splits on " — "
+// (so part[0] stays "Level N"); don't remove that separator.
 const LEVEL_STRINGS = [
   "",
-  "Level 1 — brand-new reader · “Sam can run.”",
-  "Level 2 — very early reader · “Sam runs to the ball.”",
-  "Level 3 — growing reader · “Sam sees the big red ball.”",
-  "Level 4 — confident reader · “Sam kicks the ball down the hill.”",
+  "Level 1 — Tiny Reader · brand-new reader · “Sam can run.”",
+  "Level 2 — Beginner Reader · very early reader · “Sam runs to the ball.”",
+  "Level 3 — Growing Reader · “Sam sees the big red ball.”",
+  "Level 4 — Confident Reader · “Sam kicks the ball down the hill.”",
 ];
 const NOT_SURE_LEVEL = "Not sure — we'll match their age";
 
@@ -72,7 +78,7 @@ function baseLevelFromAge(ageStr: string): number {
   if (!Number.isFinite(age)) return 2; // neutral prior when age unknown
   if (age <= 5) return 1;
   if (age === 6) return 2;
-  if (age === 7) return 3;
+  if (age <= 8) return 3; // canonical resolveLevel: age 8 = Growing, not Confident
   return 4;
 }
 
@@ -103,6 +109,7 @@ const initial: FormState = {
   clothing: "",
   look_notes: "",
   photos: [],
+  photo_note: "",
   theme_photos: [],
   theme_1: "",
   theme_2: "",
@@ -115,6 +122,7 @@ const initial: FormState = {
   shipping_zip: "",
   other_notes: "",
   gift_message: "",
+  friends_code: "",
   consent: false,
 };
 
@@ -574,6 +582,17 @@ export default function OrderForm() {
                     </label>
                   )}
                 </div>
+                {state.photos.length > 0 && (
+                  <label>
+                    Who&rsquo;s in the photo? (only needed if it shows more than one person)
+                    <input
+                      value={state.photo_note}
+                      onChange={(e) => update("photo_note", e.target.value)}
+                      placeholder={`e.g. "${state.child_name || "Reeva"} is the one in the middle — the other two are her friends"`}
+                      maxLength={200}
+                    />
+                  </label>
+                )}
               </div>
             </div>
           )}
@@ -760,6 +779,17 @@ export default function OrderForm() {
                 />
               </label>
 
+              <label>
+                Friends &amp; family code (optional)
+                <input
+                  value={state.friends_code}
+                  onChange={(e) => update("friends_code", e.target.value)}
+                  placeholder="Have a code? Enter it here to skip payment."
+                  maxLength={40}
+                  autoComplete="off"
+                />
+              </label>
+
               <label
                 style={{
                   flexDirection: "row",
@@ -810,10 +840,12 @@ export default function OrderForm() {
             {step === TOTAL_STEPS && (
               <button type="submit" className="button primary" disabled={submitting}>
                 {submitting
-                  ? "Redirecting to checkout..."
-                  : isSubscription
-                    ? "Subscribe & checkout"
-                    : "Continue to secure checkout"}
+                  ? state.friends_code.trim() ? "Placing your order..." : "Redirecting to checkout..."
+                  : state.friends_code.trim()
+                    ? "Place order — no payment"
+                    : isSubscription
+                      ? "Subscribe & checkout"
+                      : "Continue to secure checkout"}
               </button>
             )}
           </div>
@@ -824,7 +856,7 @@ export default function OrderForm() {
                 <li><span aria-hidden="true">&#128274;</span> Secure Stripe checkout</li>
                 <li><span aria-hidden="true">&#128179;</span> Visa, MC, Amex, Apple Pay</li>
                 <li><span aria-hidden="true">&#9993;</span> Email support, real replies</li>
-                <li><span aria-hidden="true">&#8617;</span> Free reprint or refund if it&apos;s not right</li>
+                <li><span aria-hidden="true">&#8617;</span> Love-it guarantee &mdash; we&apos;ll make it right</li>
               </ul>
               <p style={{ textAlign: "center", fontSize: ".85rem", marginTop: 6 }}>
                 Payment is processed securely by Stripe. We never see your card details.

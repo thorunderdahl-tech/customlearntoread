@@ -104,12 +104,30 @@ export function pickCombination(levelId: string, avoidKeys: string[] = []): Stor
   return best ?? compose(levelId);
 }
 
+/** Rebuild the full StoryPlan from a saved combination key
+ * (template|arc|setting|tone|objective). Lets the revise step recover the plan a
+ * draft was written to — revisions that lose the plan are the main way stories
+ * flatten into page catalogs. */
+export function planFromKey(key: string | undefined): StoryPlan | undefined {
+  if (!key) return undefined;
+  const [tId, aId, setting, tone, oId] = key.split("|");
+  const t = TEMPLATES.find((x) => x.id === tId);
+  const a = ARCS.find((x) => x.id === aId);
+  const o = OBJECTIVES.find((x) => x.id === oId);
+  if (!t || !a || !o || !setting || !tone) return undefined;
+  return {
+    key, template: t.id, templateName: t.name, beats: t.beats,
+    arc: a.id, arcName: a.name, arcTone: a.tone, arcResolution: a.resolution,
+    setting, tone, objective: o.id, objectivePhrase: o.phrase,
+  };
+}
+
 /** Prompt-ready description of the plan, telling the model exactly what to write. */
 export function describePlan(plan: StoryPlan): string {
   return `STORY PLAN — this is a STORY with a real beginning, middle, and end, NOT a list of similar pages. Make it specific and fresh:
 - Structure: follow the "${plan.templateName}" shape — ${plan.beats.join(" → ")}. Walk through these beats IN ORDER across the pages: open on the child and their goal, build through the middle beats, hit the small challenge around two-thirds of the way in, then land the final beat on the LAST page(s) as a clear, happy resolution. Each page advances to the next beat — no page could be shuffled or removed without breaking the story.
-- Arc & feeling: ${plan.arcName} — ${plan.arcTone}. Overall tone: ${plan.tone}.
-- Setting: ${plan.setting} (adapt it naturally to the book's topic).
+- Arc & feeling: ${plan.arcName} — ${plan.arcTone}. Overall tone: ${plan.tone}. If the tone word fights the arc's feeling, the ARC wins — never bend the story to force a tone.
+- Setting: ${plan.setting} (adapt it naturally to the book's topic — if the setting fights the topic, keep the TOPIC and shrink the setting to fit: "a beach" can become the sandbox, "a mountain" the big hill in the park).
 - The child's goal: they want to ${plan.objectivePhrase}. Establish it early; the whole book is the child working toward it.
 - How it resolves: through ${plan.arcResolution}. The CHILD succeeds through their own effort, kindness, or cleverness — never luck, coincidence, or an adult taking over. The final page MUST show that success and a warm, satisfying ending — do not just stop.
 

@@ -62,11 +62,11 @@ export default function PersonalizedBookForName({ params }: { params: { name: st
     },
     {
       q: `What reading level will ${name}'s book be?`,
-      a: `You pick the level when you order, from brand-new reader to confident reader. We write ${name}'s story to match, with big text, simple words, and lots of repetition for early readers.`,
+      a: `You pick the level when you order, from Level 1 (Tiny Reader, brand-new) to Level 4 (Confident Reader). We write ${name}'s story to match, with big text, simple words, and lots of repetition for early readers.`,
     },
     {
       q: `How fast can I get it?`,
-      a: `Digital PDFs are emailed within 5 business days. Printed books typically ship within 7–10 business days, with free US shipping. Need it sooner? Add Rush production at checkout.`,
+      a: `Digital PDFs are emailed within 5 business days. Printed books typically ship within 7–10 business days, with free US shipping. Need it sooner? Rush production is offered right after you order.`,
     },
   ];
 
@@ -81,7 +81,7 @@ export default function PersonalizedBookForName({ params }: { params: { name: st
           <p className="subhead">
             Give {name} a learn-to-read book they&apos;ll actually want to read —
             made with their name, their look, and the things {name} loves, and
-            written at exactly the right reading level.
+            written at the reading level they&apos;re ready for.
           </p>
           <div className="cta-row">
             <Link className="button primary" href={orderHref}>

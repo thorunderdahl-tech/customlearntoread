@@ -6,7 +6,7 @@ import {
   orderInfoFromFields, buildGeneratePrompt, buildGradePrompt, buildRevisePrompt,
   STORY_SYSTEM, type OrderInfo, type StoryExtras,
 } from "@/lib/story";
-import { pickCombination } from "@/lib/reading/storySystem";
+import { pickCombination, planFromKey } from "@/lib/reading/storySystem";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -67,7 +67,9 @@ export async function POST(req: NextRequest) {
       // that differs from this child's previous books.
       const avoidKeys = await priorCombinationKeys(rec.fields["Parent email"], order.childName, body.recordId);
       const plan = pickCombination(level.id, avoidKeys);
-      const raw = await claude({ system: STORY_SYSTEM, user: buildGeneratePrompt(order, level, pageCount, extras, plan), maxTokens: 6000 });
+      // 8000 output tokens: a 24-page book with adultLines + rich artPrompts can
+      // exceed 6000, which truncated the JSON mid-draft.
+      const raw = await claude({ system: STORY_SYSTEM, user: buildGeneratePrompt(order, level, pageCount, extras, plan), maxTokens: 8000 });
       const draft = parseJsonBlock<StoryDraft>(raw);
       draft.combination = { key: plan.key, template: plan.template, arc: plan.arc, setting: plan.setting, tone: plan.tone, objective: plan.objective };
       const check = checkStory(draft, level);
@@ -87,7 +89,16 @@ export async function POST(req: NextRequest) {
       const draft = body.draft as StoryDraft;
       const level = LEVELS.find((l) => l.id === draft.levelId) || LEVELS[1];
       const issues = (body.issues as string[]) || [];
-      const raw = await claude({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, issues), maxTokens: 6000 });
+      // Recover the story plan the draft was written to (revising without it is
+      // how stories flatten into page catalogs), and re-state the order extras so
+      // a revision can't drop a must-use word or reintroduce an avoided one.
+      const plan = planFromKey(draft.combination?.key);
+      const extras: StoryExtras = {
+        emotionalGoal: body.emotionalGoal || undefined,
+        mustUseWords: body.mustUseWords || undefined,
+        avoidWords: body.avoidWords || undefined,
+      };
+      const raw = await claude({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, issues, plan, extras), maxTokens: 8000 });
       const revised = parseJsonBlock<StoryDraft>(raw);
       const check = checkStory(revised, level);
       return NextResponse.json({ draft: revised, check });

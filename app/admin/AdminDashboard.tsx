@@ -156,6 +156,7 @@ export default function AdminDashboard({ initialOrders, loadError }: Props) {
           <p className="sub">Manage and fulfill customer orders.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <a className="admin-btn" href="/admin/review">Review queue</a>
           <button className="admin-btn" onClick={() => window.location.reload()}>
             Refresh
           </button>

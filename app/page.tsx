@@ -42,7 +42,7 @@ export default function Home() {
             Most personalized books just put your child&apos;s name in the story.
             Ours does that too &mdash; their name, their look, the things they love
             &mdash; and it&apos;s built to actually teach reading, with every word
-            decodable at their level.
+            chosen for their level.
           </p>
           <div className="cta-row">
             <Link className="button primary" href="/order">
@@ -267,25 +267,25 @@ export default function Home() {
         <div className="levels-grid">
           <article className="level-card">
             <p className="level-tag">Level 1</p>
-            <h3>Brand-new reader</h3>
+            <h3>Tiny Reader</h3>
             <p className="sample">&ldquo;Sam can run.&rdquo;</p>
             <p>One short sentence per page. Big text. Lots of repetition.</p>
           </article>
           <article className="level-card">
             <p className="level-tag">Level 2</p>
-            <h3>Very early reader</h3>
+            <h3>Beginner Reader</h3>
             <p className="sample">&ldquo;Sam runs to the ball.&rdquo;</p>
-            <p>Simple action words. Predictable patterns. Confidence-building.</p>
+            <p>Simple action words. Repeating sentence patterns. Confidence-building.</p>
           </article>
           <article className="level-card">
             <p className="level-tag">Level 3</p>
-            <h3>Growing reader</h3>
+            <h3>Growing Reader</h3>
             <p className="sample">&ldquo;Sam sees the big red ball.&rdquo;</p>
             <p>More story progression. More descriptive words. Still decodable.</p>
           </article>
           <article className="level-card">
             <p className="level-tag">Level 4</p>
-            <h3>Confident early reader</h3>
+            <h3>Confident Reader</h3>
             <p className="sample">&ldquo;Sam kicks the ball down the hill and laughs.&rdquo;</p>
             <p>Short paragraphs. Wider vocabulary. More expressive story.</p>
           </article>
@@ -344,7 +344,7 @@ export default function Home() {
             Create my book
           </Link>
           <p className="cta-microcopy">
-            Takes about 3 minutes &middot; Preview before it ships &middot; Love-it guarantee
+            Takes about 3 minutes &middot; Every page reviewed before it ships &middot; Love-it guarantee
           </p>
         </div>
       </section>
@@ -397,7 +397,8 @@ export default function Home() {
             Every book is custom-made, so if something&apos;s off &mdash; a
             name spelled wrong, a theme that didn&apos;t land, art that
             doesn&apos;t feel right &mdash; just reply to your order email.
-            We&apos;ll redo it for free or refund you. We want kids excited
+            We&apos;ll work with you to make it right: a revision, a reprint,
+            or a refund where that&apos;s the fair answer. We want kids excited
             about reading, not stuck with a book that doesn&apos;t feel right.
           </p>
         </div>
@@ -421,8 +422,9 @@ export default function Home() {
             <p>
               Decodable. Words are restricted to the phonics patterns taught
               by that level, plus a small, tracked set of high-frequency
-              &ldquo;heart words.&rdquo; Illustrations support meaning, but
-              your child reads the words &mdash; not the picture.{" "}
+              &ldquo;heart words.&rdquo; At Level 4, the decodable scaffolding
+              gradually comes off &mdash; by design. Illustrations support
+              meaning, but your child reads the words &mdash; not the picture.{" "}
               <Link href="/reading-approach">See how we choose every word &rarr;</Link>
             </p>
           </details>
@@ -431,8 +433,8 @@ export default function Home() {
             <p>
               We don&apos;t claim proven outcomes. We build on
               structured-literacy principles and publish our method &mdash;
-              the skills matrix, the word-choice rules, even the word list at
-              the back of every book &mdash; so you can judge it yourself.
+              the skills matrix, the word-choice rules, even the practiced-word
+              list at the back of every book &mdash; so you can judge it yourself.
             </p>
           </details>
           <details>
@@ -502,9 +504,11 @@ export default function Home() {
           <details>
             <summary>What if we don&apos;t love it?</summary>
             <p>
-              Tell us what to fix and we&apos;ll redo the book for free, or
-              refund you. We want kids excited about reading &mdash; not stuck
-              with a book that doesn&apos;t feel right.
+              Tell us what to fix and we&apos;ll work with you to make it
+              right &mdash; a revision, a reprint, or a refund where that&apos;s
+              the fair answer. We want kids excited about reading &mdash; not
+              stuck with a book that doesn&apos;t feel right. See our{" "}
+              <Link href="/guarantee">love-it guarantee</Link> for the details.
             </p>
           </details>
         </div>

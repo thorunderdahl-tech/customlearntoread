@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { listOrders, updateOrderRecord } from "@/lib/airtable";
+import { signTag } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,7 +83,10 @@ async function run(req: NextRequest) {
     const age = now - new Date(o.createdTime).getTime();
     if (age < MIN_AGE_MS || age > MAX_AGE_MS) continue;
 
-    const resumeUrl = `${siteUrl}/api/resume?id=${encodeURIComponent(o.id)}`;
+    // Signed so the resume link can't be used to enumerate order ids / spin up
+    // checkout sessions for arbitrary records (see app/api/resume/route.ts).
+    const resumeSig = await signTag(o.id, "resume");
+    const resumeUrl = `${siteUrl}/api/resume?id=${encodeURIComponent(o.id)}&s=${resumeSig}`;
     try {
       await resend.emails.send({
         from: fromEmail,

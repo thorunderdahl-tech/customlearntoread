@@ -6,7 +6,7 @@
 // The earliest books are BOB-Books-like: ONE sentence per page, pictures carry
 // the story; the top level opens up to short paragraphs and richer language.
 
-import { phonicsDecodable, wordMaxLevel } from "./reading/phonics";
+import { phonicsDecodable, wordMaxLevel, hasBlend } from "./reading/phonics";
 
 export type LevelId = "tiny" | "beginner" | "growing" | "confident";
 
@@ -66,7 +66,7 @@ export const LEVELS: Level[] = [
     formPrefixes: ["Level 1"],
     rules: { sentencesPerPage: [1, 1], minWordsPerPage: 1, maxWordsPerPage: 3, stretchWordsPerPage: 4, stretchPageShare: 0.30, maxAvgWordLength: 4.5, nameOnPageShare: 0.5, allowCommas: false, allowContractions: false, allowDialogue: false, decodability: "strict", phonicsCeiling: 3, heartCeiling: 2, sightWordBudget: [12, 15], patternMin: 8, storyWordMax: 5 },
     promptRules:
-      "This book TEACHES a phonics-first backbone AND tells a real little story — decodable-reader meets a simple story arc — across about 16 pages. VOCABULARY (phonics-first): build the book from short, decodable words the child can sound out (short-vowel CVC and simple words: cat, Sam, run, hop, big, red, sit, dog, sun, bug, jump, nest) PLUS a small set of HEART WORDS — common words taught before they are decodable, learned by sounding out the regular parts and remembering the tricky part: I, the, a, is, to, see, my, look, we, go, and, you, he, she, play, down, now. PREFER words the child can SOUND OUT — reach for a heart word only when a decodable one won't fit, so the child gets as much phonics practice as possible. Do NOT use words that need vowel teams, diphthongs or other patterns a brand-new reader hasn't met (avoid: with, that, want, saw, out, where, said — these come at higher levels). Choose about 12-15 different words total. At least 8 are PATTERN words you REUSE across many pages (the practiced backbone), and up to 5 may be STORY words used on just ONE page to carry a single plot beat (the thing is lost, the search, the find). TOPIC CLUSTER: on top of that you may use the book's main topic word PLUS up to 2 related theme words (e.g. hockey + puck + goal, or princess + crown + castle) — repetition and the pictures teach those. Plus the child's name. PAGES: exactly ONE tiny sentence or label per page, 1-3 words (e.g. 'A cat.', 'Sam hops.', 'Big dog!'). A few pages — no more than a THIRD of the book — may stretch to 4 words if it reads more naturally, but keep MOST pages at 1-3. STORY ARC — the pages must walk a real arc IN ORDER: meet the child, the goal/object appears, play and build, a small problem, the search, the find, a happy ending. Each page ADVANCES the story — no page could be shuffled or removed. Use one strong repeating sentence pattern with one slot changing to move the story forward. NO two pages may have identical text. Present tense. No commas, no dialogue.",
+      "This book TEACHES a phonics-first backbone AND tells a real little story — decodable-reader meets a simple story arc — across about 16 pages. VOCABULARY (phonics-first): build the book from short, decodable words the child can sound out (short-vowel CVC and simple words: cat, Sam, run, hop, big, red, sit, dog, sun, bug, jump, nest) PLUS a small set of HEART WORDS — common words taught before they are decodable, learned by sounding out the regular parts and remembering the tricky part: I, the, a, is, to, see, my, look, we, go, and, you, he, she, play, down, now. PREFER words the child can SOUND OUT — reach for a heart word only when a decodable one won't fit, so the child gets as much phonics practice as possible. Keep MOST sound-out words pure CVC (cat, hop, sun, big) — blending FOUR sounds (jump, nest, fast) is this level's hardest skill, so use AT MOST 2-3 blend words in the whole book, chosen for the story. Do NOT use words that need vowel teams, diphthongs or other patterns a brand-new reader hasn't met (avoid: with, that, want, saw, out, where, said — these come at higher levels). Choose about 12-15 different words total. At least 8 are PATTERN words you REUSE across many pages (the practiced backbone), and up to 5 may be STORY words used on just ONE page to carry a single plot beat (the thing is lost, the search, the find). TOPIC CLUSTER: on top of that you may use the book's main topic word PLUS up to 2 related theme words (e.g. hockey + puck + goal, or princess + crown + castle) — repetition and the pictures teach those. Plus the child's name. PAGES: exactly ONE tiny sentence or label per page, 1-3 words (e.g. 'A cat.', 'Sam hops.', 'Big dog!'). A few pages — no more than a THIRD of the book — may stretch to 4 words if it reads more naturally, but keep MOST pages at 1-3. STORY ARC — the pages must walk a real arc IN ORDER: meet the child, the goal/object appears, play and build, a small problem, the search, the find, a happy ending. Each page ADVANCES the story — no page could be shuffled or removed. Use one strong repeating sentence pattern with one slot changing to move the story forward. NO two pages may have identical text. Present tense. No commas, no dialogue.",
   },
   {
     id: "beginner",
@@ -148,9 +148,13 @@ const words = (t: string) => t.split(/\s+/).map((w) => w.replace(/[^A-Za-z'’-]
 // marks them. Everything NOT here is gated purely by decodability (lib/reading/
 // phonics.ts) — so the vocabulary is phonics-first, not a whole-word sight list.
 // [word, introLevel (1-10 master scope), isTrueHeartWord].
+// Extends the reading-system-foundation list by design (pedagogy review D6):
+// the extra words (look, play, down, now, out, saw, put, want, how, good, too,
+// school, and the D3 open-syllable set no/so/be/hi) are high-frequency early
+// words every real Tiny/Beginner book needs; this table is the canon.
 const HEART_WORD_TABLE: [string, number, boolean][] = [
   ["I", 1, true], ["the", 1, true], ["a", 1, true], ["is", 1, true], ["to", 1, true], ["see", 1, false], ["my", 1, true], ["look", 1, false],
-  ["we", 2, true], ["like", 2, false], ["go", 2, true], ["and", 2, false], ["you", 2, true], ["he", 2, true], ["she", 2, true], ["play", 2, false], ["down", 2, false], ["now", 2, false],
+  ["we", 2, true], ["like", 2, false], ["go", 2, true], ["and", 2, false], ["you", 2, true], ["he", 2, true], ["she", 2, true], ["play", 2, false], ["down", 2, false], ["now", 2, false], ["no", 2, true], ["so", 2, true], ["be", 2, true], ["hi", 2, true],
   ["me", 3, true], ["was", 3, true], ["are", 3, true], ["for", 3, false], ["of", 3, true], ["they", 3, true], ["have", 3, true], ["out", 3, false], ["saw", 3, false],
   ["said", 4, true], ["do", 4, true], ["what", 4, true], ["come", 4, true], ["some", 4, true], ["put", 4, true], ["want", 4, true], ["how", 4, false],
   ["here", 5, false], ["there", 5, true], ["where", 5, true], ["one", 5, true], ["two", 5, true], ["good", 5, false], ["too", 5, false], ["school", 5, false],
@@ -215,8 +219,24 @@ function wordFitsLevel(w: string, r: LevelRules): boolean {
 const MAX_TOPIC_EXEMPTIONS = 3; // the book's topic word + up to 2 related theme words (e.g. hockey/puck/goal) get a free pass, not every repeated hard word
 const CONTRACTION_RE = /\w(n['’]t|['’](ll|re|ve|m|d))\b/i; // possessive 's is fine and deliberately not flagged
 
+/** All normalized forms of the child's name: the full collapsed name PLUS each
+ * word of a multi-word or hyphenated name ("Mary Jane" -> maryjane, mary, jane).
+ * Page tokens are single words, so the parts are what actually appear in text —
+ * matching only the collapsed form made two-word names fail the name-share check
+ * AND flag "Mary" as un-decodable, so Level 1-2 books could never converge. */
+function nameForms(childName: string | undefined): Set<string> {
+  const forms = new Set<string>();
+  const full = norm(childName || "");
+  if (full) forms.add(full);
+  (childName || "").split(/[\s-]+/).forEach((p) => {
+    const n = norm(p);
+    if (n.length >= 2) forms.add(n);
+  });
+  return forms;
+}
+
 interface VocabAnalysis {
-  nameNorm: string;
+  nameSet: Set<string>; // every accepted form of the child's name
   castNames: Set<string>;
   topicWords: Set<string>;
   corePages: Map<string, Set<number>>; // core teaching word -> pages it appears on
@@ -227,23 +247,37 @@ interface VocabAnalysis {
  * names, the topic cluster, and the remaining CORE teaching words with the pages
  * each appears on — so the printed word list can never drift from what the
  * validator counts. */
-function analyzeVocab(draft: Pick<StoryDraft, "pages" | "childName">, r: LevelRules): VocabAnalysis {
-  const nameNorm = norm(draft.childName || "");
+function analyzeVocab(draft: Pick<StoryDraft, "pages" | "childName" | "castDescriptions" | "companionDescription">, r: LevelRules): VocabAnalysis {
+  const nameSet = nameForms(draft.childName);
   // Cast names: words capitalized on every occurrence and present on 2+ pages
-  // read like the child's own name — taught by the pictures.
-  const caseSeen = new Map<string, { cap: number; lower: number; pages: Set<number> }>();
+  // read like the child's own name — taught by the pictures. Guarded against a
+  // false positive: a plain word that only ever STARTS sentences ("Splash! …
+  // Splash!") is always capitalized too, so a cast name must also be capitalized
+  // mid-sentence somewhere OR be named in the castDescriptions lock.
+  const caseSeen = new Map<string, { cap: number; lower: number; midCap: number; pages: Set<number> }>();
   draft.pages?.forEach((p) => {
-    p.text.split(/\s+/).forEach((raw) => {
+    let sentStart = true;
+    p.text.split(/\s+/).filter(Boolean).forEach((raw) => {
       const cleaned = raw.replace(/[^A-Za-z'’-]/g, "");
+      const wasStart = sentStart;
+      sentStart = /[.!?]["“”]?$/.test(raw);
       if (!cleaned) return;
       const w = norm(cleaned);
-      const rec = caseSeen.get(w) || { cap: 0, lower: 0, pages: new Set<number>() };
-      if (/^[A-Z]/.test(cleaned)) rec.cap++; else rec.lower++;
+      const rec = caseSeen.get(w) || { cap: 0, lower: 0, midCap: 0, pages: new Set<number>() };
+      if (/^[A-Z]/.test(cleaned)) { rec.cap++; if (!wasStart) rec.midCap++; } else rec.lower++;
       rec.pages.add(p.n);
       caseSeen.set(w, rec);
     });
   });
-  const castNames = new Set([...caseSeen].filter(([, x]) => x.lower === 0 && x.cap > 0 && x.pages.size >= 2).map(([w]) => w));
+  // Capitalized names appearing in the cast appearance locks count as evidence.
+  const castDescNames = new Set<string>();
+  [...(draft.castDescriptions || []), draft.companionDescription || ""].forEach((d) =>
+    (d.match(/\b[A-Z][a-z'’-]+/g) || []).forEach((m) => { const n = norm(m); if (n.length >= 2) castDescNames.add(n); }));
+  const castNames = new Set(
+    [...caseSeen]
+      .filter(([w, x]) => x.lower === 0 && x.cap > 0 && x.pages.size >= 2 && (x.midCap > 0 || castDescNames.has(w)))
+      .map(([w]) => w),
+  );
   // Topic cluster: the top MAX_TOPIC_EXEMPTIONS words repeated on 3+ pages that are
   // too long/undecodable — the topic word + related theme words, taught by
   // repetition and pictures (e.g. hockey/puck/goal).
@@ -253,7 +287,7 @@ function analyzeVocab(draft: Pick<StoryDraft, "pages" | "childName">, r: LevelRu
   });
   const topicWords = new Set(
     [...pageOccurrences]
-      .filter(([w, n]) => n >= 3 && w !== nameNorm && (r.decodability === "none" ? w.length > r.maxAvgWordLength : !wordFitsLevel(w, r)))
+      .filter(([w, n]) => n >= 3 && !nameSet.has(w) && (r.decodability === "none" ? w.length > r.maxAvgWordLength : !wordFitsLevel(w, r)))
       .sort((a, b) => b[1] - a[1])
       .slice(0, MAX_TOPIC_EXEMPTIONS)
       .map(([w]) => w),
@@ -262,19 +296,19 @@ function analyzeVocab(draft: Pick<StoryDraft, "pages" | "childName">, r: LevelRu
   const corePages = new Map<string, Set<number>>();
   draft.pages?.forEach((p) => {
     words(p.text).map(norm).forEach((w) => {
-      if (!w || w === nameNorm || topicWords.has(w) || castNames.has(w)) return;
+      if (!w || nameSet.has(w) || topicWords.has(w) || castNames.has(w)) return;
       if (!corePages.has(w)) corePages.set(w, new Set());
       corePages.get(w)!.add(p.n);
     });
   });
-  return { nameNorm, castNames, topicWords, corePages };
+  return { nameSet, castNames, topicWords, corePages };
 }
 
 /** The practiced "pattern words" a book teaches: core teaching words that repeat
  * on 2+ pages (the backbone the child drills). Excludes the child's name, cast
  * names, topic-cluster words, and single-use "story words". This is exactly the
  * list the "Words in This Book" page should show. */
-export function patternWords(draft: Pick<StoryDraft, "pages" | "childName">, level: Level): string[] {
+export function patternWords(draft: Pick<StoryDraft, "pages" | "childName" | "castDescriptions" | "companionDescription">, level: Level): string[] {
   const { corePages } = analyzeVocab(draft, level.rules);
   return [...corePages.entries()].filter(([, pages]) => pages.size >= 2).map(([w]) => w).sort();
 }
@@ -284,7 +318,6 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   const problems: string[] = [];
   const warnings: string[] = [];
   const r = level.rules;
-  const nameNorm = norm(draft.childName || "");
   let totalWords = 0;
   let pagesWithName = 0;
   const vocab = new Set<string>();
@@ -294,8 +327,9 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
 
   // Cast names, topic-cluster words, and the core teaching-word page map — shared
   // with patternWords() so the printed "Words in This Book" list can't drift from
-  // what the validator counts here.
-  const { castNames, topicWords, corePages } = analyzeVocab(draft, r);
+  // what the validator counts here. nameSet covers every form of a multi-word or
+  // hyphenated name ("Mary Jane" -> mary, jane, maryjane).
+  const { nameSet, castNames, topicWords, corePages } = analyzeVocab(draft, r);
 
   draft.pages?.forEach((p) => {
     const ws = words(p.text);
@@ -316,7 +350,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     } else if (ws.length > r.maxWordsPerPage) {
       stretchPages.push(p.n);
     }
-    const nonName = ws.filter((w) => norm(w) !== nameNorm && !topicWords.has(norm(w)) && !castNames.has(norm(w)));
+    const nonName = ws.filter((w) => !nameSet.has(norm(w)) && !topicWords.has(norm(w)) && !castNames.has(norm(w)));
     if (nonName.length) {
       const avg = nonName.reduce((a, w) => a + w.length, 0) / nonName.length;
       if (avg > r.maxAvgWordLength)
@@ -332,12 +366,12 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     // Decodability: every word must be readable at this level.
     if (r.decodability !== "none") {
       const hard = [...new Set(ws.map(norm))].filter(
-        (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, r),
+        (w) => w && !nameSet.has(w) && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, r),
       );
       if (hard.length)
         problems.push(`Page ${p.n}: word(s) the child can't decode at this level: ${hard.join(", ")} — swap for heart words or short phonetic words.`);
     }
-    if (nameNorm && p.text.split(/\s+/).some((w) => norm(w) === nameNorm)) pagesWithName++;
+    if (nameSet.size && p.text.split(/\s+/).some((w) => nameSet.has(norm(w)))) pagesWithName++;
     if (!p.artPrompt || p.artPrompt.length < 20) problems.push(`Page ${p.n}: illustration direction missing or too thin.`);
   });
 
@@ -388,13 +422,13 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   // The title must be readable by the child too (name + topic words are fine).
   if (draft.title && r.decodability !== "none") {
     const hardTitle = [...new Set(words(draft.title).map(norm))].filter(
-      (w) => w && w !== nameNorm && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, { ...r, decodability: "moderate", phonicsCeiling: Math.max(r.phonicsCeiling ?? 6, 6) }),
+      (w) => w && !nameSet.has(w) && !topicWords.has(w) && !castNames.has(w) && !wordFitsLevel(w, { ...r, decodability: "moderate", phonicsCeiling: Math.max(r.phonicsCeiling ?? 6, 6) }),
     );
     if (hardTitle.length)
       problems.push(`Title: word(s) too hard for this level: ${hardTitle.join(", ")}.`);
   }
 
-  if (draft.pages?.length && nameNorm) {
+  if (draft.pages?.length && nameSet.size) {
     const share = pagesWithName / draft.pages.length;
     if (share < r.nameOnPageShare)
       problems.push(`Child's name appears on ${Math.round(share * 100)}% of pages — needs ≥ ${Math.round(r.nameOnPageShare * 100)}% (the child is the hero).`);
@@ -408,6 +442,14 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
   if (!fq || !fq.who?.trim() || !fq.what?.trim() || !fq.why?.trim() || !fq.how?.trim())
     problems.push("Missing the four-questions spine (who / what / why / how) — fill the fourQuestions field so the book has a clear goal, reason, and resolution.");
 
+  // D2 soft cap (warning, never blocks): blends are legal at the lowest level
+  // but should be rare — most words should be pure CVC for a brand-new reader.
+  if ((r.phonicsCeiling ?? 99) <= 3 && draft.pages?.length) {
+    const blendWords = [...corePages.keys()].filter((w) => !HEART_LEVEL.has(w) && hasBlend(w));
+    if (blendWords.length > 3)
+      warnings.push(`Blend-heavy for a first reader: ${blendWords.length} core words use consonant blends (${blendWords.join(", ")}) — prefer pure CVC (cat, hop, sun); keep blend words (jump, nest) to ~3 or fewer.`);
+  }
+
   // Soft reading checks (warnings, never block): does the book both REVIEW earlier
   // patterns and PRACTICE its own level's new focus? Uses the grapheme engine.
   if (r.newFocusFrom) {
@@ -416,7 +458,7 @@ export function checkStory(draft: StoryDraft, level: Level): CheckResult {
     draft.pages?.forEach((p) => {
       words(p.text).forEach((raw) => {
         const w = norm(raw);
-        if (!w || w === nameNorm || castNames.has(w) || topicWords.has(w)) return;
+        if (!w || nameSet.has(w) || castNames.has(w) || topicWords.has(w)) return;
         if (HEART_LEVEL.has(w)) return; // heart / high-frequency words aren't phonics-decoding practice
         const ml = wordMaxLevel(w);
         if (ml == null) return; // not phonically decodable — handled by sight-word rules

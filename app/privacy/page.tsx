@@ -11,20 +11,36 @@ export default function Privacy() {
       </p>
       <h2>What we collect</h2>
       <p>
-        From you: your name, email, shipping address (for physical books), and
-        the personalization details you enter about your child — name, age,
-        appearance, reading level, themes, and any optional notes.
+        From you: your name, email, shipping address (for physical books), the
+        personalization details you enter about your child &mdash; name, age,
+        appearance, reading level, themes, and any optional notes &mdash; and
+        any reference photos you choose to upload.
       </p>
       <p>
-        From Stripe: a payment confirmation. We do not see or store your card
-        details — Stripe handles payment processing.
+        From our payment processor: a payment confirmation. We do not see or
+        store your card details &mdash; payment is handled entirely by the
+        processor.
       </p>
       <h2>How we use it</h2>
       <p>
         We use these details only to create and ship your custom book and to
-        contact you about your order. We do not sell or share personal
-        information, child details, or uploaded photos with anyone outside our
-        small production team.
+        contact you about your order. We never sell personal information, and
+        we never use your child&apos;s details or photos for marketing or
+        advertising.
+      </p>
+      <h2>Service providers</h2>
+      <p>
+        Like most small businesses, we rely on a few trusted service providers
+        to run the shop, and we share with each one only what it needs to do
+        its job: payment processing, photo hosting, AI-assisted illustration,
+        order storage, email delivery, printing, and website hosting.
+      </p>
+      <p>
+        <strong>AI-assisted illustration.</strong> We use AI tools to help
+        create your book&apos;s illustrations. The appearance details and any
+        reference photos you provide are processed by an AI illustration
+        service solely to draw your child&apos;s character and their favorite
+        things for your book.
       </p>
       <h2>Children&apos;s information</h2>
       <p>
@@ -34,12 +50,17 @@ export default function Privacy() {
       </p>
       <h2>Retention</h2>
       <p>
-        Order records are kept for tax and customer-service purposes.
-        Personalization details can be deleted on request — email us and
+        Uploaded photos are deleted after your first book is delivered. Order
+        records are kept for tax and customer-service purposes. Other
+        personalization details can be deleted on request &mdash; email us and
         we&apos;ll remove them.
       </p>
       <h2>Contact</h2>
-      <p>Questions? Reply to your order email or contact us through the site.</p>
+      <p>
+        Questions? Email{" "}
+        <a href="mailto:customlearntoread@gmail.com">customlearntoread@gmail.com</a>{" "}
+        or reply to your order email.
+      </p>
     </div>
   );
 }

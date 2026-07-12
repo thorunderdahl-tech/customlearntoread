@@ -148,6 +148,11 @@ export function orderToAirtableFields(o: Record<string, any>): Fields {
     "Parent read-along": o.parent_read_along ? "Yes" : "",
     "Reference photos": photos.join("\n"),
     "Theme photos": themePhotos.join("\n"),
+    // Parent's casual "who's in the photo" hint. Sent ONLY when non-empty so
+    // orders without it can't fail on a missing column — but once a parent
+    // fills it, the "Photo subject" column MUST exist in Airtable (single line
+    // text) or order creation 422s. Add the column before deploying this.
+    ...(o.photo_note ? { "Photo subject": String(o.photo_note) } : {}),
   };
 }
 
@@ -179,6 +184,7 @@ export function airtableFieldsToOrder(f: Record<string, any>): Record<string, an
     shipping_address: f["Shipping address"] || "",
     other_notes: f["Other notes"] || "",
     photos: lines(f["Reference photos"]),
+    photo_note: f["Photo subject"] || "",
     theme_photos: lines(f["Theme photos"]),
   };
 }
@@ -190,7 +196,10 @@ export const FULFILLMENT_STATUSES = [
   "Pending payment",
   "Abandoned",
   "Paid",
-  "Designing",
+  "Generating", // unattended pipeline is producing the candidate (lib/pipeline.ts)
+  "Ready for review", // candidate complete, every page passed QA — approve & deliver
+  "Needs attention", // pipeline flagged pages / hit the image cap / got stuck
+  "Designing", // manual lane (admin create screen)
   "Printing",
   "Shipped",
   "Delivered",

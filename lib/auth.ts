@@ -75,3 +75,20 @@ export function checkPassword(
 export function sessionSecret(): string {
   return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || "";
 }
+
+/** Short HMAC tag binding a value (e.g. an order id) to a purpose, for signing
+ * public one-click links so they can't be enumerated or tampered. 12 base64url
+ * chars ≈ 72 bits — plenty for a link that also names a real record id.
+ * Uses the admin session secret so no new env var is required. */
+export async function signTag(value: string, purpose: string): Promise<string> {
+  const secret = sessionSecret();
+  if (!secret) return "";
+  return (await hmac(secret, `${purpose}:${value}`)).slice(0, 12);
+}
+
+/** Verify a signTag() tag in constant time. */
+export async function verifyTag(value: string, purpose: string, tag: string | undefined | null): Promise<boolean> {
+  if (!tag) return false;
+  const expected = await signTag(value, purpose);
+  return !!expected && safeEqual(tag, expected);
+}

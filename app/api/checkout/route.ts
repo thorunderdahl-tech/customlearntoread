@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
       parent_name: body.parent_name,
       child_name: body.child_name,
       look_notes: body.look_notes,
+      photo_note: body.photo_note,
       clothing: body.clothing,
       special_details: body.special_details,
       other_notes: body.other_notes,
@@ -118,6 +119,40 @@ export async function POST(req: NextRequest) {
     const photos = Array.isArray(body.photos) ? body.photos.filter(isOurPhoto).slice(0, 3) : [];
     const themePhotos = Array.isArray(body.theme_photos) ? body.theme_photos.filter(isOurPhoto).slice(0, 3) : [];
 
+    // ---- Friends & family / tester bypass ----------------------------------
+    // A matching code (env FRIENDS_CODE, default FAMILYANDFRIENDS) skips Stripe
+    // entirely: the order files straight to Airtable as Paid, flows through the
+    // normal admin + pipeline path, and the buyer lands on the regular success
+    // page. Checked server-side only; the order is labeled in the Add-ons
+    // column so it can never be mistaken for revenue. No webhook fires, so no
+    // payment emails go out — it appears in the admin dropdown and daily digest.
+    const enteredCode = String(body.friends_code || "").replace(/[\s-]/g, "").toUpperCase();
+    if (enteredCode) {
+      const friendsCode = (process.env.FRIENDS_CODE || "FAMILYANDFRIENDS").replace(/[\s-]/g, "").toUpperCase();
+      if (enteredCode !== friendsCode) {
+        return NextResponse.json(
+          { error: "That friends & family code isn't valid — double-check it, or clear the field to pay by card." },
+          { status: 400 },
+        );
+      }
+      if (!airtableConfigured()) {
+        return NextResponse.json({ error: "Friends & family orders aren't available right now — please try again later." }, { status: 503 });
+      }
+      const recordId = await createOrderRecord({
+        ...orderToAirtableFields({
+          ...body,
+          product_name: product.name,
+          photos,
+          theme_photos: themePhotos,
+          add_ons: [body.add_ons, "FRIENDS & FAMILY — no payment (code)"].filter(Boolean).join(" | "),
+        }),
+        Status: "Paid",
+      });
+      return NextResponse.json({
+        url: `${siteUrl}/order/success?ff=1${body.parent_read_along ? "&rla=1" : ""}&pid=${encodeURIComponent(product.id)}${recordId ? `&oid=${recordId}` : ""}`,
+      });
+    }
+
     const metadata: Record<string, string> = {
       product_id: product.id,
       product_name: product.name,
@@ -143,6 +178,9 @@ export async function POST(req: NextRequest) {
     };
     if (photos.length > 0) {
       metadata.photos = truncate(photos.join(" "));
+    }
+    if (body.photo_note) {
+      metadata.photo_note = truncate(body.photo_note);
     }
     if (themePhotos.length > 0) {
       metadata.theme_photos = truncate(themePhotos.join(" "));
@@ -195,7 +233,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
-    console.error("checkout error", err);
+    // Log only the message — the full error can echo request params (PII).
+    console.error("checkout error:", err?.message || err);
     return NextResponse.json(
       { error: err?.message || "Checkout failed" },
       { status: 500 },

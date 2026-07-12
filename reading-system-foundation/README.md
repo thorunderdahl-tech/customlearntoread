@@ -1,5 +1,12 @@
 # CustomLearnToRead — Story Generation System
 
+> **⚠️ ARCHIVED DESIGN DOCUMENT (July 2026).** The canonical, shipped scope-and-sequence
+> is the TypeScript engine: `lib/reading/phonics.ts` + `lib/leveling.ts` (see
+> `docs/pedagogy-review-2026-07.md` for the reconciliation decisions). This folder is
+> kept as design history; the Python engine and JSON schemas here are NOT executed by
+> the app and have known divergences (blend ordering, final-y handling, heart-word list).
+> Do not tune pedagogy from these files.
+
 **Foundation & Architecture (v1)**
 _Last updated: 2026-07-05_
 

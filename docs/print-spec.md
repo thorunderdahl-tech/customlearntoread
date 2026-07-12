@@ -1,6 +1,14 @@
-# Print Specification — 5.5 × 8.5 Softcover (and Hardcover)
+# Print Specification — 5.5 × 8.5 (Cornerstone softcover · Lulu hardcover)
 
 Source of truth for every printed book. Enforced in `app/admin/create/CreateClient.tsx` (geometry constants at the top of the file). If a printer's requirements differ, change the constants, not scattered numbers.
+
+## Printer routing (July 2026)
+
+| Product | Printer | Output file(s) |
+|---|---|---|
+| Softcover | **Cornerstone Copy** (cornerstonecopy.com/booklets — saddle-stitch) | ONE reader-order booklet PDF, covers included |
+| Hardcover | **Lulu** | Interior PDF (no marks) + cover from Lulu's own template |
+| Digital Book | — | Flipbook + customer home-print PDF only |
 
 ## Trim, bleed, safe zone
 
@@ -19,25 +27,22 @@ All art is composited at full-bleed size (1725 × 2625 @ 300 DPI). Text and page
 - JPEG quality 0.92 for print composites.
 - Color is sRGB. KDP/Lulu accept RGB and convert; for offset printing, request a CMYK conversion proof from the printer.
 
-## The three output files
+## The output files
 
-1. **Home-print PDF** (customer): trim-size pages (396 × 612 pt), bleed cropped, cover + interior + back cover. This is the file emailed/linked to families.
-2. **Printer interior PDF**: bleed-size pages (414 × 630 pt), **no cover**, front matter + story + back matter, padded to an **even count ≥ 24 pages** (perfect-bound minimum).
-3. **Printer cover wrap PDF**: one page: back panel + spine + front panel + 0.125 in bleed all around.
-   - Spine width = interior pages × **0.002252 in** (50 lb white paper). Update the constant for cream paper (0.0025 in).
-   - Spine is a solid brand color — no spine text below ~80 pages.
-   - Reserved **barcode zone**: 2 × 1.2 in white box, 0.25 in inside the back-panel trim (spine side, bottom). Leave empty; the printer or KDP places the barcode.
+1. **Home-print PDF** (customer, every order): trim-size pages (396 × 612 pt), bleed cropped, cover + interior + back cover. This is the file emailed/linked to families.
+2. **Cornerstone booklet PDF** (softcover): ONE PDF, reader order, **covers included in the page count**, one printed side per PDF page (Cornerstone does the imposition — never supply spreads). Bleed-size pages (414 × 630 pt) with **visible crop marks** and Trim/Bleed boxes. Total page count must be a **multiple of 4 between 8 and 60**; pad pages ("My drawing") are inserted before the back cover. When ordering, "Number of Pages Including Covers" must match the PDF exactly — a mismatch puts the order ON HOLD.
+3. **Lulu interior PDF** (hardcover): bleed-size pages (414 × 630 pt), **NO crop marks** (Lulu rejects printer's marks), no cover, even count ≥ 24 (case-bind minimum). The case-wrap cover is built from **Lulu's own cover template** for the exact page count — never our wrap math (board thickness + wrap allowance live in their template).
 
-Hardcover (case-laminate) uses different wrap math (wrap allowance ~0.75 in per edge + board thickness) — get the printer's template before promising hardcover; the interior PDF is reusable as-is.
+Legacy: a perfect-bound wraparound-cover generator (`buildCoverWrap`, spine = pages × 0.002252 in, barcode zone) remains in the code unused, kept for a future KDP-style perfect-bound product.
 
 ## Interior structure
 
-Title page → copyright/dedication page → story pages (1 per spread side) → "The End" page → "Words I can read" vocabulary page → "My drawing" pad pages as needed to reach even ≥ 24.
+Bookplate ("This book belongs to…", + gift message) → optional read-along key → story pages → "The End" (cover art reprise) → "Why These Words?" page → "My drawing" pad pages as needed to hit the binding's page-count rule. Cover + back cover are part of the booklet file for Cornerstone; separate (Lulu template) for hardcover.
 
 ## Pre-flight checklist (before sending to a printer)
 
-- [ ] Interior page count even and ≥ 24
+- [ ] **Cornerstone**: total pages (incl. covers) multiple of 4, 8–60; crop marks visible; order form page count matches the PDF exactly
+- [ ] **Lulu**: interior even and ≥ 24, NO marks; cover built from Lulu's template for this exact page count
 - [ ] All pages 414 × 630 pt, art reaches bleed edges
 - [ ] No text or page numbers within 0.375 in of trim
-- [ ] Cover wrap width = 2 × 5.75 + spine; barcode zone clear
 - [ ] Order a physical proof before the first customer shipment of any new format

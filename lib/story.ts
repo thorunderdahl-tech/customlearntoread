@@ -47,6 +47,7 @@ export function orderInfoFromFields(f: Record<string, any>): OrderInfo {
 export const STORY_SYSTEM = `You create personalized learn-to-read books for the family business "Custom Learn to Read".
 THE GOAL IS NOT A STORY FOR PARENTS TO READ ALOUD. The goal is a book the child can successfully read THEMSELVES — like early BOB Books. Pictures carry most of the story; the text supports the picture.
 WRITING RULES — DO: repeat vocabulary often; repeat sentence patterns; use predictable language; use concrete nouns; use familiar actions; keep the story positive; make the child the hero on every page.
+CRAFT: a decodable book can still be a REAL book. Within the level's constraints, reach for warmth, playfulness and momentum — a sentence like "Sam hops. Hop, Sam, hop!" teaches the same words as "Sam can hop." but has a heartbeat. Never let the book read like a worksheet or a word list wearing a story costume.
 DO NOT: use long sentences; use figurative language; use complex vocabulary; use multiple actions per page; use trademarked characters; use copyrighted brands, teams, logos, or franchises (generic versions only — "a race car", never a branded one).
 DECODABLE-TEXT PRINCIPLE: this is systematic phonics, not guessing from pictures. Every word must be sound-out-able with the letter-sounds the child has been taught at their level, plus a small set of taught high-frequency "heart" words, the child's name, and the book's topic word. The exact phonics scope for this book's level is given in the level rules — a code-based phonics check rejects any word outside it, so write inside the scope the first time.
 Level rules are HARD constraints, not suggestions. You reply with a single JSON object and nothing else.
@@ -90,28 +91,29 @@ ${level.promptRules}
 
 ${describePhonicsScope(level.rules.phonicsCeiling, level.rules.decodability)}
 
-${plan ? describePlan(plan) + "\n\n" : ""}${extras.readAlong ? `PARENT READ-ALONG LINES (this order includes them): for EVERY page, also write an "adultLine" — ONE richer sentence for a grown-up to read ALOUD. It describes the SAME moment as the page's "text" but may use bigger words and fuller sentences; it is NOT limited by the child's reading level. Keep it warm and age-appropriate. The child's "text" stays exactly at level and is unchanged by this. Do not reference the adultLine in the illustration.\n\n` : ""}FORMAT:
+${plan ? describePlan(plan) + "\n\n" : ""}${extras.readAlong ? `PARENT READ-ALONG LINES (this order includes them): for EVERY page, also write an "adultLine" — ONE richer sentence for a grown-up to read ALOUD. It deepens the SAME moment as the page's "text" — adds the feeling, the why, or a sensory detail the child's line can't carry — and must NEVER just restate the child's line with bigger words ("Sam hops." + "Sam was hopping high" is a failure; "Sam hops." + "The grass tickled his toes with every bounce" is the goal). It is NOT limited by the child's reading level. Keep it warm and age-appropriate. The child's "text" stays exactly at level and is unchanged by this. Do not reference the adultLine in the illustration.\n\n` : ""}FORMAT:
 - Exactly ${pageCount} interior pages. ${sppText}. ONE illustration per page. No text blocks longer than this level allows.
 - NARRATIVE ARC IS REQUIRED — this is a story, not a word list. Map the STORY PLAN's beats across the ${pageCount} pages in order: the opening pages set up the child and their goal, the middle pages build the action through a small challenge, and the FINAL 1-2 pages MUST resolve it — the child succeeds and the book ends on a happy, satisfying beat that pays off the "how". The repeated sentence PATTERN stays (for decodability), but what HAPPENS must change and move forward every page — never a flat catalog whose pages could be reordered. (If no plan is given, use a simple beginning → small challenge → happy resolution.) One clear problem, resolved warmly.
+- PAGE-TURN PULL: end the middle pages on a small open question the NEXT page answers — the object just out of reach, the character mid-leap, eyes looking off-page toward something we can't see yet. A child should WANT to turn every page. The final page releases the tension with the warm payoff; if it can gently echo page 1 (same place or pose, now triumphant), the book feels finished like a real picture book.
 - Repeat key vocabulary throughout so earlier pages teach the words later pages use.
 
 ILLUSTRATION DIRECTIONS:
 - Each page needs an "artPrompt": 2-3 concrete sentences of art direction that carry the story visually. Always specify: (1) the child character's action and facial expression/emotion, (2) the setting and 1-2 simple background elements, (3) camera framing (e.g. "wide shot", "close-up on face", "low angle looking up") — vary framing across pages so the book feels dynamic.
 - THE PICTURES CARRY THE STORY ARC. Across the ${pageCount} pages the illustrations must follow the same beats as the text — set up the child and their goal, build the action, hit a clear problem or turning point about two-thirds through, show the effort to fix it, then land a happy resolution — with each character's face and body language changing to match the beat (curious, excited, worried, searching, relieved, joyful). No two illustrations may look the same: something visibly advances every page — a new action, a new spot, the object moving, an expression changing, the discovery. If the words were erased, a child should still be able to "read" the whole story from the pictures alone.${artSupport}
-- Refer to the hero as "the child character" and keep their appearance identical on every page.
-- EVERY other recurring character (friend, sibling, pet) MUST get an entry in "castDescriptions" locking their exact appearance (skin tone, hair, eyes, clothing / species, coloring, markings) — the illustrator and QA enforce these on every page, so a missing entry means that character will drift.
+- Refer to the hero as "the child character" and keep their appearance identical on every page. NEVER describe any character's hair, clothing, colors or appearance inside an artPrompt — appearance is locked once in characterDescription/castDescriptions, and re-describing it in a scene causes the illustrator to drift. artPrompts describe ONLY action, emotion, setting and framing.
+- EVERY other recurring character MUST get an entry in "castDescriptions" locking their exact appearance — friends and siblings (skin tone, hair, eyes, clothing), pets (species/breed, coloring, markings, collar), AND special/fantasy characters like dinosaurs, dragons, monsters, robots or imaginary friends (species/kind, body color(s) with exact shade words, belly/back/stripe/spot patterns, eye color, size relative to the child, any accessory). The illustrator and QA enforce these on every page, so a missing or vague entry means that character will change looks between pages.
 - Compose every scene with the subject and all key objects in the UPPER TWO-THIRDS of a portrait frame — the bottom of each page is covered by the reading-text band, and print trimming crops the outer edges.
 - Clean simple backgrounds, no clutter, large readable facial expressions.
 - NEVER describe any words, letters, signs, numbers, logos or brands in the illustration.
 
 Reply with ONLY this JSON shape:
 {
-  "title": "...",
+  "title": "a title with CHARM — rhythm, alliteration, or a tiny surprise ('${o.childName} and the Runaway Ball', '${o.childName} Can Zoom!', 'Hop, ${o.childName}, Hop!') — never a flat label like '${o.childName}'s Book' or '${o.childName} and the ${o.themes[0] || "Dog"}'. It must still be readable at this level (the child's name and topic words are allowed)",
   "levelId": "${level.id}",
   "childName": "${o.childName}",
-  "characterDescription": "one rich sentence locking the child character's constant appearance (hair, eyes, skin, glasses, outfit) for the illustrator",
-  "castDescriptions": ["one sentence PER recurring character other than the hero — every friend, sibling, or pet who appears on 2+ pages gets an entry locking their constant appearance: name, skin tone, hair, eyes, clothing (or species, coloring, markings, collar). Empty array only if the hero is truly alone."],
-  "coverArtPrompt": "cover illustration direction, no text in image",
+  "characterDescription": "the child character's locked appearance for the illustrator, in 1-2 exhaustively specific sentences. MUST pin: hair COLOR + exact LENGTH (e.g. 'short crop', 'chin-length bob', 'shoulder-length') + texture/style; eye color; skin tone; glasses/accessories; and the outfit garment by garment — top with its exact color and any graphic named precisely, bottoms with color, shoes with color. Vague fails ('brown hair, casual clothes' is unusable) — every attribute an illustrator could draw two different ways must be pinned to one",
+  "castDescriptions": ["one sentence PER recurring character other than the hero — every friend, sibling, pet, or special character (dinosaur, dragon, robot, imaginary friend...) who appears on 2+ pages gets an entry locking their constant appearance. Start each with the character's name, then pin: skin tone, hair, eyes, clothing garment by garment — or species/kind, exact body color(s), patterns/markings, eye color, size next to the child, accessory. Every attribute an illustrator could draw two ways must be pinned to one. Empty array only if the hero is truly alone."],
+  "coverArtPrompt": "cover illustration direction: the single most magical moment of THIS story — the child mid-action at their happiest, framed like a picture-book cover a kid would grab off the shelf. No text in image",
   "fourQuestions": { "who": "who the story is about (usually ${o.childName})", "what": "what they want", "why": "why it matters", "how": "how they succeed" },
   "pages": [ { "n": 1, "text": "...", ${extras.readAlong ? `"adultLine": "grown-up read-aloud line for this page", ` : ""}"artPrompt": "..." } ]
 }`;
@@ -140,6 +142,7 @@ FINAL CHECK — verify each:
 4. Story arc & resolution (grade strictly): the pages move through a real beginning → middle → end — setup, a small challenge, then a clear resolution where ${o.childName} SUCCEEDS, with the last page(s) delivering a happy, satisfying ending that pays off the fourQuestions "how". FAIL the draft if it reads as a flat list/catalog of similar pages with no rising action or no real ending — even if every page is individually on-level. The arc must also be visible in the ILLUSTRATIONS: the artPrompts should show scenes and emotions that clearly change and advance the plot page to page — this matters most at the lowest levels, where the words are only a caption and the pictures do the storytelling. Flag artPrompts that would produce 16 near-identical scenes.
 5. Illustration directions: concrete, uncluttered, consistent character, visually tell the story, contain NO text/brands/logos. Every recurring character other than the hero has a castDescriptions entry locking skin tone, hair and clothing — flag any recurring character that lacks one.
 6. Safety & rights: positive tone, nothing scary; NO trademarked characters or copyrighted brands anywhere.
+7. CHARM: does the title have rhythm, alliteration, or a tiny surprise (flag a flat label like "${o.childName}'s Book")? Do the middle pages create page-turn pull (something to anticipate)? Does the last page land a warm, proud payoff rather than just stopping? These are what make the book feel like a real book — flag their absence.
 
 Reply with ONLY JSON:
 { "pass": true|false, "score": 1-10, "issues": ["specific fixable issue", ...], "praise": "one line on what works" }`;
@@ -161,11 +164,18 @@ Make concrete:
 - Composition: subject in the UPPER TWO-THIRDS; keep the bottom of the frame simple (a reading-text band covers it); keep every story-critical element at least 8% inside all four edges (print trimming crops the borders).
 - A setting with just 1-2 background elements and a sense of depth (foreground / background).
 - Warm golden-hour lighting and a cozy, harmonious color feel.
-Do NOT include any text, letters, numbers, signs, logos, or brand/franchise characters. If the character is posed facing away, keep the back of their clothing plain — never draw the front graphic on the back. Reply with ONLY the paragraph.`;
+Do NOT include any text, letters, numbers, signs, logos, or brand/franchise characters. Do NOT restate, embellish or change any character's hair, clothing or appearance — their look is locked elsewhere; refer to them only as "the child character" (or the friend/pet's role). If the character is posed facing away, keep the back of their clothing plain — never draw the front graphic on the back. Reply with ONLY the paragraph.`;
 }
 
-export function buildRevisePrompt(draft: StoryDraft, level: Level, issues: string[], plan?: StoryPlan): string {
+export function buildRevisePrompt(draft: StoryDraft, level: Level, issues: string[], plan?: StoryPlan, extras: StoryExtras = {}): string {
   const r = level.rules;
+  // Order constraints must survive EVERY revision pass — without re-stating them,
+  // a revision freely reintroduces avoided words or drops required ones.
+  const extrasBlock = [
+    extras.mustUseWords ? `- MUST-USE words — keep each one in the book (naturally, more than once where possible): ${extras.mustUseWords}` : "",
+    extras.avoidWords ? `- Words to AVOID entirely — never introduce these while fixing issues: ${extras.avoidWords}` : "",
+    extras.emotionalGoal ? `- Emotional goal of the story (keep it): ${extras.emotionalGoal}` : "",
+  ].filter(Boolean).join("\n");
   // Levels with a bounded teaching set (1-2) are the ones where the reviser tends to
   // drift — it fixes a flagged page by inventing a NEW word, which breaks the vocab
   // budget elsewhere. Give it an explicit, numeric recipe so one pass converges.
@@ -193,7 +203,7 @@ ${level.promptRules}
 
 ${describePhonicsScope(level.rules.phonicsCeiling, level.rules.decodability)}
 
-${plan ? describePlan(plan) + "\n\nKeep the same story plan and fourQuestions unless an issue requires changing them.\n\n" : ""}${draft.pages?.some((p) => p.adultLine) ? "This book has Parent Read-Along Lines: keep each page's \"adultLine\" (the grown-up read-aloud line); change it only if an issue names it.\n\n" : ""}${recipe}ISSUES TO FIX:
+${extrasBlock ? `ORDER CONSTRAINTS (these survive every revision):\n${extrasBlock}\n\n` : ""}${plan ? describePlan(plan) + "\n\nKeep the same story plan and fourQuestions unless an issue requires changing them.\n\n" : ""}${draft.pages?.some((p) => p.adultLine) ? "This book has Parent Read-Along Lines: keep each page's \"adultLine\" (the grown-up read-aloud line); change it only if an issue names it.\n\n" : ""}${recipe}ISSUES TO FIX:
 ${issues.map((i, n) => `${n + 1}. ${i}`).join("\n")}
 
 CURRENT DRAFT:

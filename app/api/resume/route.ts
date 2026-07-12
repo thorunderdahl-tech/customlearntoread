@@ -4,6 +4,7 @@ import { getStripe } from "@/lib/stripe";
 import { productByName } from "@/lib/products";
 import { orderToCheckoutMetadata, truncate } from "@/lib/checkout";
 import { getOrderRecord, airtableFieldsToOrder } from "@/lib/airtable";
+import { verifyTag } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,11 @@ export async function GET(req: NextRequest) {
   try {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return fallback;
+    // The resume link is signed in the recovery email (signTag over the order id).
+    // Reject unsigned/forged links so the endpoint can't be used to enumerate
+    // records or mint checkout sessions for arbitrary orders.
+    const sig = req.nextUrl.searchParams.get("s") || "";
+    if (!(await verifyTag(id, "resume", sig))) return fallback;
 
     const record = await getOrderRecord(id);
     if (!record) return fallback;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { updateOrderRecord } from "@/lib/airtable";
+import { signTag } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -44,7 +45,10 @@ export async function POST(req: NextRequest) {
     // Post-delivery reading-level feedback links (only when we can tie them to an
     // order). The parent clicks after their child has read it — naturally decoupled
     // from any renewal date, so it never reads as a "cancel?" prompt.
-    const fb = (r: string) => `${siteUrl}/api/feedback?o=${encodeURIComponent(recordId || "")}&r=${r}`;
+    // Sign the order id so the public feedback link can't be enumerated or used
+    // to tamper with other orders (see app/api/feedback/route.ts).
+    const fbSig = recordId ? await signTag(recordId, "feedback") : "";
+    const fb = (r: string) => `${siteUrl}/api/feedback?o=${encodeURIComponent(recordId || "")}&r=${r}&s=${fbSig}`;
     const feedbackBlock = recordId
       ? `<div style="margin:24px 0 0;padding-top:18px;border-top:1px solid #f0e7d8">
       <p style="font-size:14px;line-height:1.6;color:#6b6257;margin:0 0 10px">Once ${first} has read it, how did the reading level feel? One tap helps us make the next book just right:</p>

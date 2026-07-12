@@ -10,3 +10,4 @@ out
 # Python cache (reading-system-foundation engine)
 __pycache__/
 *.pyc
+eval-results/

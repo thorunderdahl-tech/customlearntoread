@@ -185,7 +185,8 @@ export async function POST(req: NextRequest) {
           }
         }
       } else {
-        console.warn("RESEND_API_KEY / OWNER_EMAIL not configured - skipping email. Order metadata:", meta);
+        // Do NOT log `meta` — it holds customer/child PII (names, email, address).
+        console.warn("RESEND_API_KEY / OWNER_EMAIL not configured - skipping email for session", full.id);
       }
     }
     if (event.type === "checkout.session.expired") {

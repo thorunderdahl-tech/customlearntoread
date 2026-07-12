@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateImage, visionAsk, listModels, geminiConfigured } from "@/lib/gemini";
 import { claude, llmConfigured } from "@/lib/llm";
 import { buildArtDirectionPrompt } from "@/lib/story";
-import { BRAND_ART_STYLE } from "@/lib/brand";
+import { characterSheetPrompt, pagePrompt, qaPrompt, sheetQaPrompt, photoAnalysisPrompt } from "@/lib/artPrompts";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-// On-brand illustration style — single source of truth in lib/brand.ts.
-const STYLE = BRAND_ART_STYLE;
-
 // One image operation per request. Actions: character | page | check | models
+// Prompt text lives in lib/artPrompts.ts, shared with the unattended pipeline
+// (lib/pipeline.ts) so the two lanes can never drift.
 export async function POST(req: NextRequest) {
   try {
     if (!geminiConfigured()) {
@@ -28,22 +27,9 @@ export async function POST(req: NextRequest) {
       const companion = ((body.cast as string | undefined) ?? (body.companion as string | undefined))?.trim();
       const photo = body.photo as string | undefined; // parent-provided reference photo (base64 JPEG)
       const note = (body.note as string | undefined)?.trim(); // admin's art-direction note
+      const photoSubject = (body.photoSubject as string | undefined)?.trim(); // who in the photo is the hero / who to exclude
       if (!desc) return NextResponse.json({ error: "Missing description" }, { status: 400 });
-      const companionLine = companion
-        ? `\n\nALSO on the sheet, standing in a row beside the child: EVERY recurring character in this book — ${companion}. Draw each one unmistakably (exact skin tone, hair, eyes, clothing; or species, coloring, markings, collar). This one sheet locks the look of the ENTIRE cast for the whole book.`
-        : "";
-      const noteLine = note
-        ? `\n\nART DIRECTOR'S INSTRUCTION (follow it exactly, it overrides conflicting defaults): ${note}`
-        : "";
-      const prompt = photo
-        ? `${STYLE}
-
-Using the attached real photo as visual reference (provided by the child's parent), create a STYLIZED storybook character version of the child — warm illustrated picture-book style, clearly NOT photorealistic. Faithfully capture the child's hair color and texture, eye color, skin tone, and overall vibe from the photo. If a pet appears in the photo, include the pet beside the child on the sheet with its breed, coloring and fur faithfully stylized too.
-
-Character reference sheet: full body, front view, neutral happy pose, plain soft cream background. This sheet defines the look for a whole book — make every feature unmistakable. Also honor this description: ${desc}${companionLine}${noteLine}`
-        : `${STYLE}
-
-Character reference sheet: a single child character shown clearly — full body, front view, neutral happy pose, plain soft cream background. The character: ${desc}. This image defines the character's exact look for a whole book; make hair, eyes, skin and outfit unmistakable. Dress the child in EXACTLY the outfit named in the description — the same garments, colors and any graphic — and do NOT invent or substitute a different shirt, sweater or colors unless the art director's instruction below explicitly changes the clothing.${companionLine}${noteLine}`;
+      const prompt = characterSheetPrompt(desc, companion, note, !!photo, photoSubject);
       const img = await generateImage(prompt, photo ? [photo] : [], "2:3", body.imageSize);
       return NextResponse.json({ image: img.data, mime: img.mime });
     }
@@ -53,9 +39,6 @@ Character reference sheet: a single child character shown clearly — full body,
       const castText = ((body.cast as string | undefined) ?? (body.companionDescription as string | undefined))?.trim();
       const directorNote = (body.directorNote as string | undefined)?.trim(); // admin's art-direction note for this page
       if (!artPrompt) return NextResponse.json({ error: "Missing artPrompt" }, { status: 400 });
-      const companionLine = castText
-        ? ` EVERY other recurring character on the sheet MUST also appear identical wherever the scene includes them — ${castText} — with the exact same skin tone, hair, clothing, species, coloring and markings. NEVER change any character's skin tone or hair between pages.`
-        : "";
       // Art-direction expansion pass: turn the story model's one-line scene into
       // detailed, print-safe direction before drawing. Best-effort — falls back
       // to the raw scene if the text model is unavailable or errors.
@@ -71,7 +54,7 @@ Character reference sheet: a single child character shown clearly — full body,
         } catch { /* keep the raw scene */ }
       }
       const img = await generateImage(
-        `${STYLE}\n\nThe FIRST attached reference image is the character sheet: the child character MUST appear identical here — same face, same hair (the EXACT same length and style — never longer, shorter, curlier or straighter), same eyes, same skin tone, and the EXACT same outfit as the character sheet — every garment, its colors and any graphic — (${characterDescription}); NEVER change, swap or recolor the shirt or clothing between pages.${companionLine} Any additional attached images are approved pages from this same book: match their rendering style, palette and level of detail exactly so all pages look like one printed book.\n\nCLOTHING FROM BEHIND: if the character is turned so the back of their top is visible, draw the back of the top PLAIN (just the fabric color) — do NOT copy the front graphic, logo or print onto the back, and never show the front design on a body that is facing away. A front graphic on a back-facing body makes the head look reversed.\n\nScene for this page: ${scene}${directorNote ? `\n\nART DIRECTOR'S INSTRUCTION (follow it exactly, it overrides conflicting defaults): ${directorNote}` : ""}${fixNotes ? `\n\nFix these problems from the previous attempt: ${fixNotes}` : ""}`,
+        pagePrompt(scene, characterDescription, castText, directorNote, fixNotes),
         (refs as string[]).slice(0, 3),
         "2:3",
         body.imageSize,
@@ -79,30 +62,55 @@ Character reference sheet: a single child character shown clearly — full body,
       return NextResponse.json({ image: img.data, mime: img.mime });
     }
 
+    // Vision pre-analysis of the parent's photo: writes the precise "photo cast
+    // map" and per-person locked looks automatically, so nobody has to.
+    if (action === "analyzePhoto") {
+      const { photo, childName, typedLook, hint } = body;
+      if (!photo) return NextResponse.json({ error: "Missing photo" }, { status: 400 });
+      const raw = await visionAsk(photoAnalysisPrompt(childName, typedLook, (hint as string | undefined)?.trim() || undefined), [photo]);
+      try {
+        const analysis = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+        return NextResponse.json({ analysis });
+      } catch {
+        return NextResponse.json({ error: "Photo analysis returned unparseable output" }, { status: 502 });
+      }
+    }
+
+    // Sheet-vs-photo fidelity check: catches a wrong skin tone / wrong hair /
+    // blended-kids sheet BEFORE 16+ pages get drawn from it.
+    if (action === "sheetCheck") {
+      const { sheet, photo, characterDescription } = body;
+      const castText = ((body.cast as string | undefined) ?? "")?.trim() || undefined;
+      const photoSubject = (body.photoSubject as string | undefined)?.trim();
+      if (!sheet || !photo) return NextResponse.json({ error: "Missing sheet or photo" }, { status: 400 });
+      const raw = await visionAsk(sheetQaPrompt(characterDescription, castText, photoSubject), [sheet, photo]);
+      try {
+        const verdict = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+        return NextResponse.json({ verdict });
+      } catch {
+        return NextResponse.json({ error: "Sheet check returned unparseable output" }, { status: 502 });
+      }
+    }
+
     if (action === "check") {
       const { image, pageText, characterDescription, styleRef, artPrompt } = body;
       const castText = ((body.cast as string | undefined) ?? (body.companionDescription as string | undefined))?.trim();
+      const directorNote = (body.directorNote as string | undefined)?.trim(); // binding edit note — QA must not flag compliance with it
       if (!image) return NextResponse.json({ error: "Missing image" }, { status: 400 });
       const raw = await visionAsk(
-        `You are the strict QA gate for a children's book illustration. A page that fails QA is regenerated, so it is much better to flag a real problem than to wave it through. ${styleRef ? "IMAGE 1 is the page to check; IMAGE 2 is the approved cast/style reference sheet for this book — every recurring character's canonical look." : "The attached image is the page to check."} The page's story text is: "${pageText}".${artPrompt ? ` The art direction this image was generated from: "${artPrompt}".` : ""} The child hero must look like: ${characterDescription}.${castText ? ` The other recurring cast members must look like: ${castText}.` : ""}
-Check the page image:
-1. CAST IDENTITY (most important): check EVERY character in the image — the hero AND every recurring friend, sibling or pet — against their locked description${styleRef ? " and the reference sheet" : ""}. Hair color/texture/length, eye color, SKIN TONE, glasses/accessories, outfit and its colors, species/markings/collar. A character whose skin tone, hair, or outfit differs from the sheet — even slightly, even in the background — is a HARD FAIL. Name which character drifted. Hair that is clearly LONGER or SHORTER than the sheet is a HARD FAIL. And if a character is shown from behind, the back of their top must be PLAIN fabric — a front graphic, logo or print appearing on the BACK (which makes the head look put on backwards) is a HARD FAIL.
-2. ${styleRef ? "STYLE: does the rendering style (medium, palette, line treatment) match the reference sheet closely enough that both could be pages of the same printed book?" : "STYLE: warm hand-illustrated picture-book style — no 3D/CGI, no anime, no photorealism?"}
-3. SCENE FIDELITY: does the image match the story text${artPrompt ? " and art direction" : ""}? CRITICAL: verify every COUNT and COLOR that the text or art direction names — if the text says three apples, count the apples; if it names a red ball, the ball must be red. Wrong counts or colors are a fail.
-4. RECURRING ELEMENTS: any companion animal or repeated object must have consistent species, coloring and markings${styleRef ? " with the reference sheet" : ""} — a pet that changes breed or color between pages is a fail.
-5. ANATOMY / AI ERRORS: count fingers and limbs on every character; check for extra/missing/fused fingers or limbs, deformed faces or hands, warped or melting objects, duplicated features, garbled background details. Any AI artifact is a fail.
-6. COMPOSITION: are the subject's face, hands and every story-critical object fully inside the UPPER TWO-THIRDS of the frame, with the bottom of the frame simple background only, and nothing important within ~5% of any edge? (The reading-text band covers the bottom of the page and print trimming crops the edges.)
-7. Is there ANY text, lettering, numbers or watermark in the image?
-8. Anything inappropriate or scary for ages 3-7?
-9. Expressions: do the characters look happy/warm? Flag any unintended angry, sad, scared or distressed face that the story text does NOT call for (the default should be happy).
-10. If more than one child appears, do they look like SAME-AGE peers? Flag it if any child looks clearly older or younger than the others.
-Reply ONLY JSON: {"pass": true|false, "issues": ["short fixable issue", ...]}`,
+        qaPrompt(pageText, characterDescription, castText, artPrompt, !!styleRef, directorNote),
         styleRef ? [image, styleRef] : image,
       );
-      const start = raw.indexOf("{");
-      const end = raw.lastIndexOf("}");
-      const verdict = JSON.parse(raw.slice(start, end + 1));
-      return NextResponse.json({ verdict });
+      // Malformed vision output must read as "QA couldn't verify" (the client
+      // treats an error as unverified-and-blocking), not a raw 500.
+      try {
+        const start = raw.indexOf("{");
+        const end = raw.lastIndexOf("}");
+        const verdict = JSON.parse(raw.slice(start, end + 1));
+        return NextResponse.json({ verdict });
+      } catch {
+        return NextResponse.json({ error: "QA returned unparseable output" }, { status: 502 });
+      }
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

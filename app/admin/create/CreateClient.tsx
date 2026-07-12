@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { AirtableOrder } from "@/lib/airtable";
-import { LEVELS, patternWords, wordKind } from "@/lib/leveling";
+import { LEVELS, patternWords, wordKind, checkStory } from "@/lib/leveling";
 
 type Draft = {
   title: string;
@@ -16,9 +16,14 @@ type Draft = {
   coverArtPrompt: string;
   pages: { n: number; text: string; artPrompt: string; adultLine?: string }[];
 };
-// Appearance locks for every recurring character other than the hero.
+// Appearance locks for every recurring character other than the hero, as a
+// numbered roster — the explicit numbering tells the image model the exact
+// cast COUNT, which stops it inventing or substituting extra characters.
 const castText = (d: Draft | null) =>
-  (d?.castDescriptions?.length ? d.castDescriptions.join(" ") : d?.companionDescription || "").trim() || undefined;
+  (d?.castDescriptions?.length
+    ? d.castDescriptions.map((c, i) => `(${i + 1}) ${c.trim()}`).join(" ")
+    : d?.companionDescription || ""
+  ).trim() || undefined;
 type Check = { pass: boolean; problems: string[]; warnings?: string[]; stats: { totalWords: number; pages: number } };
 type Grade = { pass: boolean; score: number; issues: string[]; praise: string };
 type ArtQA = { pass: boolean; issues: string[] };
@@ -37,6 +42,74 @@ async function api(path: string, body: Record<string, unknown>) {
 }
 const story = (b: Record<string, unknown>) => api("/api/admin/story", b);
 const art = (b: Record<string, unknown>) => api("/api/admin/art", b);
+
+// ---- crash-proof session persistence (IndexedDB) ----
+// Everything expensive in the create flow — the draft, the character sheet, and
+// every generated illustration — lives only in React state. A crash or an
+// accidental refresh used to lose hours of generation AND force a new character
+// sheet, which invalidates every already-approved page. The working session is
+// auto-saved per order and restored on load. IndexedDB, not localStorage: a
+// book of 4K art is far over the ~5 MB localStorage cap.
+type PersistedSession = {
+  draft: Draft | null;
+  check: Check | null;
+  grade: Grade | null;
+  charRef: string;
+  photoB64: string;
+  photoSubject?: string;
+  arts: Record<number, { img: string; qa?: ArtQA; accepted?: boolean }>;
+  parentEmail: string;
+  order: unknown;
+  savedAt: number;
+};
+
+const IDB_NAME = "clr-create", IDB_STORE = "sessions";
+function idbOpen(): Promise<IDBDatabase> {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbGet(key: string): Promise<PersistedSession | undefined> {
+  const db = await idbOpen();
+  try {
+    return await new Promise((res, rej) => {
+      const r = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(key);
+      r.onsuccess = () => res(r.result as PersistedSession | undefined);
+      r.onerror = () => rej(r.error);
+    });
+  } finally { db.close(); }
+}
+// A session with 4K art can run ~100 MB — keep only the most recent few so the
+// browser's storage never balloons. A tiny "meta:index" record (key -> savedAt)
+// tracks recency without ever loading the heavy session blobs.
+const MAX_SESSIONS = 8;
+async function idbSet(key: string, val: PersistedSession): Promise<void> {
+  const db = await idbOpen();
+  try {
+    await new Promise<void>((res, rej) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      const store = tx.objectStore(IDB_STORE);
+      store.put(val, key);
+      const metaReq = store.get("meta:index");
+      metaReq.onsuccess = () => {
+        const idx = ((metaReq.result as Record<string, number>) || {});
+        idx[key] = val.savedAt;
+        Object.entries(idx)
+          .sort((a, b) => b[1] - a[1])
+          .slice(MAX_SESSIONS)
+          .forEach(([old]) => { delete idx[old]; store.delete(old); });
+        store.put(idx, "meta:index");
+      };
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  } finally { db.close(); }
+}
 
 function newToken(): string {
   const abc = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -110,6 +183,21 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   return lines;
 }
 
+// Shrink a font until `text` fits on ONE line within maxW, and set ctx.font to
+// the fitted size. wrapText can't break a single long token, so a long child
+// name ("Maximiliano") drawn at a fixed size clips off the page — the bookplate
+// and "You did it, {name}!" lines were the worst offenders.
+function fitFont(ctx: CanvasRenderingContext2D, text: string, maxW: number, basePx: number, font: (px: number) => string): number {
+  let px = basePx;
+  const floor = Math.max(10, Math.round(basePx * 0.4));
+  ctx.font = font(px);
+  while (px > floor && ctx.measureText(text).width > maxW) {
+    px = Math.max(floor, Math.round(px * 0.94));
+    ctx.font = font(px);
+  }
+  return px;
+}
+
 // Per-book interior text-band top (the art→text cutoff). Sized once per book to
 // fit its wordiest page, then reused on EVERY interior page — so the cutoff can
 // vary book to book but never page to page within a book. Clamped to a sane band.
@@ -143,9 +231,16 @@ async function compositePage(artB64: string, text: string, pageNo: number, isCov
   const maxW = W - SAFE * 2; // keep all text inside the safe area
 
   if (isCover) {
-    const fs = pt(40);
+    // Shrink-to-fit: a long title wraps, but a single long word (often the
+    // child's name) can't — shrink until the widest line fits the safe area.
+    let fs = pt(40);
     ctx.font = `800 ${fs}px Montserrat, "Segoe UI", system-ui, sans-serif`;
-    const lines = wrapText(ctx, text, maxW);
+    let lines = wrapText(ctx, text, maxW);
+    while (fs > pt(22) && Math.max(...lines.map((l) => ctx.measureText(l).width)) > maxW) {
+      fs = Math.round(fs * 0.94);
+      ctx.font = `800 ${fs}px Montserrat, "Segoe UI", system-ui, sans-serif`;
+      lines = wrapText(ctx, text, maxW);
+    }
     const lh = fs * 1.18;
     const blockH = lines.length * lh;
     const blockTop = H - SAFE - blockH; // title block ends at the safe-area bottom line
@@ -281,8 +376,9 @@ function bookplatePage(childName: string, giftMessage: string): string {
   ctx.font = `700 ${pt(13)}px ${MONTSERRAT}`;
   ctx.fillText("This book belongs to", cx, PAGE_H * 0.34);
   ctx.fillStyle = NAVY;
-  ctx.font = `800 ${pt(34)}px ${MONTSERRAT}`;
-  ctx.fillText(childName || "________", cx, PAGE_H * 0.42);
+  const plateName = childName || "________";
+  fitFont(ctx, plateName, PAGE_W - SAFE * 2, pt(34), (p) => `800 ${p}px ${MONTSERRAT}`);
+  ctx.fillText(plateName, cx, PAGE_H * 0.42);
   ctx.fillStyle = CARAMEL;
   ctx.fillRect(cx - pt(30), PAGE_H * 0.42 + pt(32), pt(60), pt(3));
   if (msg) {
@@ -304,18 +400,21 @@ function endPage(childName: string): string {
   ctx.font = `800 ${pt(42)}px ${MONTSERRAT}`;
   ctx.fillText("The End", PAGE_W / 2, PAGE_H * 0.42);
   ctx.fillStyle = CARAMEL_DARK;
-  ctx.font = `700 ${pt(18)}px ${ANDIKA}`;
-  ctx.fillText(`You did it, ${childName}!`, PAGE_W / 2, PAGE_H * 0.42 + pt(60));
+  const didIt = `You did it, ${childName}!`;
+  fitFont(ctx, didIt, PAGE_W - SAFE * 2, pt(18), (p) => `700 ${p}px ${ANDIKA}`);
+  ctx.fillText(didIt, PAGE_W / 2, PAGE_H * 0.42 + pt(60));
   return c.toDataURL("image/jpeg", 0.92);
 }
 
-// "The End" page: reuse the character reference sheet — it already shows the
-// child + the book's companion/favorite-thing (dinosaur, pet, friend) on a plain
-// cream background, exactly what this page wants: just those characters, very
-// little else. A warm caption sits below. No extra AI generation needed.
-async function endArtPage(charB64: string, childName: string): Promise<string> {
+// "The End" page: reuse the COVER illustration as a warm framed closing image —
+// it shows the child happy in the book's world, it already passed QA, and it
+// bookends the story (cover art returns at the end, a classic picture-book
+// touch). Not the character reference sheet: that's now a front+back turnaround
+// (a clinical model sheet showing the child twice), wrong for an emotional
+// closing page. A warm caption sits below. No extra AI generation needed.
+async function endArtPage(artB64: string, childName: string): Promise<string> {
   const { c, ctx } = newTypesetPage(); // cream ground, centered text
-  const img = await loadImg("data:image/png;base64," + charB64);
+  const img = await loadImg("data:image/png;base64," + artB64);
   const boxTop = SAFE + pt(8), boxH = PAGE_H * 0.62, boxW = PAGE_W - SAFE * 2;
   const s = Math.min(boxW / img.width, boxH / img.height);
   const dw = img.width * s, dh = img.height * s;
@@ -324,8 +423,9 @@ async function endArtPage(charB64: string, childName: string): Promise<string> {
   ctx.font = `800 ${pt(40)}px ${MONTSERRAT}`;
   ctx.fillText("The End", PAGE_W / 2, PAGE_H * 0.80);
   ctx.fillStyle = CARAMEL_DARK;
-  ctx.font = `700 ${pt(18)}px ${ANDIKA}`;
-  ctx.fillText(`You did it, ${childName || "friend"}!`, PAGE_W / 2, PAGE_H * 0.80 + pt(48));
+  const didIt = `You did it, ${childName || "friend"}!`;
+  fitFont(ctx, didIt, PAGE_W - SAFE * 2, pt(18), (p) => `700 ${p}px ${ANDIKA}`);
+  ctx.fillText(didIt, PAGE_W / 2, PAGE_H * 0.80 + pt(48));
   return c.toDataURL("image/jpeg", 0.92);
 }
 
@@ -408,7 +508,9 @@ function backCoverPage(): string {
   return c.toDataURL("image/jpeg", 0.92);
 }
 
-// Printer wraparound softcover cover: back panel + spine (sized to page count) + front cover, with barcode zone.
+// Printer wraparound perfect-bound cover: back panel + spine (sized to page count) + front cover, with barcode zone.
+// NOT currently used by any product (softcover = Cornerstone saddle-stitch, hardcover = Lulu template) —
+// kept for a future perfect-bound offering (e.g. KDP paperback).
 async function buildCoverWrap(coverDataUrl: string, title: string, childName: string, interiorPages: number): Promise<{ dataUrl: string; wPt: number; hPt: number }> {
   const BLEED_PX = Math.round(0.125 * DPI);
   const spineIn = interiorPages * SPINE_IN_PER_PAGE;
@@ -478,6 +580,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   // Phase 2: art + assembly + delivery
   const [charRef, setCharRef] = useState("");
   const [photoB64, setPhotoB64] = useState("");
+  const [photoSubject, setPhotoSubject] = useState(""); // photo cast map: who in the photo is who / who to exclude
+  const [sheetQa, setSheetQa] = useState<ArtQA | null>(null); // sheet-vs-photo fidelity verdict (null = not run)
+  const [photoPeople, setPhotoPeople] = useState<{ position: string; isHero: boolean; lockedLook: string }[]>([]); // vision analysis of the photo
+  const [analyzing, setAnalyzing] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const [artNote, setArtNote] = useState(""); // section-level art direction (character sheet + all pages)
   const [tileNotes, setTileNotes] = useState<Record<number, string>>({}); // per-page note applied on Redo
@@ -485,7 +591,8 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const [artBusy, setArtBusy] = useState("");
   const [assembling, setAssembling] = useState("");
   const [pdfUrl, setPdfUrl] = useState(""); // customer home-print PDF (trim size)
-  const [printUrls, setPrintUrls] = useState<{ interior: string; cover: string } | null>(null); // printer-ready files
+  const [printUrls, setPrintUrls] = useState<{ interior: string; cover: string | null; label: string } | null>(null); // printer-ready file(s), label describes the format
+  const [printNote, setPrintNote] = useState(""); // per-printer ordering instructions shown under the download buttons
   const [pageImages, setPageImages] = useState<string[]>([]);
   const [pageLabels, setPageLabels] = useState<string[]>([]);
   const [parentEmail, setParentEmail] = useState("");
@@ -493,13 +600,16 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const pdfBlobRef = useRef<Blob | null>(null);
 
   const candidates = useMemo(
-    () => initialOrders.filter((o) => ["Paid", "Designing"].includes(field(o, "Status"))),
+    () => initialOrders.filter((o) => ["Paid", "Generating", "Ready for review", "Needs attention", "Designing"].includes(field(o, "Status"))),
     [initialOrders],
   );
   const selected = candidates.find((o) => o.id === selectedId) || initialOrders.find((o) => o.id === selectedId);
   // Digital-only orders don't need print resolution — save cost with 2K; every
   // physical format gets 4K so print art is downscaled to 300 DPI, never upscaled.
   const digitalOnly = !!selected && field(selected, "Product") === "Digital Book";
+  // Hardcover products need different cover-wrap geometry (wrap allowance +
+  // board thickness) that isn't implemented — assemble() guards on this.
+  const isHardcover = !!selected && /hardcover/i.test(field(selected, "Product") || "");
   const artImageSize = digitalOnly ? "2K" : "4K";
   // Parent Read-Along Lines: auto-checked when the order carries the flag (an
   // "Parent read-along" = "Yes" Airtable field), and operator-toggleable.
@@ -510,6 +620,53 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setGiftMessage((selected && field(selected, "Gift message")) || "");
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---- crash-proof autosave/restore (see PersistedSession above) ----
+  // sessionKeyRef pins which order the IN-MEMORY work belongs to, so switching
+  // the order dropdown can never save one child's book under another's key.
+  const sessionKeyRef = useRef<string>("");
+  const persistKey = selectedId ? `order:${selectedId}` : "";
+
+  // Restore: when an order is selected and the workspace is empty (fresh load or
+  // just switched via the dropdown, which resets state), pull the auto-saved
+  // session back. Empty-workspace guard means restore can never clobber fresh work.
+  useEffect(() => {
+    if (!persistKey || draft || charRef || Object.keys(arts).length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await idbGet(persistKey);
+        if (cancelled || !s?.draft) return;
+        sessionKeyRef.current = persistKey;
+        setDraft(s.draft); setCheck(s.check); setGrade(s.grade);
+        setCharRef(s.charRef || ""); setPhotoB64(s.photoB64 || ""); setPhotoSubject(s.photoSubject || "");
+        setArts(s.arts || {});
+        if (s.parentEmail) setParentEmail(s.parentEmail);
+        if (s.order) setOrder(s.order);
+        setSaved(`Restored this order's unsaved work (auto-saved ${new Date(s.savedAt).toLocaleString()}). Hit "Write the story" to start over instead.`);
+      } catch { /* no restore — start clean */ }
+    })();
+    return () => { cancelled = true; };
+  }, [persistKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosave: debounce-write the whole working session after any change. Never
+  // throws — persistence is best-effort and must not disturb the create flow.
+  useEffect(() => {
+    if (!draft || !sessionKeyRef.current) return;
+    const key = sessionKeyRef.current;
+    const t = setTimeout(() => {
+      idbSet(key, { draft, check, grade, charRef, photoB64, photoSubject, arts, parentEmail, order, savedAt: Date.now() }).catch(() => {});
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [draft, check, grade, charRef, photoB64, photoSubject, arts, parentEmail, order]);
+
+  // Order extras re-sent on EVERY revise call — the revise prompt re-states them
+  // so a revision pass can't drop a must-use word or reintroduce an avoided one.
+  const reviseExtras = () => ({
+    emotionalGoal: emotionalGoal || undefined,
+    mustUseWords: mustUseWords.trim() || undefined,
+    avoidWords: avoidWords.trim() || undefined,
+  });
+
   function resetAll() {
     setDraft(null); setGrade(null); setCheck(null); setSaved("");
     setCharRef(""); setArts({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
@@ -518,6 +675,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   async function generate() {
     if (!selectedId) return;
     setError(""); resetAll();
+    sessionKeyRef.current = persistKey; // new work belongs to THIS order's autosave slot
     try {
       setBusy("Writing the story…");
       const g = await story({ action: "generate", recordId: selectedId, pageCount, levelId: levelId || undefined, emotionalGoal: emotionalGoal || undefined, mustUseWords: mustUseWords.trim() || undefined, avoidWords: avoidWords.trim() || undefined, readAlong });
@@ -527,7 +685,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       // fixes most issues but leaves a couple; a second/third pass usually converges.
       for (let attempt = 1; attempt <= 3 && !c.pass; attempt++) {
         setBusy(`Rules check failed — revising… (pass ${attempt})`);
-        const r = await story({ action: "revise", draft: d, issues: c.problems });
+        const r = await story({ action: "revise", draft: d, issues: c.problems, ...reviseExtras() });
         d = r.draft; c = r.check; setDraft(d); setCheck(c);
       }
       setBusy("AI quality grading…");
@@ -535,13 +693,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       let gr: Grade = q.grade; setGrade(gr);
       if (!gr.pass && gr.issues?.length) {
         setBusy("Grader flagged issues — revising…");
-        const r2 = await story({ action: "revise", draft: d, issues: gr.issues });
+        const r2 = await story({ action: "revise", draft: d, issues: gr.issues, ...reviseExtras() });
         d = r2.draft; c = r2.check; setDraft(d); setCheck(c);
         // Fixing the arc can reintroduce rule violations (a comma, an over-long page,
         // a dropped backbone word) — re-converge the rules gate before re-grading.
         for (let attempt = 1; attempt <= 3 && !c.pass; attempt++) {
           setBusy(`Rules check after grading — revising… (pass ${attempt})`);
-          const r = await story({ action: "revise", draft: d, issues: c.problems });
+          const r = await story({ action: "revise", draft: d, issues: c.problems, ...reviseExtras() });
           d = r.draft; c = r.check; setDraft(d); setCheck(c);
         }
         setBusy("Re-grading…");
@@ -552,12 +710,68 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     } catch (e: any) { setError(e?.message || String(e)); setBusy(""); }
   }
 
+  // ---- overnight-candidate review lane (fed by lib/pipeline.ts via cron) ----
+  const pipelineState = useMemo(() => {
+    try {
+      const raw = selected && field(selected, "Pipeline state");
+      return raw ? (JSON.parse(raw) as { phase: string; charUrl?: string; error?: string; pages?: Record<string, { url: string; pass: boolean; issues?: string[] }> }) : null;
+    } catch { return null; }
+  }, [selected]);
+
+  // Candidate art lives in Blob; stream it through the admin proxy (same-origin,
+  // keeps the compositing canvas untainted) and back to base64 for the tiles.
+  async function fetchCandidateB64(url: string): Promise<string> {
+    const res = await fetch(`/api/admin/candidate?src=${encodeURIComponent(url)}`);
+    if (!res.ok) throw new Error(`Couldn't load candidate image (${res.status})`);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(",")[1]);
+      r.onerror = () => reject(new Error("Couldn't read candidate image"));
+      r.readAsDataURL(blob);
+    });
+  }
+
+  /** Pull the pipeline's finished candidate (draft + character sheet + page art
+   * with QA verdicts) into the workspace, so review/repair/deliver all use the
+   * existing tools. QA-passed pages arrive green; flagged ones show their issues. */
+  async function loadCandidate() {
+    if (!selected || !pipelineState) return;
+    setError("");
+    try {
+      setBusy("Loading the overnight candidate…");
+      const rawDraft = field(selected, "Story draft");
+      if (!rawDraft) throw new Error("No story draft on this order yet — the pipeline hasn't finished the story phase.");
+      const d = JSON.parse(rawDraft) as Draft;
+      sessionKeyRef.current = persistKey; // autosave picks the session up from here
+      setDraft(d); setGrade(null); setCheck(null); setArts({}); setCharRef("");
+      setPdfUrl(""); setPrintUrls(null); setDelivered(null);
+      try {
+        const lvl = LEVELS.find((l) => l.id === d.levelId) || LEVELS[0];
+        setCheck(checkStory(d as any, lvl) as any);
+      } catch { /* advisory only */ }
+      setParentEmail(field(selected, "Parent email") || "");
+      if (pipelineState.charUrl) setCharRef(await fetchCandidateB64(pipelineState.charUrl));
+      const entries = Object.entries(pipelineState.pages || {});
+      const loaded: Record<number, { img: string; qa?: ArtQA }> = {};
+      let i = 0;
+      for (const [n, p] of entries) {
+        i++;
+        setBusy(`Loading candidate art ${i}/${entries.length}…`);
+        loaded[Number(n)] = { img: await fetchCandidateB64(p.url), qa: { pass: p.pass, issues: p.issues || [] } };
+      }
+      setArts(loaded);
+      setSaved(`Loaded the overnight candidate — ${entries.length} illustration(s).${pipelineState.error ? ` Pipeline note: ${pipelineState.error}` : ""}`);
+      setBusy("");
+    } catch (e: any) { setError(e?.message || String(e)); setBusy(""); }
+  }
+
   async function reviseWithNote() {
     if (!draft || !note.trim()) return;
     setError("");
     try {
       setBusy("Revising with your note…");
-      const r = await story({ action: "revise", draft, issues: [note.trim()] });
+      const r = await story({ action: "revise", draft, issues: [note.trim()], ...reviseExtras() });
       setDraft(r.draft); setCheck(r.check); setNote(""); setBusy("");
     } catch (e: any) { setError(e?.message || String(e)); setBusy(""); }
   }
@@ -576,13 +790,64 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const setPageText = (n: number, text: string) =>
     draft && setDraft({ ...draft, pages: draft.pages.map((p) => (p.n === n ? { ...p, text } : p)) });
 
+  // ---- cast editing (appearance locks) ----
+  // The draft's characterDescription + castDescriptions are the single source of
+  // truth for every character's look — the sheet, every page prompt and QA all
+  // read from them. Editing or removing a character HERE is the only way a
+  // removal really sticks: a redraw note alone leaves the cast lock, the sheet
+  // and QA still expecting the character, so the model substitutes a lookalike.
+  const castList = (d: Draft): string[] =>
+    d.castDescriptions?.length ? d.castDescriptions : d.companionDescription ? [d.companionDescription] : [];
+  const setHeroDesc = (v: string) => draft && setDraft({ ...draft, characterDescription: v });
+  const setCastAt = (i: number, v: string) =>
+    draft && setDraft({ ...draft, castDescriptions: castList(draft).map((c, j) => (j === i ? v : c)), companionDescription: undefined });
+  const removeCastAt = (i: number) =>
+    draft && setDraft({ ...draft, castDescriptions: castList(draft).filter((_, j) => j !== i), companionDescription: undefined });
+  const addCast = () =>
+    draft && setDraft({ ...draft, castDescriptions: [...castList(draft), ""], companionDescription: undefined });
+  // Any cast/hero edit invalidates the drawn sheet — pages generated against the
+  // old sheet would fight the new lock text.
+  const castDirty = (fn: () => void) => { fn(); if (charRef) setSaved("Cast changed — redraw the character sheet before illustrating pages, so the sheet and the locks agree."); };
+
   // ---------- art ----------
+  // Vision pre-analysis: turn the parent's photo into a precise cast map +
+  // per-person locked looks, so nobody has to write forensic detail by hand.
+  // Runs automatically when a photo is attached; re-run via the button after
+  // adding a casual hint ("Reeva is the one in the middle").
+  async function analyzePhoto(b64: string) {
+    setAnalyzing(true); setPhotoPeople([]);
+    try {
+      const typedLook = selected
+        ? [`hair: ${field(selected, "Hair")}`, `eyes: ${field(selected, "Eyes")}`, `skin tone: ${field(selected, "Skin tone")}`, field(selected, "Glasses / accessories") && `accessories: ${field(selected, "Glasses / accessories")}`]
+            .filter((s) => s && !/:\s*$/.test(String(s))).join("; ") || undefined
+        : undefined;
+      const childName = draft?.childName || (selected ? field(selected, "Child name") : undefined) || undefined;
+      const photoImg = await refJpeg(b64, 1000);
+      const a = (await art({ action: "analyzePhoto", photo: photoImg, childName, typedLook, hint: photoSubject.trim() || (selected ? field(selected, "Photo subject") : "") || undefined })).analysis;
+      if (a?.castMap) setPhotoSubject(a.castMap);
+      if (Array.isArray(a?.people)) setPhotoPeople(a.people);
+      if (a && a.heroFound === false) setError(`Photo analysis couldn't tell which child is the hero — add a quick hint (e.g. "she's in the middle") and hit Re-analyze.`);
+    } catch (e: any) { setError(`Photo analysis failed: ${e?.message || e} — you can still fill the cast map by hand.`); }
+    setAnalyzing(false);
+  }
+
   async function genCharacter() {
     if (!draft) return;
     setError(""); setArtBusy("Drawing the character sheet…");
     try {
-      const r = await art({ action: "character", recordId: selectedId || undefined, description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, note: artNote.trim() || undefined, imageSize: artImageSize });
+      const r = await art({ action: "character", recordId: selectedId || undefined, description: draft.characterDescription, cast: castText(draft), photo: photoB64 || undefined, photoSubject: (photoB64 && photoSubject.trim()) || undefined, note: artNote.trim() || undefined, imageSize: artImageSize });
       setCharRef(r.image); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
+      // Fidelity gate: compare the sheet against the real photo BEFORE pages are
+      // drawn — a wrong skin tone or wrong hair on the sheet poisons every page.
+      setSheetQa(null);
+      if (photoB64) {
+        setArtBusy("Checking the sheet against the photo…");
+        try {
+          const [sheetImg, photoImg] = await Promise.all([refJpeg(r.image, 1000), refJpeg(photoB64, 1000)]);
+          const v = (await art({ action: "sheetCheck", sheet: sheetImg, photo: photoImg, characterDescription: draft.characterDescription, cast: castText(draft), photoSubject: photoSubject.trim() || undefined })).verdict;
+          if (v) setSheetQa(v);
+        } catch { /* best-effort — admin still eyeballs the sheet */ }
+      }
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
   }
@@ -590,11 +855,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   // QA is NOT optional: transient API failures are retried, and if QA still can't
   // run, the tile is marked unverified (?) and blocks assembly like a failure —
   // unverified pages were the #1 source of consistency bugs shipping to customers.
-  async function qaCheck(image: string, pageText: string, characterDescription: string, artPrompt?: string): Promise<ArtQA | undefined> {
+  async function qaCheck(image: string, pageText: string, characterDescription: string, artPrompt?: string, directorNote?: string): Promise<ArtQA | undefined> {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const [img, styleRef] = await Promise.all([refJpeg(image, 1200), refJpeg(charRef, 800)]);
-        return (await art({ action: "check", image: img, styleRef, pageText, characterDescription, cast: castText(draft), artPrompt })).verdict;
+        const [img, styleRef] = await Promise.all([refJpeg(image, 1200), refJpeg(charRef, 1000)]);
+        // directorNote rides along so QA can't "correct" a deliberate edit (e.g.
+        // a removed character) back in by failing the page against the sheet.
+        return (await art({ action: "check", image: img, styleRef, pageText, characterDescription, cast: castText(draft), artPrompt, directorNote })).verdict;
       } catch { await new Promise((r) => setTimeout(r, 3000)); }
     }
     return undefined; // QA unavailable — tile shows "?" and blocks until Redo or Use anyway
@@ -606,15 +873,26 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       ? { n: 0, text: draft.title, artPrompt: draft.coverArtPrompt }
       : draft.pages.find((p) => p.n === n)!;
     // Refs: character sheet first, then up to 2 already-passing pages as style
-    // anchors so every page matches both the character AND the book's style.
-    const anchors = Object.entries(arts)
+    // anchors — the EARLIEST passed page (the book's canonical in-scene look)
+    // plus the passed page NEAREST to this one (local continuity). Using the two
+    // highest-numbered pages let a late drifted-but-passed page pull every redo
+    // away from how the book actually opened.
+    const passed = Object.entries(arts)
       .filter(([k, v]) => Number(k) !== n && Number(k) !== 0 && v.qa?.pass)
-      .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .slice(-2)
-      .map(([, v]) => v.img);
-    const refs = await Promise.all([charRef, ...anchors].slice(0, 3).map((b) => refJpeg(b)));
-    // Up to 3 attempts: regenerate with the QA issues as fix notes until QA passes.
-    let img = "", qa: ArtQA | undefined, notes = "";
+      .map(([k, v]) => ({ n: Number(k), img: v.img }))
+      .sort((a, b) => a.n - b.n);
+    const nearest = passed.length
+      ? passed.reduce((best, cur) => (Math.abs(cur.n - n) < Math.abs(best.n - n) ? cur : best))
+      : undefined;
+    const anchors = [...new Set([passed[0]?.img, nearest?.img].filter(Boolean) as string[])];
+    // The character sheet carries the identity signal — send it sharper (1100px)
+    // than the style anchors (900px) so hair length and shirt graphics survive.
+    const refs = await Promise.all([refJpeg(charRef, 1100), ...anchors.slice(0, 2).map((b) => refJpeg(b))]);
+    // Up to 3 attempts: regenerate with the QA issues as fix notes until QA
+    // passes — and keep the BEST attempt seen (pass > fewest issues), not
+    // whichever happened to come last.
+    let notes = "";
+    let best: { img: string; qa?: ArtQA; score: number } | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       // The image call itself can throw transiently (Gemini overload / rate-limit
       // bursts when many pages fire in a row). Retry it with backoff so one blip
@@ -624,12 +902,14 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, directorNote: directorNote || undefined, fixNotes: notes || undefined, imageSize: artImageSize }); break; }
         catch (e) { if (tries === 3) throw e; await new Promise((res) => setTimeout(res, 4000 * (tries + 1))); }
       }
-      img = r!.image;
-      qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt);
-      if (!qa || qa.pass || !qa.issues?.length) break;
-      notes = qa.issues.join("; ");
+      const img = r!.image;
+      const qa = await qaCheck(img, page.text, draft.characterDescription, page.artPrompt, directorNote);
+      const score = !qa ? 99 : qa.pass || !qa.issues?.length ? -1 : qa.issues.length;
+      if (!best || score < best.score) best = { img, qa, score };
+      if (score <= 0 || !qa) break;
+      notes = qa.issues!.join("; ");
     }
-    setArts((a) => ({ ...a, [n]: { img, qa } }));
+    setArts((a) => ({ ...a, [n]: { img: best!.img, qa: best!.qa } }));
   }
 
   async function genAllArt() {
@@ -760,13 +1040,11 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const soundOut = vocab.filter((w) => wordKind(w, bookLevel) === "sound-out");
       const heartWds = vocab.filter((w) => wordKind(w, bookLevel) === "heart");
 
-      // Interior (what gets bound): front matter + story + back matter, padded
-      // to an even count and the perfect-bound minimum of MIN_INTERIOR pages.
+      // Book structure: front matter + story + back matter. Padding to each
+      // printer's page-count rules happens per format below.
       // No title page and no dedication (by design — nothing per-book to fill in).
       const front = [bookplatePage(draft.childName, giftMessage), ...(hasReadAlong ? [readAlongKeyPage()] : [])];
-      const back = [charRef ? await endArtPage(charRef, draft.childName) : endPage(draft.childName), wordsPage(soundOut, heartWds, draft.childName)];
-      const interior = [...front, ...story, ...back];
-      while (interior.length < MIN_INTERIOR || interior.length % 2 !== 0) interior.push(drawingPage());
+      const back = [arts[0]?.img ? await endArtPage(arts[0].img, draft.childName) : endPage(draft.childName), wordsPage(soundOut, heartWds, draft.childName)];
 
       // Digital book (flipbook + customer home-print PDF): cover→back cover, no pad pages.
       const digital = [cover, ...front, ...story, ...back, backCoverPage()];
@@ -781,19 +1059,42 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       pdfBlobRef.current = homeBlob;
       setPdfUrl(URL.createObjectURL(homeBlob));
 
-      // Print-shop files are ONLY produced for physical books (softcover / hardcover).
-      // A Digital Book order stays purely digital — flipbook + the customer PDF, no print files.
+      // Print-shop files are ONLY produced for physical books. Printer routing:
+      //   softcover -> Cornerstone Copy saddle-stitch booklet (ONE reader-order PDF)
+      //   hardcover -> Lulu (interior PDF; case-wrap cover from Lulu's template)
+      // A Digital Book order stays purely digital — flipbook + the customer PDF.
       if (digitalOnly) {
         setPrintUrls(null);
+        setPrintNote("");
+      } else if (isHardcover) {
+        // LULU HARDCOVER: interior only — full-bleed pages at exact bleed size
+        // (5.75×8.75), NO crop marks (Lulu rejects printer's marks), even count
+        // ≥ MIN_INTERIOR (case-bind minimum). The case-wrap cover must come from
+        // Lulu's own template (wrap allowance + board thickness), never our math.
+        setAssembling("Building the Lulu interior…");
+        const interior = [...front, ...story, ...back];
+        while (interior.length < MIN_INTERIOR || interior.length % 2 !== 0) interior.push(drawingPage());
+        const interiorBlob = await imagesToPdf(PDFDocument, interior, [TRIM_PT_W, TRIM_PT_H], { x: 0, y: 0, width: TRIM_PT_W, height: TRIM_PT_H });
+        setPrintUrls({ interior: URL.createObjectURL(interiorBlob), cover: null, label: `Lulu interior PDF (${interior.length} pages, full-bleed, no marks)` });
+        setPrintNote(`Lulu hardcover: interior only — ${interior.length} pages at 5.75×8.75" full-bleed, NO crop marks. Build the case-wrap cover from Lulu's cover template for this exact page count.`);
       } else {
-        // Printer interior: full-bleed pages (trim 5.5×8.5 + 0.125" bleed) WITH crop marks +
-        // Trim/Bleed boxes so it passes print-shop pre-flight. No cover, even count ≥ MIN_INTERIOR.
-        const interiorBlob = await imagesToPrintPdf(PDFDocument, rgb, interior.map((img) => ({ img, bleedW: TRIM_PT_W, bleedH: TRIM_PT_H })));
-        // Printer wraparound cover: back + spine (sized to page count) + front, with barcode zone + crop marks.
-        setAssembling("Building the wraparound cover…");
-        const wrap = await buildCoverWrap(cover, draft.title, draft.childName, interior.length);
-        const coverBlob = await imagesToPrintPdf(PDFDocument, rgb, [{ img: wrap.dataUrl, bleedW: wrap.wPt, bleedH: wrap.hPt }]);
-        setPrintUrls({ interior: URL.createObjectURL(interiorBlob), cover: URL.createObjectURL(coverBlob) });
+        // CORNERSTONE SADDLE-STITCH SOFTCOVER (cornerstonecopy.com/booklets):
+        // ONE reader-order PDF with covers INCLUDED in the page count, one
+        // printed side per PDF page (Cornerstone does the imposition), trim
+        // 5.5×8.5 + 0.125" bleed + visible crop marks, 0.5" safe margin, and
+        // a total page count that is a MULTIPLE OF 4 between 8 and 60.
+        // Pad with "My drawing" pages BEFORE the back cover so it stays last.
+        setAssembling("Building the saddle-stitch booklet…");
+        const saddle = [cover, ...front, ...story, ...back, backCoverPage()];
+        while (saddle.length % 4 !== 0 || saddle.length < 8) saddle.splice(saddle.length - 1, 0, drawingPage());
+        if (saddle.length > 60) {
+          setError(`Saddle-stitch booklet would be ${saddle.length} pages — Cornerstone's maximum is 60 including covers. Reduce the story page count.`);
+          setAssembling("");
+          return;
+        }
+        const saddleBlob = await imagesToPrintPdf(PDFDocument, rgb, saddle.map((img) => ({ img, bleedW: TRIM_PT_W, bleedH: TRIM_PT_H })));
+        setPrintUrls({ interior: URL.createObjectURL(saddleBlob), cover: null, label: `Cornerstone booklet PDF (${saddle.length} pages incl. covers)` });
+        setPrintNote(`Cornerstone saddle-stitch: upload this ONE PDF and set "Number of Pages Including Covers" to exactly ${saddle.length}. 5.5×8.5 portrait; bleed and crop marks are already in the file; Cornerstone does the imposition.`);
       }
       setAssembling("");
     } catch (e: any) { setError(e?.message || String(e)); setAssembling(""); }
@@ -917,6 +1218,14 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         <button className="crt-btn crt-primary" disabled={!selectedId || !!busy} onClick={generate}>
           {busy || (draft ? "Regenerate from scratch" : "Generate story draft")}
         </button>
+        {selected && pipelineState && field(selected, "Story draft") && (
+          <>
+            {" "}
+            <button className="crt-btn" disabled={!!busy} onClick={loadCandidate}>
+              Load overnight candidate{pipelineState.phase !== "done" ? ` (still ${pipelineState.phase})` : ""}
+            </button>
+          </>
+        )}
       </div>
 
       {draft && (
@@ -955,14 +1264,48 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       {draft && (
         <div className="crt-card">
           <h2>3 · Illustrations</h2>
-          <input ref={photoInput} type="file" accept="image/jpeg,image/png" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) setPhotoB64(await fileToJpegB64(f)); }} />
+          <input ref={photoInput} type="file" accept="image/jpeg,image/png" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const b64 = await fileToJpegB64(f); setPhotoB64(b64); setSheetQa(null); analyzePhoto(b64); } }} />
           {photoB64 ? (
-            <p className="hint">✓ Reference photo attached — the character (and any pet in the photo) will be drawn from it, stylized, never photorealistic.{" "}
-              <button className="crt-btn tsmall" onClick={() => setPhotoB64("")}>Remove</button></p>
+            <>
+              <p className="hint">✓ Reference photo attached — the character (and any pet in the photo) will be drawn from it, stylized, never photorealistic.{" "}
+                <button className="crt-btn tsmall" onClick={() => { setPhotoB64(""); setPhotoSubject(""); setSheetQa(null); setPhotoPeople([]); }}>Remove</button>{" "}
+                <button className="crt-btn tsmall" disabled={analyzing} onClick={() => analyzePhoto(photoB64)}>{analyzing ? "Analyzing photo…" : "Re-analyze photo"}</button></p>
+              <textarea className="crt-artnote" placeholder={analyzing ? "Analyzing the photo — the cast map fills in automatically…" : "Photo cast map — fills in automatically when you attach a photo. Fix anything it got wrong, or add a hint like 'Reeva is the one in the middle' and hit Re-analyze. Anyone not named is left out entirely, never replaced."} value={photoSubject} onChange={(e) => setPhotoSubject(e.target.value)} rows={3} />
+            </>
           ) : (
             <p className="hint">Optional: <button className="crt-btn tsmall" onClick={() => photoInput.current?.click()}>Attach a reference photo</button> of the child (and pet) — the character sheet will match it. JPG or PNG.</p>
           )}
           <textarea className="crt-artnote" placeholder="Optional illustration notes — applied to the character sheet and every page. e.g. 'warm afternoon light', 'she always wears a red raincoat', 'keep backgrounds simple and uncluttered'" value={artNote} onChange={(e) => setArtNote(e.target.value)} rows={2} />
+          <details className="crt-cast">
+            <summary>Locked cast — {draft.childName} + {castList(draft).length} other character{castList(draft).length === 1 ? "" : "s"} (edit / remove)</summary>
+            <p className="hint">These descriptions are the appearance locks used by the character sheet, every page and QA. To truly remove a character from the book, delete them here and redraw the sheet — a redraw note alone makes the model swap in a lookalike instead.</p>
+            <div className="crt-castrow">
+              <span className="tlabel">Hero</span>
+              <textarea value={draft.characterDescription} onChange={(e) => castDirty(() => setHeroDesc(e.target.value))} rows={2} />
+            </div>
+            {castList(draft).map((c, i) => (
+              <div className="crt-castrow" key={i}>
+                <span className="tlabel">Cast {i + 1}</span>
+                <textarea value={c} placeholder="Locked look: name + skin tone, hair, eyes, clothing — or species, coloring, markings (e.g. 'Rex, a friendly mint-green T-rex with darker green back stripes and a red bandana')" onChange={(e) => castDirty(() => setCastAt(i, e.target.value))} rows={2} />
+                <button className="crt-btn tsmall" title="Remove this character from the whole book" onClick={() => castDirty(() => removeCastAt(i))}>✕ Remove</button>
+              </div>
+            ))}
+            <button className="crt-btn tsmall" onClick={() => castDirty(addCast)}>+ Add a character</button>
+            {photoPeople.length > 0 && (
+              <div className="crt-photolooks">
+                <p className="hint"><b>From the photo</b> — one click replaces the typed guesses with what the photo actually shows:</p>
+                {photoPeople.map((p, i) => (
+                  <div className="crt-castrow" key={i}>
+                    <span className="tlabel">{p.isHero ? "Hero" : "Photo"}</span>
+                    <p className="hint" style={{ flex: 1, margin: 0 }}>{p.position}: {p.lockedLook}</p>
+                    {p.isHero
+                      ? <button className="crt-btn tsmall" title="Replace the hero's locked description with the photo-accurate one" onClick={() => castDirty(() => setHeroDesc(p.lockedLook))}>Use for hero</button>
+                      : <button className="crt-btn tsmall" title="Add this person to the locked cast" onClick={() => castDirty(() => draft && setDraft({ ...draft, castDescriptions: [...castList(draft), p.lockedLook], companionDescription: undefined }))}>+ Add to cast</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </details>
           {!charRef ? (
             <>
               <p className="hint">First, a character sheet locks {draft.childName}&rsquo;s look so every page matches.</p>
@@ -974,6 +1317,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
                 <img src={"data:image/png;base64," + charRef} alt="Character sheet" />
                 <div>
                   <p className="hint">{draft.characterDescription}</p>
+                  {sheetQa && !sheetQa.pass && (
+                    <p className="crt-error">Sheet doesn&rsquo;t match the photo: {sheetQa.issues.join("; ")} — redraw before illustrating (add a photo cast map above if you haven&rsquo;t).</p>
+                  )}
+                  {sheetQa?.pass && <p className="crt-saved">✓ Sheet matches the reference photo (skin tone, hair, cast).</p>}
                   <div className="crt-actions" style={{ justifyContent: "flex-start" }}>
                     <button className="crt-btn" disabled={!!artBusy} onClick={genCharacter}>Redraw character</button>
                     <button className="crt-btn crt-primary" disabled={!!artBusy} onClick={genAllArt}>
@@ -1023,11 +1370,11 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
               <iframe className="crt-preview" src={pdfUrl} title="Book preview" />
               <p>
                 <a className="crt-btn" href={pdfUrl} download={(slugify(draft!.title) || "book") + ".pdf"}>{digitalOnly ? "Digital PDF (5.5×8.5)" : "Home-print PDF (5.5×8.5)"}</a>{" "}
-                {printUrls && <a className="crt-btn" href={printUrls.interior} download={(slugify(draft!.title) || "book") + "-interior-print.pdf"}>Printer interior (bleed, 300 DPI)</a>}{" "}
-                {printUrls && <a className="crt-btn" href={printUrls.cover} download={(slugify(draft!.title) || "book") + "-cover-wrap.pdf"}>Printer cover wrap (spine + barcode zone)</a>}
+                {printUrls && <a className="crt-btn" href={printUrls.interior} download={(slugify(draft!.title) || "book") + "-print.pdf"}>{printUrls.label}</a>}{" "}
+                {printUrls?.cover && <a className="crt-btn" href={printUrls.cover} download={(slugify(draft!.title) || "book") + "-cover-wrap.pdf"}>Printer cover wrap</a>}
               </p>
               {printUrls
-                ? <p className="hint">Softcover/hardcover order: send the two printer files (not the home-print PDF) to the print shop — see docs/print-spec.md.</p>
+                ? <p className="hint">{printNote} (Send the printer file, not the home-print PDF — see docs/print-spec.md.)</p>
                 : <p className="hint">Digital Book order: digital only — the flipbook + the customer PDF. No print files are produced.</p>}
               <div className="crt-row">
                 <label>Customer email
@@ -1095,6 +1442,13 @@ const CSS = `
   .crt-tile .tsmall { padding: 4px 12px; font-size: .76rem; margin-top: 4px; }
   .crt-tile .crt-tilenote { margin-top: 6px; font-size: .78rem; padding: 6px 8px; resize: vertical; text-align: left; }
   .crt-artnote { margin-top: 10px; resize: vertical; }
+  .crt-cast { margin-top: 12px; border: 1px solid #efe8da; border-radius: 12px; padding: 10px 12px; background: #fffdf8; }
+  .crt-cast summary { cursor: pointer; font-weight: 700; font-size: .88rem; color: #7a7164; }
+  .crt-castrow { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; }
+  .crt-castrow .tlabel { font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #b96e3c; padding-top: 8px; min-width: 52px; }
+  .crt-castrow textarea { flex: 1; font-size: .86rem; resize: vertical; }
+  .crt-castrow .tsmall, .crt-cast > .tsmall { padding: 4px 10px; font-size: .76rem; margin-top: 6px; white-space: nowrap; }
+  .crt-photolooks { margin-top: 10px; border-top: 1px dashed #e7e0d4; padding-top: 8px; }
   .tempty { height: 180px; background: #f6f0e4; border-radius: 8px; }
   .crt-preview { width: 100%; height: 560px; border: 1px solid #e7e0d4; border-radius: 12px; margin: 14px 0; background: #fff; }
   .crt-done .big { color: #2f5e38; font-weight: 800; font-size: 1.05rem; }
