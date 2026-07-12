@@ -322,7 +322,10 @@ export default function OrderForm() {
           ]
             .filter((s) => s && s.trim())
             .join("\n");
-      const payload = { ...state, shipping_address };
+      // The friends & family code is single-book only — never send it on a
+      // subscription (the field is hidden then, but stale state could linger
+      // if the shopper typed a code and then switched plans).
+      const payload = { ...state, shipping_address, friends_code: isSubscription ? "" : state.friends_code };
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -779,16 +782,18 @@ export default function OrderForm() {
                 />
               </label>
 
-              <label>
-                Friends &amp; family code (optional)
-                <input
-                  value={state.friends_code}
-                  onChange={(e) => update("friends_code", e.target.value)}
-                  placeholder="Have a code? Enter it here to skip payment."
-                  maxLength={40}
-                  autoComplete="off"
-                />
-              </label>
+              {!isSubscription && (
+                <label>
+                  Friends &amp; family code (optional)
+                  <input
+                    value={state.friends_code}
+                    onChange={(e) => update("friends_code", e.target.value)}
+                    placeholder="Have a code? Enter it here to skip payment."
+                    maxLength={40}
+                    autoComplete="off"
+                  />
+                </label>
+              )}
 
               <label
                 style={{
@@ -840,8 +845,8 @@ export default function OrderForm() {
             {step === TOTAL_STEPS && (
               <button type="submit" className="button primary" disabled={submitting}>
                 {submitting
-                  ? state.friends_code.trim() ? "Placing your order..." : "Redirecting to checkout..."
-                  : state.friends_code.trim()
+                  ? !isSubscription && state.friends_code.trim() ? "Placing your order..." : "Redirecting to checkout..."
+                  : !isSubscription && state.friends_code.trim()
                     ? "Place order — no payment"
                     : isSubscription
                       ? "Subscribe & checkout"

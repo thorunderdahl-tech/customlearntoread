@@ -135,6 +135,14 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
+      // Single one-time books only — never the subscription/club (a free code
+      // must not mint a recurring plan or a multi-book set).
+      if (isSubscription) {
+        return NextResponse.json(
+          { error: "The friends & family code works on single-book orders only — pick a one-time book format, or clear the code to subscribe." },
+          { status: 400 },
+        );
+      }
       if (!airtableConfigured()) {
         return NextResponse.json({ error: "Friends & family orders aren't available right now — please try again later." }, { status: 503 });
       }
