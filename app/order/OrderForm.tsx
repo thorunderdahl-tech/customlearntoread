@@ -156,6 +156,9 @@ export default function OrderForm() {
   const themeFileInputRef = useRef<HTMLInputElement>(null);
 
   const draftLoadedRef = useRef(false);
+  // True once the parent explicitly picks a level in the dropdown — the optional
+  // level-helper question must never overwrite an explicit choice.
+  const manualLevelPick = useRef(false);
 
   // On mount: restore any saved draft, then let an explicit ?plan= override
   // the product choice. Runs once.
@@ -172,6 +175,8 @@ export default function OrderForm() {
             theme_photos: Array.isArray(draft.theme_photos) ? draft.theme_photos : [],
             product: PRODUCTS.some((p) => p.id === draft.product) ? draft.product : s.product,
           }));
+          // A restored draft with an explicit level counts as a manual pick.
+          if (draft.reading_level && draft.reading_level !== NOT_SURE_LEVEL) manualLevelPick.current = true;
         }
       }
     } catch {
@@ -415,7 +420,7 @@ export default function OrderForm() {
                 Reading level
                 <select
                   value={state.reading_level}
-                  onChange={(e) => update("reading_level", e.target.value)}
+                  onChange={(e) => { manualLevelPick.current = e.target.value !== NOT_SURE_LEVEL; update("reading_level", e.target.value); }}
                 >
                   <option>{LEVEL_STRINGS[1]}</option>
                   <option>{LEVEL_STRINGS[2]}</option>
@@ -443,7 +448,9 @@ export default function OrderForm() {
                       value={state.read_check_behavior}
                       onChange={(e) => {
                         const v = e.target.value;
-                        setState((s) => ({ ...s, read_check_behavior: v, reading_level: v ? inferReadingLevel(s.child_age, v) : s.reading_level }));
+                        // The helper only SUGGESTS: it must never overwrite a level
+                        // the parent explicitly chose in the dropdown above.
+                        setState((s) => ({ ...s, read_check_behavior: v, reading_level: v && !manualLevelPick.current ? inferReadingLevel(s.child_age, v) : s.reading_level }));
                       }}
                     >
                       <option value="">Choose one&hellip;</option>

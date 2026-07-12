@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { AirtableOrder } from "@/lib/airtable";
-import { LEVELS, patternWords, wordKind, checkStory } from "@/lib/leveling";
+import { LEVELS, resolveLevel, patternWords, wordKind, checkStory } from "@/lib/leveling";
 
 type Draft = {
   title: string;
@@ -1179,7 +1179,11 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           </label>
           <label>Level override (optional)
             <select value={levelId} onChange={(e) => setLevelId(e.target.value)}>
-              <option value="">Use order / age</option>
+              <option value="">
+                {selected
+                  ? `Use order: ${resolveLevel(field(selected, "Reading level"), field(selected, "Age")).parentLabel}${field(selected, "Reading level")?.startsWith("Level") ? " (parent's pick)" : " (from age)"}`
+                  : "Use order / age"}
+              </option>
               <option value="tiny">Tiny Reader — 1-3 words a page</option>
               <option value="beginner">Beginner Reader — 3-6 words a page</option>
               <option value="growing">Growing Reader — one fuller sentence a page</option>
