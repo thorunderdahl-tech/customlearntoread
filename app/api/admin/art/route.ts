@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateImage, visionAsk, listModels, geminiConfigured } from "@/lib/gemini";
-import { claude, llmConfigured } from "@/lib/llm";
+import { generateImage, visionAsk, listModels, openaiConfigured } from "@/lib/openai";
+import { llmText, llmConfigured } from "@/lib/llm";
 import { buildArtDirectionPrompt } from "@/lib/story";
 import { characterSheetPrompt, pagePrompt, qaPrompt, sheetQaPrompt, photoAnalysisPrompt, soloRefPrompt } from "@/lib/artPrompts";
 
@@ -12,8 +12,8 @@ export const maxDuration = 300;
 // (lib/pipeline.ts) so the two lanes can never drift.
 export async function POST(req: NextRequest) {
   try {
-    if (!geminiConfigured()) {
-      return NextResponse.json({ error: "GEMINI_API_KEY isn't set in Vercel yet." }, { status: 503 });
+    if (!openaiConfigured()) {
+      return NextResponse.json({ error: "OPENAI_API_KEY isn't set in Vercel yet." }, { status: 503 });
     }
     const body = await req.json().catch(() => ({}));
     const action = body?.action as string;
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     // Solo cast reference: redraw one cast member off the approved master sheet
     // onto their own turnaround. Generated once per book (after the sheet), then
     // attached as a separate per-character reference on every page — separate
-    // character images are how Gemini 3 Pro's reference slots work best.
+    // character images are how the image model tracks per-character references best.
     if (action === "soloRef") {
       const { sheet, memberDesc } = body;
       const position = Number(body.position) || 1; // 1-based, left-to-right beside the hero
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       let scene = artPrompt as string;
       if (body.expand !== false && llmConfigured()) {
         try {
-          const expanded = (await claude({
+          const expanded = (await llmText({
             system: "You are an expert children's picture-book art director.",
             user: buildArtDirectionPrompt(body.pageText || "", artPrompt, characterDescription, castText),
             maxTokens: 400,
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       // LAST ref — the prompt applies the director note as an EDIT to it.
       const editPrevious = !!body.editPrevious;
       // Ref budget: master sheet + up to 4 solo cast refs + 2 anchors (+ previous
-      // version in edit mode). Gemini 3 Pro accepts up to 14 reference images.
+      // version in edit mode). gpt-image-2 accepts multiple reference images.
       const img = await generateImage(
         pagePrompt(scene, characterDescription, castText, directorNote, fixNotes, editPrevious, soloRefCount),
         (refs as string[]).slice(0, 8),

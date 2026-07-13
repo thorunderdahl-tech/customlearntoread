@@ -620,7 +620,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   const [charRef, setCharRef] = useState("");
   // Solo cast references: one turnaround per side character, drawn off the master
   // sheet right after it's approved. Attached as SEPARATE reference images on
-  // every page (Gemini 3 Pro character slots) — a single multi-character sheet
+  // every page (image-model character refs) — a single multi-character sheet
   // makes references compete, which is how friends drifted between pages.
   const [castRefs, setCastRefs] = useState<string[]>([]);
   const [photoB64, setPhotoB64] = useState("");
@@ -987,7 +987,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     let notes = "";
     let best: { img: string; qa?: ArtQA; score: number } | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
-      // The image call itself can throw transiently (Gemini overload / rate-limit
+      // The image call itself can throw transiently (image API overload / rate-limit
       // bursts when many pages fire in a row). Retry it with backoff so one blip
       // doesn't blank the page — this is separate from the QA-fix loop below.
       let r: { image: string } | undefined;

@@ -39,7 +39,7 @@ Character reference sheet (turnaround): the SAME single child character drawn TW
 
 /** Solo cast reference: redraw ONE cast member off the master sheet onto their
  * own turnaround. Sent as a separate per-character reference on every page —
- * one image per character is how Gemini 3 Pro's character-reference slots are
+ * one image per character is how the image model's character references are
  * designed to be used; a single multi-character sheet makes references compete
  * and is the main reason friends drifted between pages. */
 export function soloRefPrompt(memberDesc: string, position: number): string {

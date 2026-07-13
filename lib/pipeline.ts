@@ -20,8 +20,8 @@
 import { put } from "@vercel/blob";
 import sharp from "sharp";
 import { updateOrderRecord, listOrders, type AirtableOrder } from "./airtable";
-import { claude, parseJsonBlock, llmConfigured } from "./llm";
-import { generateImage, visionAsk, geminiConfigured } from "./gemini";
+import { llmText, parseJsonBlock, llmConfigured } from "./llm";
+import { generateImage, visionAsk, openaiConfigured } from "./openai";
 import {
   orderInfoFromFields, buildGeneratePrompt, buildGradePrompt, buildRevisePrompt,
   buildArtDirectionPrompt, STORY_SYSTEM, type StoryExtras,
@@ -102,7 +102,7 @@ async function fetchAsJpegB64(url: string, width: number, cache: Map<string, str
   return b64;
 }
 
-/** Downscale a base64 image (fresh from Gemini) to a JPEG base64 for QA/refs. */
+/** Downscale a base64 image (fresh from the image API) to a JPEG base64 for QA/refs. */
 async function b64ToJpegB64(b64: string, width: number): Promise<string> {
   const out = await sharp(Buffer.from(b64, "base64")).resize({ width, withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
   return out.toString("base64");
@@ -150,7 +150,7 @@ function orderExtras(f: Record<string, any>): StoryExtras {
 export async function advanceOrder(order: AirtableOrder, deadline: number, allOrders: AirtableOrder[]): Promise<AdvanceResult> {
   const f = order.fields as Record<string, any>;
   const recordId = order.id;
-  if (!llmConfigured() || !geminiConfigured()) return { kind: "skipped", note: "LLM/Gemini not configured" };
+  if (!llmConfigured() || !openaiConfigured()) return { kind: "skipped", note: "LLM/OpenAI not configured" };
   const timeLeft = () => deadline - DEADLINE_MARGIN_MS - Date.now();
 
   const state = parseState(f["Pipeline state"]) ?? newState();
@@ -187,7 +187,7 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
   if (state.phase === "story") {
     if (timeLeft() < 60_000) return progress("waiting for a fresh time budget (story)");
     const plan = pickCombination(level.id, await priorCombinationKeys(allOrders, f["Parent email"], info.childName, recordId));
-    const raw = await claude({ system: STORY_SYSTEM, user: buildGeneratePrompt(info, level, 16, orderExtras(f), plan), maxTokens: 8000 });
+    const raw = await llmText({ system: STORY_SYSTEM, user: buildGeneratePrompt(info, level, 16, orderExtras(f), plan), maxTokens: 8000 });
     draft = parseJsonBlock<StoryDraft>(raw);
     draft.combination = { key: plan.key, template: plan.template, arc: plan.arc, setting: plan.setting, tone: plan.tone, objective: plan.objective };
     const check = checkStory(draft, level);
@@ -204,7 +204,7 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
     if (timeLeft() < 60_000) return progress(`revising (pass ${state.revises + 1})`);
     const check = checkStory(draft, level);
     if (check.pass) { state.phase = "grade"; break; }
-    const raw = await claude({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, check.problems, planFromKey(draft.combination?.key), orderExtras(f)), maxTokens: 8000 });
+    const raw = await llmText({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, check.problems, planFromKey(draft.combination?.key), orderExtras(f)), maxTokens: 8000 });
     draft = parseJsonBlock<StoryDraft>(raw);
     state.revises++;
     await saveState(recordId, state, { "Story draft": JSON.stringify(draft, null, 1) });
@@ -213,13 +213,13 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
   // ---------- GRADE (AI quality gate; advisory like the manual lane) ----------
   if (state.phase === "grade") {
     if (timeLeft() < 60_000) return progress("waiting for a fresh time budget (grade)");
-    const raw = await claude({ system: STORY_SYSTEM, user: buildGradePrompt(draft, level, info), maxTokens: 1200 });
+    const raw = await llmText({ system: STORY_SYSTEM, user: buildGradePrompt(draft, level, info), maxTokens: 1200 });
     const grade = parseJsonBlock<{ pass: boolean; score: number; issues: string[] }>(raw);
     state.grade = { pass: grade.pass, score: grade.score };
     if (!grade.pass && grade.issues?.length && !state.gradeRevised && state.revises < MAX_REVISES) {
       // One arc-revise on grader issues, then re-converge rules and re-grade —
       // mirrors the manual lane's single grade-revise cycle.
-      const rv = await claude({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, grade.issues, planFromKey(draft.combination?.key), orderExtras(f)), maxTokens: 8000 });
+      const rv = await llmText({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, grade.issues, planFromKey(draft.combination?.key), orderExtras(f)), maxTokens: 8000 });
       draft = parseJsonBlock<StoryDraft>(rv);
       state.gradeRevised = true;
       state.revises++;
@@ -309,7 +309,7 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
       // Art-direction expansion (best-effort, same as the manual lane).
       let scene = page.artPrompt;
       try {
-        const expanded = (await claude({
+        const expanded = (await llmText({
           system: "You are an expert children's picture-book art director.",
           user: buildArtDirectionPrompt(page.text, page.artPrompt, draft.characterDescription, cast()),
           maxTokens: 400,
@@ -321,7 +321,7 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
       // NOTE (2026-07-12): the admin lane now ALSO sends per-character SOLO
       // references between the sheet and the anchors (see CreateClient
       // genCharacter/genOnePage + soloRefPrompt) — measurably better cast
-      // consistency on Gemini 3 Pro. Not yet ported here (needs solo generation
+      // consistency on the image model. Not yet ported here (needs solo generation
       // + storage in pipeline state); pagePrompt's soloRefCount=0 default keeps
       // this lane on the legacy layout. Port before relying on unattended runs.
       const passed = Object.entries(state.pages)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderRecord, updateOrderRecord, listOrders } from "@/lib/airtable";
-import { claude, llmConfigured, parseJsonBlock } from "@/lib/llm";
+import { llmText, llmConfigured, parseJsonBlock } from "@/lib/llm";
 import { LEVELS, resolveLevel, checkStory, type StoryDraft } from "@/lib/leveling";
 import {
   orderInfoFromFields, buildGeneratePrompt, buildGradePrompt, buildRevisePrompt,
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     if (action !== "save" && !llmConfigured()) {
       return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY isn't set in Vercel yet — add it under Project → Environment Variables to enable story generation." },
+        { error: "OPENAI_API_KEY isn't set in Vercel yet — add it under Project → Environment Variables to enable story generation." },
         { status: 503 },
       );
     }
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       const plan = pickCombination(level.id, avoidKeys);
       // 8000 output tokens: a 24-page book with adultLines + rich artPrompts can
       // exceed 6000, which truncated the JSON mid-draft.
-      const raw = await claude({ system: STORY_SYSTEM, user: buildGeneratePrompt(order, level, pageCount, extras, plan), maxTokens: 8000 });
+      const raw = await llmText({ system: STORY_SYSTEM, user: buildGeneratePrompt(order, level, pageCount, extras, plan), maxTokens: 8000 });
       const draft = parseJsonBlock<StoryDraft>(raw);
       draft.combination = { key: plan.key, template: plan.template, arc: plan.arc, setting: plan.setting, tone: plan.tone, objective: plan.objective };
       const check = checkStory(draft, level);
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       const draft = body.draft as StoryDraft;
       const level = LEVELS.find((l) => l.id === draft.levelId) || LEVELS[1];
       const order = body.order as OrderInfo;
-      const raw = await claude({ system: STORY_SYSTEM, user: buildGradePrompt(draft, level, order), maxTokens: 1200 });
+      const raw = await llmText({ system: STORY_SYSTEM, user: buildGradePrompt(draft, level, order), maxTokens: 1200 });
       const grade = parseJsonBlock<{ pass: boolean; score: number; issues: string[]; praise: string }>(raw);
       return NextResponse.json({ grade });
     }
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         mustUseWords: body.mustUseWords || undefined,
         avoidWords: body.avoidWords || undefined,
       };
-      const raw = await claude({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, issues, plan, extras), maxTokens: 8000 });
+      const raw = await llmText({ system: STORY_SYSTEM, user: buildRevisePrompt(draft, level, issues, plan, extras), maxTokens: 8000 });
       const revised = parseJsonBlock<StoryDraft>(raw);
       const check = checkStory(revised, level);
       return NextResponse.json({ draft: revised, check });

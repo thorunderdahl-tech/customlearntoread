@@ -1,6 +1,6 @@
 // Golden-book eval harness — measure story quality instead of eyeballing it.
 //
-//   ANTHROPIC_API_KEY=sk-... node scripts/eval-stories.mjs [--n 8] [--level tiny|beginner|growing|confident]
+//   OPENAI_API_KEY=sk-... node scripts/eval-stories.mjs [--n 8] [--level tiny|beginner|growing|confident]
 //   (or: npm run eval:stories)
 //
 // Generates N complete story drafts through the REAL production prompts + revise
@@ -10,7 +10,7 @@
 // be diffed. Run it before and after ANY change to lib/story.ts, lib/leveling.ts,
 // lib/reading/*, or the story model — that's the whole point.
 //
-// Cost: ~5-8 Claude calls per book (generate + revises + grade). No Gemini.
+// Cost: ~5-8 LLM calls per book (generate + revises + grade). No image generation.
 
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -31,21 +31,21 @@ const argVal = (name, dflt) => {
 const N = Math.max(1, parseInt(argVal("n", "4"), 10) || 4);
 const LEVEL_FILTER = argVal("level", "all");
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.error("ANTHROPIC_API_KEY is required (story generation hits the real API).");
+if (!process.env.OPENAI_API_KEY) {
+  console.error("OPENAI_API_KEY is required (story generation hits the real API).");
   process.exit(1);
 }
 
 // ---- compile the production modules on the fly (same approach as check-reading-rules) ----
 const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "clr-eval-"));
 const tsc = path.join(root, "node_modules", ".bin", "tsc");
-const srcs = ["lib/story.ts", "lib/leveling.ts", "lib/reading/phonics.ts", "lib/reading/storySystem.ts", "lib/brand.ts", "lib/llm.ts"]
+const srcs = ["lib/story.ts", "lib/leveling.ts", "lib/reading/phonics.ts", "lib/reading/storySystem.ts", "lib/brand.ts", "lib/llm.ts", "lib/openai.ts"]
   .map((f) => path.join(root, f)).join(" ");
 execSync(`${tsc} ${srcs} --outDir ${outDir} --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck`, { stdio: "inherit" });
 const { LEVELS, checkStory } = require(path.join(outDir, "leveling.js"));
 const { buildGeneratePrompt, buildGradePrompt, buildRevisePrompt, STORY_SYSTEM } = require(path.join(outDir, "story.js"));
 const { pickCombination, planFromKey } = require(path.join(outDir, "reading/storySystem.js"));
-const { claude, parseJsonBlock } = require(path.join(outDir, "llm.js"));
+const { llmText, parseJsonBlock } = require(path.join(outDir, "llm.js"));
 
 // ---- synthetic orders (varied names incl. a two-word name, themes, looks) ----
 const PROFILES = [
@@ -65,9 +65,9 @@ async function evalOne(i) {
   const level = LEVELS.find((l) => l.id === levelId);
   const plan = pickCombination(level.id, []);
   const t0 = Date.now();
-  let claudeCalls = 0;
+  let llmCalls = 0;
 
-  const gen = async (user, maxTokens) => { claudeCalls++; return claude({ system: STORY_SYSTEM, user, maxTokens }); };
+  const gen = async (user, maxTokens) => { llmCalls++; return llmText({ system: STORY_SYSTEM, user, maxTokens }); };
 
   let draft = parseJsonBlock(await gen(buildGeneratePrompt(profile, level, 16, {}, plan), 8000));
   draft.combination = { key: plan.key, template: plan.template, arc: plan.arc, setting: plan.setting, tone: plan.tone, objective: plan.objective };
@@ -90,7 +90,7 @@ async function evalOne(i) {
     warnings: check.warnings || [],
     gradePass: grade.pass, gradeScore: grade.score, gradeIssues: grade.issues || [],
     stats: check.stats, pages: draft.pages?.length || 0,
-    combination: plan.key, claudeCalls, seconds: Math.round((Date.now() - t0) / 1000),
+    combination: plan.key, llmCalls, seconds: Math.round((Date.now() - t0) / 1000),
     draft, // full draft kept in the JSON for human spot-reads
   };
 }
@@ -118,7 +118,7 @@ console.log(`Rules pass first try : ${pct(ok.filter((r) => r.passFirstTry).lengt
 console.log(`Rules pass final     : ${pct(ok.filter((r) => r.finalPass).length, ok.length)}%  (avg ${avg(ok.map((r) => r.revises))} revises)`);
 console.log(`Grader pass          : ${pct(ok.filter((r) => r.gradePass).length, ok.length)}%  (avg score ${avg(ok.map((r) => r.gradeScore))}/10)`);
 console.log(`Flat titles          : ${ok.filter((r) => r.flatTitle).length} of ${ok.length}  (${ok.map((r) => `"${r.title}"`).join(", ")})`);
-console.log(`Avg Claude calls/book: ${avg(ok.map((r) => r.claudeCalls))} · avg ${avg(ok.map((r) => r.seconds))}s/book`);
+console.log(`Avg LLM calls/book: ${avg(ok.map((r) => r.llmCalls))} · avg ${avg(ok.map((r) => r.seconds))}s/book`);
 const dupCombos = ok.length - new Set(ok.map((r) => r.combination)).size;
 if (dupCombos > 0) console.log(`Variety: ${dupCombos} duplicate plan combination(s) — fine at small N.`);
 for (const r of ok.filter((x) => !x.finalPass)) console.log(`\n✗ ${r.child}/${r.level} unresolved: ${r.remainingProblems.slice(0, 3).join(" | ")}`);
