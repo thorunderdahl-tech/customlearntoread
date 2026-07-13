@@ -78,15 +78,30 @@ export async function generateImage(
   throw new Error("Gemini returned no image (possibly safety-filtered prompt)");
 }
 
-/** Ask a vision model a question about one or more images; returns raw text. */
+/** Ask a vision model a question about one or more images; returns raw text.
+ *  Default upgraded to gemini-3.5-flash (2026-07: the GA flash model) — the old
+ *  gemini-2.5-flash QA gate was visibly under-catching drift (hair length,
+ *  missing swing seat). Falls back to 2.5-flash once if the key can't see 3.5. */
+let visionFallback = false; // sticky per lambda instance — don't re-probe every call
 export async function visionAsk(prompt: string, imagesB64: string | string[], mime = "image/jpeg"): Promise<string> {
-  const model = process.env.VISION_MODEL || "gemini-2.5-flash";
+  const preferred = process.env.VISION_MODEL || "gemini-3.5-flash";
+  const model = visionFallback && !process.env.VISION_MODEL ? "gemini-2.5-flash" : preferred;
   const imgs = Array.isArray(imagesB64) ? imagesB64 : [imagesB64];
   const parts: Part[] = [
     ...imgs.map((d) => ({ inline_data: { mime_type: mime, data: d } })),
     { text: prompt },
   ];
-  const out = await generate(model, parts, false);
+  let out: Awaited<ReturnType<typeof generate>>;
+  try {
+    out = await generate(model, parts, false);
+  } catch (e: any) {
+    // Unknown-model 404 (older keys/regions): drop to the legacy model rather than
+    // blocking every QA check. Env-pinned VISION_MODEL is never overridden.
+    if (!process.env.VISION_MODEL && !visionFallback && /404|NOT_FOUND|not found/i.test(String(e?.message))) {
+      visionFallback = true;
+      out = await generate("gemini-2.5-flash", parts, false);
+    } else throw e;
+  }
   const text = out.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
   if (!text) throw new Error("Vision model returned no text");
   return text;

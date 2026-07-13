@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateImage, visionAsk, listModels, geminiConfigured } from "@/lib/gemini";
 import { claude, llmConfigured } from "@/lib/llm";
 import { buildArtDirectionPrompt } from "@/lib/story";
-import { characterSheetPrompt, pagePrompt, qaPrompt, sheetQaPrompt, photoAnalysisPrompt } from "@/lib/artPrompts";
+import { characterSheetPrompt, pagePrompt, qaPrompt, sheetQaPrompt, photoAnalysisPrompt, soloRefPrompt } from "@/lib/artPrompts";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -34,8 +34,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ image: img.data, mime: img.mime });
     }
 
+    // Solo cast reference: redraw one cast member off the approved master sheet
+    // onto their own turnaround. Generated once per book (after the sheet), then
+    // attached as a separate per-character reference on every page — separate
+    // character images are how Gemini 3 Pro's reference slots work best.
+    if (action === "soloRef") {
+      const { sheet, memberDesc } = body;
+      const position = Number(body.position) || 1; // 1-based, left-to-right beside the hero
+      if (!sheet || !memberDesc) return NextResponse.json({ error: "Missing sheet or memberDesc" }, { status: 400 });
+      const img = await generateImage(soloRefPrompt(memberDesc, position), [sheet], "2:3", body.imageSize);
+      return NextResponse.json({ image: img.data, mime: img.mime });
+    }
+
     if (action === "page") {
       const { artPrompt, characterDescription, refs = [], fixNotes } = body;
+      const soloRefCount = Math.max(0, Number(body.soloRefCount) || 0);
       const castText = ((body.cast as string | undefined) ?? (body.companionDescription as string | undefined))?.trim();
       const directorNote = (body.directorNote as string | undefined)?.trim(); // admin's art-direction note for this page
       if (!artPrompt) return NextResponse.json({ error: "Missing artPrompt" }, { status: 400 });
@@ -56,9 +69,11 @@ export async function POST(req: NextRequest) {
       // editPrevious: the caller appended the page's previous version as the
       // LAST ref — the prompt applies the director note as an EDIT to it.
       const editPrevious = !!body.editPrevious;
+      // Ref budget: master sheet + up to 4 solo cast refs + 2 anchors (+ previous
+      // version in edit mode). Gemini 3 Pro accepts up to 14 reference images.
       const img = await generateImage(
-        pagePrompt(scene, characterDescription, castText, directorNote, fixNotes, editPrevious),
-        (refs as string[]).slice(0, 4),
+        pagePrompt(scene, characterDescription, castText, directorNote, fixNotes, editPrevious, soloRefCount),
+        (refs as string[]).slice(0, 8),
         "2:3",
         body.imageSize,
       );

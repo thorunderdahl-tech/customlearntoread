@@ -318,6 +318,12 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
       } catch { /* raw scene */ }
 
       // Refs: sheet first (sharp, 1100px), then earliest + nearest passed pages.
+      // NOTE (2026-07-12): the admin lane now ALSO sends per-character SOLO
+      // references between the sheet and the anchors (see CreateClient
+      // genCharacter/genOnePage + soloRefPrompt) — measurably better cast
+      // consistency on Gemini 3 Pro. Not yet ported here (needs solo generation
+      // + storage in pipeline state); pagePrompt's soloRefCount=0 default keeps
+      // this lane on the legacy layout. Port before relying on unattended runs.
       const passed = Object.entries(state.pages)
         .filter(([k, v]) => Number(k) !== page.n && Number(k) !== 0 && v.pass)
         .map(([k, v]) => ({ n: Number(k), url: v.url }))

@@ -55,6 +55,7 @@ type PersistedSession = {
   check: Check | null;
   grade: Grade | null;
   charRef: string;
+  castRefs?: string[]; // solo per-character reference sheets (optional — older saves predate them)
   photoB64: string;
   photoSubject?: string;
   arts: Record<number, { img: string; qa?: ArtQA; accepted?: boolean }>;
@@ -617,6 +618,11 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   // Phase 2: art + assembly + delivery
   const [charRef, setCharRef] = useState("");
+  // Solo cast references: one turnaround per side character, drawn off the master
+  // sheet right after it's approved. Attached as SEPARATE reference images on
+  // every page (Gemini 3 Pro character slots) — a single multi-character sheet
+  // makes references compete, which is how friends drifted between pages.
+  const [castRefs, setCastRefs] = useState<string[]>([]);
   const [photoB64, setPhotoB64] = useState("");
   const [photoSubject, setPhotoSubject] = useState(""); // photo cast map: who in the photo is who / who to exclude
   const [sheetQa, setSheetQa] = useState<ArtQA | null>(null); // sheet-vs-photo fidelity verdict (null = not run)
@@ -676,7 +682,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         if (cancelled || !s?.draft) return;
         sessionKeyRef.current = persistKey;
         setDraft(s.draft); setCheck(s.check); setGrade(s.grade);
-        setCharRef(s.charRef || ""); setPhotoB64(s.photoB64 || ""); setPhotoSubject(s.photoSubject || "");
+        setCharRef(s.charRef || ""); setCastRefs(s.castRefs || []); setPhotoB64(s.photoB64 || ""); setPhotoSubject(s.photoSubject || "");
         setArts(s.arts || {});
         if (s.parentEmail) setParentEmail(s.parentEmail);
         if (s.order) setOrder(s.order);
@@ -692,10 +698,10 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     if (!draft || !sessionKeyRef.current) return;
     const key = sessionKeyRef.current;
     const t = setTimeout(() => {
-      idbSet(key, { draft, check, grade, charRef, photoB64, photoSubject, arts, parentEmail, order, savedAt: Date.now() }).catch(() => {});
+      idbSet(key, { draft, check, grade, charRef, castRefs, photoB64, photoSubject, arts, parentEmail, order, savedAt: Date.now() }).catch(() => {});
     }, 1000);
     return () => clearTimeout(t);
-  }, [draft, check, grade, charRef, photoB64, photoSubject, arts, parentEmail, order]);
+  }, [draft, check, grade, charRef, castRefs, photoB64, photoSubject, arts, parentEmail, order]);
 
   // Order extras re-sent on EVERY revise call — the revise prompt re-states them
   // so a revision pass can't drop a must-use word or reintroduce an avoided one.
@@ -707,7 +713,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
 
   function resetAll() {
     setDraft(null); setGrade(null); setCheck(null); setSaved("");
-    setCharRef(""); setArts({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
+    setCharRef(""); setCastRefs([]); setArts({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
   }
 
   async function generate() {
@@ -782,7 +788,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       if (!rawDraft) throw new Error("No story draft on this order yet — the pipeline hasn't finished the story phase.");
       const d = JSON.parse(rawDraft) as Draft;
       sessionKeyRef.current = persistKey; // autosave picks the session up from here
-      setDraft(d); setGrade(null); setCheck(null); setArts({}); setCharRef("");
+      setDraft(d); setGrade(null); setCheck(null); setArts({}); setCharRef(""); setCastRefs([]);
       setPdfUrl(""); setPrintUrls(null); setDelivered(null);
       try {
         const lvl = LEVELS.find((l) => l.id === d.levelId) || LEVELS[0];
@@ -899,6 +905,30 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       }
       setCharRef(img); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
       setSheetQa(qa);
+      // Solo cast references: one turnaround per side character, copied off the
+      // fresh master sheet. ALL-OR-NOTHING: the page prompt maps solos to cast
+      // members BY ORDER, so a missing one would shift every mapping — if any
+      // solo fails after a retry, fall back to the legacy sheet-only layout.
+      const members = castList(draft).map((m) => m.trim()).filter(Boolean).slice(0, 4);
+      const solos: string[] = [];
+      if (members.length) {
+        try {
+          const sheetRef = await refJpeg(img, 1100);
+          for (let i = 0; i < members.length; i++) {
+            setArtBusy(`Drawing solo cast reference ${i + 1}/${members.length}…`);
+            let solo: { image: string } | undefined;
+            for (let tries = 0; tries < 2 && !solo; tries++) {
+              try { solo = await art({ action: "soloRef", recordId: selectedId || undefined, sheet: sheetRef, memberDesc: members[i], position: i + 1, imageSize: "2K" }); }
+              catch (e) { if (tries === 1) throw e; await new Promise((r) => setTimeout(r, 3000)); }
+            }
+            solos.push(solo!.image);
+          }
+          setCastRefs(solos);
+        } catch {
+          setCastRefs([]); // legacy layout — pages still work off the master sheet alone
+          setSaved("Solo cast references couldn't be drawn — pages will use the master sheet only (consistency may be weaker). Redraw the character sheet to retry.");
+        }
+      } else setCastRefs([]);
     } catch (e: any) { setError(e?.message || String(e)); }
     setArtBusy("");
   }
@@ -941,12 +971,13 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       ? passed.reduce((best, cur) => (Math.abs(cur.n - n) < Math.abs(best.n - n) ? cur : best))
       : undefined;
     const anchors = [...new Set([passed[0]?.img, nearest?.img].filter(Boolean) as string[])];
-    // The character sheet carries the identity signal — send it sharper (1100px)
-    // than the style anchors (900px) so hair length and shirt graphics survive.
-    // In edit mode: sheet + 1 anchor + the previous version LAST (sharp, 1100px —
-    // it's the thing being edited).
+    // Ref layout: master sheet (sharp, 1100px — identity signal), then one SOLO
+    // reference per side character (1000px, mapped to the CAST LOCK order in the
+    // prompt), then style anchors (900px). In edit mode: + the previous version
+    // LAST (sharp, 1100px — it's the thing being edited).
     const refs = await Promise.all([
       refJpeg(charRef, 1100),
+      ...castRefs.map((b) => refJpeg(b, 1000)),
       ...anchors.slice(0, prevImg ? 1 : 2).map((b) => refJpeg(b)),
       ...(prevImg ? [refJpeg(prevImg, 1100)] : []),
     ]);
@@ -961,7 +992,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       // doesn't blank the page — this is separate from the QA-fix loop below.
       let r: { image: string } | undefined;
       for (let tries = 0; tries < 4; tries++) {
-        try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, directorNote: directorNote || undefined, fixNotes: notes || undefined, editPrevious: !!prevImg, imageSize: artImageSize }); break; }
+        try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, soloRefCount: castRefs.length, directorNote: directorNote || undefined, fixNotes: notes || undefined, editPrevious: !!prevImg, imageSize: artImageSize }); break; }
         catch (e) { if (tries === 3) throw e; await new Promise((res) => setTimeout(res, 4000 * (tries + 1))); }
       }
       const img = r!.image;
