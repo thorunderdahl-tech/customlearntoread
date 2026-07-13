@@ -9,7 +9,9 @@ import {
 import { pickCombination, planFromKey } from "@/lib/reading/storySystem";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 300s (was 60): gpt-5.6-sol spends part of its budget on internal reasoning,
+// so a 16-page generate + rules-check can exceed 60s (2026-07-13: 504 timeout).
+export const maxDuration = 300;
 
 // Variety memory: gather the combination keys of this child's previous books so
 // the new one can be made different. Best-effort — never blocks generation.
