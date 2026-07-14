@@ -97,6 +97,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// GET variant of listRefs — reachable by plain navigation when a debugger-wedged
+// renderer can't complete fetch()/XHR (seen 2026-07-14 with CDP interception stuck).
+export async function GET(req: NextRequest) {
+  const action = req.nextUrl.searchParams.get("action");
+  if (action === "listRefs") {
+    const { blobs } = await list({ prefix: req.nextUrl.searchParams.get("prefix") || "styleplates/", limit: 100 });
+    return NextResponse.json({
+      refs: blobs.map((b) => ({ path: b.pathname, url: b.url, size: b.size, uploadedAt: b.uploadedAt })),
+    });
+  }
+  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+}
+
 async function urlToB64(url: string): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`ref fetch failed (${res.status})`);
