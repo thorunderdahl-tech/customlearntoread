@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 import { generateWith, providerConfigured, type ProviderId } from "@/lib/imageProviders";
 import { visionAsk, openaiConfigured } from "@/lib/openai";
 import { pagePrompt, qaPrompt } from "@/lib/artPrompts";
@@ -30,6 +30,13 @@ export async function POST(req: NextRequest) {
         addRandomSuffix: true,
       });
       return NextResponse.json({ url: blob.url });
+    }
+
+    if (action === "listRefs") {
+      const { blobs } = await list({ prefix: (body.prefix as string) || "styleplates/", limit: 100 });
+      return NextResponse.json({
+        refs: blobs.map((b) => ({ path: b.pathname, url: b.url, size: b.size, uploadedAt: b.uploadedAt })),
+      });
     }
 
     if (action === "run") {
