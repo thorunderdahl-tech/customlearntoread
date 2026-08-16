@@ -1,0 +1,21 @@
+{
+  "name": "customlearntoread-publisher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Auto-publisher: turns an approved content calendar into scheduled Instagram/TikTok posts for Custom Learn to Read.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "post-now": "node src/post-now.js",
+    "migrate": "node src/migrate.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.69.0",
+    "node-cron": "^3.0.3",
+    "pg": "^8.13.1"
+  }
+}
