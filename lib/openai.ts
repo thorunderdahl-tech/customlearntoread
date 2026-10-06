@@ -1,10 +1,13 @@
+import { geminiArt } from "./imageProviders";
+
 // Minimal OpenAI API client (plain fetch — no SDK dependency).
 // Covers all three AI lanes: story text, image generation, and vision QA.
 // Requires OPENAI_API_KEY. Models overridable via STORY_MODEL / ART_MODEL / VISION_MODEL.
 //
 // Defaults (newest as of 2026-07):
 //   text/vision: gpt-5.6-sol   (frontier tier of GPT-5.6, GA 2026-07-09)
-//   images:      gpt-image-2   (flexible sizes up to ~8.3MP, native multi-reference edits)
+//   images:      Gemini gemini-nano-banana-2.1 by default (lib/imageProviders.ts geminiArt,
+//                needs GEMINI_API_KEY); gpt-image-2 only when ART_PROVIDER=openai
 
 const BASE = "https://api.openai.com/v1";
 
@@ -129,7 +132,21 @@ export async function generateImage(
   aspectRatio = "2:3",
   imageSizeOverride?: string,
 ): Promise<{ data: string; mime: string }> {
-  const model = process.env.ART_MODEL || "gpt-image-2";
+  // Art provider: Gemini (Nano Banana 2.1) is the default since 2026-10-06.
+  // ART_PROVIDER=openai switches back to gpt-image-2. ART_MODEL is honored only
+  // when it names a model of the active provider, so a stale value left over
+  // from the other provider can't misroute the call.
+  const envModel = process.env.ART_MODEL || "";
+  if ((process.env.ART_PROVIDER || "gemini").toLowerCase() !== "openai") {
+    return geminiArt(
+      prompt,
+      referenceImagesB64,
+      aspectRatio,
+      imageSizeOverride || process.env.ART_IMAGE_SIZE || "2K",
+      /^(gemini|nano-banana)/i.test(envModel) ? envModel : "gemini-nano-banana-2.1",
+    );
+  }
+  const model = /^gpt/i.test(envModel) ? envModel : "gpt-image-2";
   // Caller decides resolution (4K for print/physical, 2K for digital-only) so we
   // pay for 4K only where print sharpness matters. Falls back to env then 2K.
   const size = pixelSize(aspectRatio, imageSizeOverride || process.env.ART_IMAGE_SIZE || "2K");

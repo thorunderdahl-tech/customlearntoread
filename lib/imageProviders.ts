@@ -77,6 +77,53 @@ export async function geminiImage(prompt: string, refUrls: string[], opts: GenOp
   throw new Error("Gemini returned no image (possibly safety-filtered prompt)");
 }
 
+/** Production art lane (default since 2026-10-06): Gemini image generation from
+ *  base64 JPEG refs, returning base64 like the OpenAI lane does. Retries the
+ *  transient 429/5xx bursts Gemini throws under load. */
+export async function geminiArt(
+  prompt: string,
+  refsB64: string[] = [],
+  aspectRatio = "2:3",
+  imageSize = "2K",
+  model = "gemini-nano-banana-2.1",
+): Promise<{ data: string; mime: string }> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY isn't set in Vercel env vars yet.");
+  const size = ["1K", "2K", "4K"].includes(imageSize.toUpperCase()) ? imageSize.toUpperCase() : "2K";
+  const body = JSON.stringify({
+    contents: [{
+      parts: [
+        ...refsB64.map((d) => ({ inline_data: { mime_type: "image/jpeg", data: d } })),
+        { text: prompt },
+      ],
+    }],
+    generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio, imageSize: size } },
+  });
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 2500 * attempt));
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body },
+    );
+    if (!res.ok) {
+      lastErr = `Gemini ${model} ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+      if (res.status === 429 || res.status >= 500) continue;
+      throw new Error(lastErr);
+    }
+    const data = (await res.json()) as {
+      candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ inlineData?: { mimeType: string; data: string } }> } }>;
+    };
+    for (const c of data.candidates || []) {
+      for (const p of c.content?.parts || []) {
+        if (p.inlineData?.data) return { data: p.inlineData.data, mime: p.inlineData.mimeType || "image/png" };
+      }
+    }
+    lastErr = `Gemini ${model} returned no image (${data.candidates?.[0]?.finishReason || "possibly safety-filtered prompt"})`;
+  }
+  throw new Error(lastErr);
+}
+
 // ---------------------------------------------------------------------------
 // fal.ai adapters (FLUX.2 [pro] edit + Seedream 4.5 edit) — synchronous fal.run.
 // ---------------------------------------------------------------------------

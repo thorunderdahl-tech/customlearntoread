@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       // LAST ref — the prompt applies the director note as an EDIT to it.
       const editPrevious = !!body.editPrevious;
       // Ref budget: master sheet + up to 4 solo cast refs + 2 anchors (+ previous
-      // version in edit mode). gpt-image-2 accepts multiple reference images.
+      // version in edit mode). Both art providers accept multiple reference images.
       const img = await generateImage(
         pagePrompt(scene, characterDescription, castText, directorNote, fixNotes, editPrevious, soloRefCount),
         (refs as string[]).slice(0, 8),
