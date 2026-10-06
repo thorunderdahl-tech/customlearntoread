@@ -28,10 +28,25 @@ async function refToJpegB64(url: string): Promise<string> {
 // Gemini (Nano Banana) — same wire format the old lib/gemini.ts used.
 // ---------------------------------------------------------------------------
 
-export async function geminiImage(prompt: string, refUrls: string[]): Promise<GeneratedImage> {
+export type GenOpts = { model?: string; imageSize?: "1K" | "2K" | "4K" };
+
+/** List image-capable Gemini model IDs visible to this key (confirms a new model's exact ID). */
+export async function geminiImageModels(): Promise<string[]> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY isn't set.");
-  const model = process.env.BAKEOFF_GEMINI_MODEL || "gemini-3-pro-image";
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${key}`);
+  if (!res.ok) throw new Error(`Gemini models list ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+  const data = (await res.json()) as { models?: Array<{ name: string }> };
+  return (data.models || [])
+    .map((m) => m.name.replace(/^models\//, ""))
+    .filter((n) => /image|banana/i.test(n))
+    .sort();
+}
+
+export async function geminiImage(prompt: string, refUrls: string[], opts: GenOpts = {}): Promise<GeneratedImage> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY isn't set.");
+  const model = opts.model || process.env.BAKEOFF_GEMINI_MODEL || "gemini-3-pro-image";
   const refs = await Promise.all(refUrls.map(refToJpegB64));
   const body = {
     contents: [{
@@ -42,7 +57,7 @@ export async function geminiImage(prompt: string, refUrls: string[]): Promise<Ge
     }],
     generationConfig: {
       responseModalities: ["IMAGE"],
-      imageConfig: { aspectRatio: "2:3", imageSize: "2K" },
+      imageConfig: { aspectRatio: "2:3", imageSize: opts.imageSize || "2K" },
     },
   };
   const t0 = Date.now();
@@ -118,8 +133,8 @@ export function seedreamImage(prompt: string, refUrls: string[]): Promise<Genera
   return falImage("fal-ai/bytedance/seedream/v4.5/edit", prompt, refUrls, 2048, 3072);
 }
 
-export function generateWith(p: ProviderId, prompt: string, refUrls: string[]): Promise<GeneratedImage> {
-  if (p === "gemini") return geminiImage(prompt, refUrls);
+export function generateWith(p: ProviderId, prompt: string, refUrls: string[], opts: GenOpts = {}): Promise<GeneratedImage> {
+  if (p === "gemini") return geminiImage(prompt, refUrls, opts);
   if (p === "flux") return fluxImage(prompt, refUrls);
   return seedreamImage(prompt, refUrls);
 }

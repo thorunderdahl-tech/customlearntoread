@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put, list } from "@vercel/blob";
-import { generateWith, providerConfigured, type ProviderId } from "@/lib/imageProviders";
+import { generateWith, geminiImageModels, providerConfigured, type ProviderId } from "@/lib/imageProviders";
 import { visionAsk, openaiConfigured } from "@/lib/openai";
 import { pagePrompt, qaPrompt } from "@/lib/artPrompts";
 
@@ -14,7 +14,9 @@ export const maxDuration = 300;
 // Actions:
 //   saveRef  { name, image(b64), mime }               -> store a style plate / char ref in Blob
 //   run      { provider, scene, characterDescription, cast?, charRefUrls[], styleRefUrls[],
-//              pageText?, artPrompt? (both enable QA) } -> { url, seconds, verdict? }
+//              pageText?, artPrompt? (both enable QA),
+//              model?, imageSize? (Gemini only: model ID + 1K/2K/4K) } -> { url, seconds, verdict? }
+//   geminiModels {}                                    -> image-capable Gemini model IDs for this key
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -37,6 +39,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         refs: blobs.map((b) => ({ path: b.pathname, url: b.url, size: b.size, uploadedAt: b.uploadedAt })),
       });
+    }
+
+    if (action === "geminiModels") {
+      return NextResponse.json({ models: await geminiImageModels() });
     }
 
     if (action === "run") {
@@ -64,8 +70,11 @@ export async function POST(req: NextRequest) {
       const prompt = pagePrompt(scene, characterDescription, cast) + styleLine;
       const refs = [...charRefUrls, ...styleRefUrls];
 
-      const img = await generateWith(provider, prompt, refs);
-      const blob = await put(`bakeoff/${provider}-${Date.now()}.png`, Buffer.from(img.data, "base64"), {
+      const model = typeof body.model === "string" && /^[\w.\-]+$/.test(body.model) ? (body.model as string) : undefined;
+      const imageSize = ["1K", "2K", "4K"].includes(body.imageSize) ? (body.imageSize as "1K" | "2K" | "4K") : undefined;
+      const img = await generateWith(provider, prompt, refs, { model, imageSize });
+      const tag = [provider, model, imageSize].filter(Boolean).join("-");
+      const blob = await put(`bakeoff/${tag}-${Date.now()}.png`, Buffer.from(img.data, "base64"), {
         access: "public",
         contentType: img.mime,
         addRandomSuffix: false,
@@ -87,7 +96,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({ url: blob.url, seconds: Math.round(img.seconds), verdict });
+      return NextResponse.json({ url: blob.url, seconds: Math.round(img.seconds), model: model || null, imageSize: imageSize || "2K", verdict });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
