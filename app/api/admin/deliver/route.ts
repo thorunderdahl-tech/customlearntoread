@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
     if (!/^[a-z0-9-]{4,80}$/.test(token)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 400 });
     }
-    if (!email || !/.+@.+\..+/.test(email)) {
+    // One address, or several separated by commas/semicolons (e.g. both parents).
+    const recipients = email.split(/[,;]+/).map((e) => e.trim()).filter(Boolean);
+    if (!recipients.length || recipients.length > 5 || !recipients.every((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))) {
       return NextResponse.json({ error: "Invalid customer email" }, { status: 400 });
     }
 
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
       : "";
     const { error: sendError } = await resend.emails.send({
       from: fromEmail,
-      to: email,
+      to: recipients,
       bcc: ownerEmails.length ? ownerEmails : undefined,
       reply_to: ownerEmails[0] || undefined,
       subject: `${childName || "Your child"}'s book is ready!`,
