@@ -12,8 +12,9 @@ export async function GET(req: NextRequest) {
   try { host = new URL(src).hostname; } catch { /* invalid URL */ }
   // Blob = pipeline art + supplied references; Cloudinary = the photos parents
   // upload on the order form (the "Reference photos" column).
-  if (!/\.blob\.vercel-storage\.com$/.test(host) && host !== "res.cloudinary.com") {
-    return NextResponse.json({ error: "Only blob storage and order-photo URLs are allowed" }, { status: 400 });
+  // Airtable attachments = files dropped on the order's "Art Files for Reference".
+  if (!/\.blob\.vercel-storage\.com$/.test(host) && host !== "res.cloudinary.com" && !/\.airtableusercontent\.com$/.test(host)) {
+    return NextResponse.json({ error: "Only blob storage, order-photo and Airtable attachment URLs are allowed" }, { status: 400 });
   }
   const res = await fetch(src, { cache: "no-store" });
   if (!res.ok) return NextResponse.json({ error: `Fetch failed (${res.status})` }, { status: 502 });

@@ -240,10 +240,21 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
   // that is what keeps the hero identical across every book of a set.
   const shared = resolveSetRefs(order, allOrders);
   if (state.phase === "character" && shared.sheetUrl) {
-    state.charUrl = shared.sheetUrl;
-    state.charMime = "image/jpeg";
-    state.phase = "pages";
-    await saveState(recordId, state);
+    let url = shared.sheetUrl;
+    let extra: Record<string, any> | undefined;
+    try {
+      if (shared.sheetTemp) {
+        // Airtable attachment URLs expire — copy the sheet into Blob and record
+        // the permanent URL on the order so later runs (and the admin) reuse it.
+        const b64 = await fetchAsJpegB64(url, 2048, new Map());
+        url = await storeArt(recordId, "char", b64, "image/jpeg");
+        extra = { "Character sheet": url };
+      }
+      state.charUrl = url;
+      state.charMime = "image/jpeg";
+      state.phase = "pages";
+      await saveState(recordId, state, extra);
+    } catch { /* couldn't fetch the supplied sheet — fall through and draw one */ }
   }
   if (state.phase === "character") {
     if (timeLeft() < 60_000) return progress("waiting for a fresh time budget (character)");

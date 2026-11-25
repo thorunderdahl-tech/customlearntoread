@@ -802,10 +802,15 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     let cancelled = false;
     (async () => {
       try {
-        const b64 = await fetchCandidateB64(url);
+        const raw = await fetchCandidateB64(url);
+        const { w } = await imgDims(raw);
+        const b64 = await refJpeg(raw, Math.min(w, 2048)); // JPEG, never upscaled
         if (cancelled) return;
         setCharRef(b64); setCastRefs([]); setSheetQa(null); setSheetSupplied(true);
-        setSaved(setRefs?.sheetFrom === "set"
+        // Came from an Airtable attachment (its URL expires): copy it into
+        // permanent storage for this order and the rest of its set.
+        if (setRefs?.sheetTemp) saveRef("sheet", b64);
+        if (!setRefs?.sheetTemp) setSaved(setRefs?.sheetFrom === "set"
           ? `Using the "${setRefs.setName}" set's character sheet, so ${draft.childName} matches the other books in the set.`
           : "Using this order's supplied character sheet.");
       } catch (e: any) {
@@ -829,6 +834,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         if (cancelled) return;
         setPhotoB64(b64); setSheetQa(null);
         analyzePhoto(b64);
+        if (setRefs?.photoTemp) saveRef("photo", b64);
       } catch { refLoadFailed.current.add(k); /* photo is optional */ }
     })();
     return () => { cancelled = true; };
@@ -859,7 +865,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       const key = setRefs?.setName || `id:${selected.id}`;
       setSavedRefs((m) => ({ ...m, [key]: { ...m[key], [kind === "sheet" ? "sheetUrl" : "photoUrl"]: r.url } }));
       const n = Array.isArray(r.updated) ? r.updated.length : 1;
-      setSaved(`Saved the ${kind === "sheet" ? "character sheet" : "reference photo"} to ${n > 1 ? `all ${n} books in the set` : "this order"} — it will be reused every time.`);
+      setSaved(`${kind === "sheet" ? "Character sheet" : "Reference photo"} saved to ${n > 1 ? `all ${n} books in the set` : "this order"} — it will be reused every time.`);
     } catch (e: any) {
       setError(`The ${kind === "sheet" ? "character sheet" : "photo"} is in use for this session but couldn't be saved for reuse: ${e?.message || e}`);
     }
@@ -1500,7 +1506,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         )}
         {selected && setRefs?.setName && (
           <p className="hint">Book set: <b>{setRefs.setName}</b> — {setRefs.siblingIds.length} other book{setRefs.siblingIds.length === 1 ? "" : "s"} in this set.{" "}
-            {setRefs.sheetUrl ? "A shared character sheet is saved and will be reused." : "No shared character sheet yet — the first one you upload or approve here can be saved for the whole set."}</p>
+            {setRefs.sheetUrl ? "A shared character sheet is saved and will be reused." : "No shared character sheet yet — drop one on the Airtable row (Art Files for Reference) or upload it below."}</p>
         )}
         {selected && pipelineState && field(selected, "Story draft") && (
           <>
