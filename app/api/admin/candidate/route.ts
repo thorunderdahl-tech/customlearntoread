@@ -10,8 +10,10 @@ export async function GET(req: NextRequest) {
   const src = req.nextUrl.searchParams.get("src") || "";
   let host = "";
   try { host = new URL(src).hostname; } catch { /* invalid URL */ }
-  if (!/\.blob\.vercel-storage\.com$/.test(host)) {
-    return NextResponse.json({ error: "Only blob storage URLs are allowed" }, { status: 400 });
+  // Blob = pipeline art + supplied references; Cloudinary = the photos parents
+  // upload on the order form (the "Reference photos" column).
+  if (!/\.blob\.vercel-storage\.com$/.test(host) && host !== "res.cloudinary.com") {
+    return NextResponse.json({ error: "Only blob storage and order-photo URLs are allowed" }, { status: 400 });
   }
   const res = await fetch(src, { cache: "no-store" });
   if (!res.ok) return NextResponse.json({ error: `Fetch failed (${res.status})` }, { status: 502 });

@@ -20,3 +20,38 @@ Mechanics of on-brand, print-quality art. The STYLE itself lives in `lib/brand.t
 ## QA gate (vision check, every page)
 
 Checks, in `app/api/admin/art/route.ts` (prompt in `lib/artPrompts.ts`): character match vs sheet incl. an explicit **hair-length landmark test** (jaw/shoulders/mid-back/waist — different landmark = hard fail), **style + lighting match vs sheet** (golden-hour lock), story match, **object & physics coherence** (a child "on a swing" must have a visible seat and connected chains; incomplete/floating interaction objects = hard fail — added after a seatless-swing page passed QA on 2026-07-12), **composition (upper-two-thirds + edge clearance + no baked-in blank band at any edge)**, no text in image, age-appropriateness/anatomy, happy-by-default expressions, same-age peers. One automatic retry with fix notes. **Failed pages block assembly** in the admin UI; the admin can Redo or explicitly "Use anyway." Vision QA model upgraded to `gemini-3.5-flash` (was `gemini-2.5-flash`, which visibly under-caught drift), with a one-time runtime fallback to 2.5 if a key can't see it; pin via `VISION_MODEL`.
+
+## Book sets, supplied character sheets, and the draft pass (2026-11-25)
+
+**Book sets.** Orders for the same child are tied together by the Airtable
+`Book set` column (identical text on every book; `Set book #` gives the order).
+Logic lives in `lib/bookSet.ts` and is shared by the admin create screen and the
+unattended pipeline.
+
+**Supplied character sheet.** The `Character sheet` column (long text, one URL)
+holds an approved sheet. When an order, or any other book in its set, has one:
+
+- the create screen loads it automatically and never draws a new one unless the
+  admin clicks Redraw (which asks first);
+- the pipeline skips its character-sheet phase and uses it as-is.
+
+"Upload my own character sheet" in the create screen stores the image in Blob
+(`refs/{recordId}/sheet-*.jpg`) and writes the URL to every book in the set
+(`/api/admin/refs`). A supplied sheet usually shows only the hero, so other cast
+members get a solo reference drawn from their written description
+(`soloFromText`) the first time pages are illustrated.
+
+**Child photo.** The first URL in `Reference photos` (the order's own, else its
+set's) is attached automatically. A photo attached by hand is saved the same
+way. A supplied sheet is checked once against the photo (`sheetCheck` with
+`supplied: true`: likeness only, layout is not judged). The photo is not sent
+with each page: the sheet is the identity reference on every page, and the photo
+is what the sheet is verified against.
+
+**Saved stories.** "Open the story saved on this order" loads the `Story draft`
+column into the workspace and re-runs the rules check, without regenerating.
+
+**Draft pass.** The "Draft pass" checkbox illustrates at 1K, one attempt per
+page, without the art-direction expansion call or QA-driven retries. "Quick
+sample" draws only the cover and three pages. Draft art is not print quality;
+"Start the final pass" clears it and keeps the story and sheet.

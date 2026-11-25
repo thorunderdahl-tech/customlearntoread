@@ -50,6 +50,19 @@ The attached image is the approved MASTER CAST SHEET for a children's book. Redr
 Solo character reference sheet (turnaround): that ONE character drawn TWICE, side by side on a plain soft cream background — full-body FRONT view and full-body BACK view, neutral happy pose. COPY the character from the master sheet with zero changes: identical face, hair color/texture and EXACT hair length, skin tone, and every garment with its exact colors (or species, coloring, markings). The BACK view shows the true back of the hair and the PLAIN back of the top. NO other character may appear — exactly one character, two views. No text or logos.`;
 }
 
+/** Solo cast reference drawn from a WRITTEN description, for books whose
+ * character sheet was supplied (uploaded) and shows only the hero. The attached
+ * sheet is a STYLE reference only — the new character must not copy the hero. */
+export function soloFromTextPrompt(memberDesc: string): string {
+  return `${STYLE}
+
+The attached image is this children's book's approved character sheet for the HERO child. Use it ONLY as the art-style reference (medium, palette, line treatment, proportions) — do NOT redraw the hero.
+
+Draw a NEW solo character reference sheet (turnaround) for a DIFFERENT recurring character in the same book: ${memberDesc}.
+
+That ONE character drawn TWICE, side by side on a plain soft cream background — full-body FRONT view and full-body BACK view, neutral happy pose, in exactly the same art style as the attached sheet. Follow the description precisely: skin tone, hair color and length, age and build, and every garment with its colors. If the character is an adult, draw clear adult proportions and height. The BACK view shows the true back of the hair and the PLAIN back of the top. NO other character may appear — exactly one character, two views. No text or logos.`;
+}
+
 /** One interior/cover page. `scene` is the (ideally expanded) art direction.
  * `editPrevious` = the LAST attached reference image is the page's previous
  * version and the director note should be applied as an EDIT to it, not a
@@ -98,7 +111,7 @@ Reply ONLY JSON:
  * FROM a reference photo, before any pages are drawn — a sheet with the wrong
  * skin tone or hair poisons every page of the book. IMAGE 1 = the generated
  * sheet, IMAGE 2 = the parent's real photo. */
-export function sheetQaPrompt(characterDescription: string, cast?: string, photoSubject?: string): string {
+export function sheetQaPrompt(characterDescription: string, cast?: string, photoSubject?: string, supplied = false): string {
   return `You are the fidelity gate for a children's book character sheet. IMAGE 1 is a generated, stylized character reference sheet. IMAGE 2 is the real photo it was drawn from (provided by the child's parent). A sheet that fails is regenerated, so flag every real problem.
 
 The sheet was supposed to contain: the hero — ${characterDescription}${cast ? `; plus these other characters, drawn beside the hero in the numbered order listed (use that left-to-right order to tell similar-looking characters apart) — ${cast}` : "; and NO other characters"}.${photoSubject ? ` PHOTO CAST MAP (who in the photo is who): ${photoSubject}. Anyone in the photo not named in this map must NOT appear on the sheet in any form.` : ""}
@@ -108,7 +121,7 @@ Check, comparing the sheet against the photo:
 2. HAIR: does each character's hair color, texture and length match their photo person? Blonde must stay blonde, dark brown must stay dark brown, curly must stay curly. Mismatch = HARD FAIL.
 3. ONE-TO-ONE MAPPING: does each sheet character correspond to exactly one photo person, with no blending of two people into one figure, and no invented character who matches nobody in the photo or the descriptions?
 4. COUNT: does the sheet contain exactly the characters listed above — none missing, none extra, no excluded person from the photo sneaking in or being replaced by a substitute figure?
-5. STYLE: is it a warm stylized picture-book illustration (NOT photorealistic), with front AND back views of the hero, on a plain background, with no text or logos?
+5. STYLE: ${supplied ? "this sheet was SUPPLIED by the publisher, so its layout, background and number of views are already approved — do NOT flag them. Only flag it if it is a photograph rather than an illustration, or contains text or logos." : "is it a warm stylized picture-book illustration (NOT photorealistic), with front AND back views of the hero, on a plain background, with no text or logos?"}
 Reply ONLY JSON: {"pass": true|false, "issues": ["short fixable issue naming the character and attribute", ...]}`;
 }
 

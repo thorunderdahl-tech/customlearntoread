@@ -29,6 +29,7 @@ import {
 import { LEVELS, resolveLevel, checkStory, type StoryDraft } from "./leveling";
 import { pickCombination, planFromKey } from "./reading/storySystem";
 import { characterSheetPrompt, pagePrompt, qaPrompt, sheetQaPrompt, photoAnalysisPrompt } from "./artPrompts";
+import { resolveSetRefs } from "./bookSet";
 
 // ---- tunables (env-overridable) ----
 const IMAGE_CAP = Number(process.env.PIPELINE_IMAGE_CAP) || 40; // hard ceiling per book — cost protection
@@ -234,12 +235,22 @@ export async function advanceOrder(order: AirtableOrder, deadline: number, allOr
 
   // ---------- CHARACTER SHEET ----------
   const refCache = new Map<string, string>();
+  // Book set / supplied sheet: when this order (or another book in its "Book
+  // set") has a "Character sheet" URL, REUSE it instead of drawing a new one —
+  // that is what keeps the hero identical across every book of a set.
+  const shared = resolveSetRefs(order, allOrders);
+  if (state.phase === "character" && shared.sheetUrl) {
+    state.charUrl = shared.sheetUrl;
+    state.charMime = "image/jpeg";
+    state.phase = "pages";
+    await saveState(recordId, state);
+  }
   if (state.phase === "character") {
     if (timeLeft() < 60_000) return progress("waiting for a fresh time budget (character)");
     if (state.imageCalls >= IMAGE_CAP) return stuck(`Image cap (${IMAGE_CAP}) hit before the character sheet.`);
     // Parent reference photo (first URL, if any) gets stylized into the sheet.
     let photoB64: string | undefined;
-    const firstPhoto = String(f["Reference photos"] || "").split(/\s+/).filter(Boolean)[0];
+    const firstPhoto = shared.photoUrl; // the order's own photo, else its set's
     if (firstPhoto) {
       try { photoB64 = await fetchAsJpegB64(firstPhoto, 1024, refCache); } catch { /* sheet from description only */ }
     }

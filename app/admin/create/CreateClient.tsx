@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { AirtableOrder } from "@/lib/airtable";
 import { LEVELS, resolveLevel, patternWords, wordKind, checkStory } from "@/lib/leveling";
+import { resolveSetRefs } from "@/lib/bookSet";
 
 type Draft = {
   title: string;
@@ -140,11 +141,10 @@ async function imgDims(b64: string): Promise<{ w: number; h: number }> {
   return { w: i.naturalWidth || i.width, h: i.naturalHeight || i.height };
 }
 
-async function fileToJpegB64(file: File): Promise<string> {
+async function fileToJpegB64(file: File, max = 1024): Promise<string> {
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImg(url);
-    const max = 1024;
     const s = Math.min(1, max / Math.max(img.width, img.height));
     const c = document.createElement("canvas");
     c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
@@ -623,12 +623,24 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   // every page (image-model character refs) — a single multi-character sheet
   // makes references compete, which is how friends drifted between pages.
   const [castRefs, setCastRefs] = useState<string[]>([]);
+  const castRefsRef = useRef<string[]>([]); // latest value for long-running loops (state is stale inside them)
+  castRefsRef.current = castRefs;
   const [photoB64, setPhotoB64] = useState("");
   const [photoSubject, setPhotoSubject] = useState(""); // photo cast map: who in the photo is who / who to exclude
   const [sheetQa, setSheetQa] = useState<ArtQA | null>(null); // sheet-vs-photo fidelity verdict (null = not run)
   const [photoPeople, setPhotoPeople] = useState<{ position: string; isHero: boolean; lockedLook: string }[]>([]); // vision analysis of the photo
   const [analyzing, setAnalyzing] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
+  // ---- book sets + supplied references (lib/bookSet.ts) ----
+  const sheetInput = useRef<HTMLInputElement>(null);
+  const [sheetSupplied, setSheetSupplied] = useState(false); // charRef is an uploaded / set-shared sheet, not one drawn here
+  const [savedRefs, setSavedRefs] = useState<Record<string, { sheetUrl?: string; photoUrl?: string }>>({}); // refs saved this session (Airtable rows on screen are stale)
+  const refLoadFailed = useRef<Set<string>>(new Set()); // never retry a broken ref URL in a loop
+  const photoDismissed = useRef<Set<string>>(new Set()); // orders where the admin removed the auto-loaded photo
+  const suppliedChecked = useRef<string>(""); // sheet+photo pair already fidelity-checked
+  // ---- draft pass: cheap, fast look at the whole book before the print-quality run ----
+  const [draftMode, setDraftMode] = useState(false);
+  const [artsAreDraft, setArtsAreDraft] = useState(false);
   const [artNote, setArtNote] = useState(""); // section-level art direction (character sheet + all pages)
   const [tileNotes, setTileNotes] = useState<Record<number, string>>({}); // per-page note applied on Redo
   const [arts, setArts] = useState<Record<number, { img: string; qa?: ArtQA; accepted?: boolean }>>({});
@@ -714,6 +726,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
   function resetAll() {
     setDraft(null); setGrade(null); setCheck(null); setSaved("");
     setCharRef(""); setCastRefs([]); setArts({}); setPdfUrl(""); setPrintUrls(null); setPageImages([]); setPageLabels([]); setDelivered(null);
+    setSheetSupplied(false); setArtsAreDraft(false); setSheetQa(null);
   }
 
   async function generate() {
@@ -761,6 +774,128 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       return raw ? (JSON.parse(raw) as { phase: string; charUrl?: string; error?: string; pages?: Record<string, { url: string; pass: boolean; issues?: string[] }> }) : null;
     } catch { return null; }
   }, [selected]);
+
+  // ---- book set: shared character sheet + child photo ----
+  // The order's own "Character sheet" / "Reference photos" win; otherwise they are
+  // borrowed from another book in the same "Book set". A sheet found this way is
+  // REUSED, never redrawn, so the hero is identical in every book of the set.
+  const setRefs = useMemo(() => {
+    if (!selected) return null;
+    const base = resolveSetRefs(selected, initialOrders);
+    const local = savedRefs[base.setName || `id:${selected.id}`] || {};
+    return {
+      ...base,
+      sheetUrl: local.sheetUrl || base.sheetUrl,
+      sheetFrom: local.sheetUrl ? ("order" as const) : base.sheetFrom,
+      photoUrl: local.photoUrl || base.photoUrl,
+      photoFrom: local.photoUrl ? ("order" as const) : base.photoFrom,
+    };
+  }, [selected, initialOrders, savedRefs]);
+
+  // Auto-adopt the supplied/set character sheet whenever the workspace has a
+  // story but no sheet yet. Free (no image call).
+  useEffect(() => {
+    const url = setRefs?.sheetUrl;
+    if (!draft || charRef || artBusy || busy || !url || !selectedId) return;
+    const k = `${selectedId}|${url}`;
+    if (refLoadFailed.current.has(k)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const b64 = await fetchCandidateB64(url);
+        if (cancelled) return;
+        setCharRef(b64); setCastRefs([]); setSheetQa(null); setSheetSupplied(true);
+        setSaved(setRefs?.sheetFrom === "set"
+          ? `Using the "${setRefs.setName}" set's character sheet, so ${draft.childName} matches the other books in the set.`
+          : "Using this order's supplied character sheet.");
+      } catch (e: any) {
+        refLoadFailed.current.add(k);
+        if (!cancelled) setError(`Couldn't load the supplied character sheet (${e?.message || e}). You can upload it again or draw a new one.`);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [draft, charRef, artBusy, busy, setRefs?.sheetUrl, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-attach the child's real photo (order's own, else the set's).
+  useEffect(() => {
+    const url = setRefs?.photoUrl;
+    if (!draft || photoB64 || busy || !url || !selectedId || photoDismissed.current.has(selectedId)) return;
+    const k = `${selectedId}|${url}`;
+    if (refLoadFailed.current.has(k)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const b64 = await refJpeg(await fetchCandidateB64(url), 1024);
+        if (cancelled) return;
+        setPhotoB64(b64); setSheetQa(null);
+        analyzePhoto(b64);
+      } catch { refLoadFailed.current.add(k); /* photo is optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, [draft, photoB64, busy, setRefs?.photoUrl, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A supplied sheet is checked against the real photo once (advisory): right
+  // child, right hair, right skin tone. One cheap vision call per sheet+photo pair.
+  useEffect(() => {
+    if (!sheetSupplied || !charRef || !photoB64 || !draft || analyzing) return;
+    const k = `${charRef.length}:${charRef.slice(0, 64)}|${photoB64.length}:${photoB64.slice(0, 64)}`;
+    if (suppliedChecked.current === k) return;
+    suppliedChecked.current = k;
+    (async () => {
+      try {
+        const [sheetImg, photoImg] = await Promise.all([refJpeg(charRef, 1000), refJpeg(photoB64, 1000)]);
+        const v = (await art({ action: "sheetCheck", supplied: true, sheet: sheetImg, photo: photoImg, characterDescription: draft.characterDescription, photoSubject: photoSubject.trim() || undefined })).verdict ?? null;
+        setSheetQa(v);
+      } catch { /* advisory only */ }
+    })();
+  }, [sheetSupplied, charRef, photoB64, analyzing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Persist a supplied reference to Blob + Airtable for this order AND every
+   * other book in its set, so it is used every time. Best-effort. */
+  async function saveRef(kind: "sheet" | "photo", b64: string) {
+    if (!selected) return;
+    try {
+      const r = await api("/api/admin/refs", { recordId: selected.id, kind, image: b64, applyToSet: true });
+      const key = setRefs?.setName || `id:${selected.id}`;
+      setSavedRefs((m) => ({ ...m, [key]: { ...m[key], [kind === "sheet" ? "sheetUrl" : "photoUrl"]: r.url } }));
+      const n = Array.isArray(r.updated) ? r.updated.length : 1;
+      setSaved(`Saved the ${kind === "sheet" ? "character sheet" : "reference photo"} to ${n > 1 ? `all ${n} books in the set` : "this order"} — it will be reused every time.`);
+    } catch (e: any) {
+      setError(`The ${kind === "sheet" ? "character sheet" : "photo"} is in use for this session but couldn't be saved for reuse: ${e?.message || e}`);
+    }
+  }
+
+  /** Use an uploaded character sheet (e.g. one made in another tool) instead of
+   * drawing one. Replaces the current sheet and clears page art drawn from it. */
+  async function adoptUploadedSheet(file: File) {
+    setError("");
+    try {
+      const b64 = await fileToJpegB64(file, 2048);
+      setCharRef(b64); setCastRefs([]); setSheetQa(null); setSheetSupplied(true);
+      setArts({}); setArtsAreDraft(false); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
+      await saveRef("sheet", b64);
+    } catch (e: any) { setError(e?.message || String(e)); }
+  }
+
+  /** Open the story already saved on the order (the "Story draft" column) so it
+   * can be reviewed, checked and illustrated without regenerating it. */
+  function loadSavedDraft() {
+    if (!selected) return;
+    setError("");
+    try {
+      const d = JSON.parse(field(selected, "Story draft")) as Draft;
+      if (!d?.pages?.length) throw new Error("the saved draft has no pages");
+      sessionKeyRef.current = persistKey;
+      setDraft(d); setGrade(null); setArts({}); setArtsAreDraft(false); setCharRef(""); setCastRefs([]);
+      setPdfUrl(""); setPrintUrls(null); setDelivered(null);
+      try {
+        const lvl = LEVELS.find((l) => l.id === d.levelId) || LEVELS[0];
+        setCheck(checkStory(d as any, lvl) as any);
+      } catch { setCheck(null); }
+      setParentEmail(field(selected, "Parent email") || "");
+      setSaved("Loaded the story saved on this order. Check the level-rules result below before illustrating.");
+    } catch (e: any) { setError(`Couldn't open the saved story: ${e?.message || e}`); }
+  }
 
   // Candidate art lives in Blob; stream it through the admin proxy (same-origin,
   // keeps the compositing canvas untainted) and back to base64 for the tiles.
@@ -904,7 +1039,7 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         if (!qa || qa.pass) break;
       }
       setCharRef(img); setArts({}); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
-      setSheetQa(qa);
+      setSheetQa(qa); setSheetSupplied(false); setArtsAreDraft(false);
       // Solo cast references: one turnaround per side character, copied off the
       // fresh master sheet. ALL-OR-NOTHING: the page prompt maps solos to cast
       // members BY ORDER, so a missing one would shift every mapping — if any
@@ -977,22 +1112,26 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     // LAST (sharp, 1100px — it's the thing being edited).
     const refs = await Promise.all([
       refJpeg(charRef, 1100),
-      ...castRefs.map((b) => refJpeg(b, 1000)),
+      ...castRefsRef.current.map((b) => refJpeg(b, 1000)),
       ...anchors.slice(0, prevImg ? 1 : 2).map((b) => refJpeg(b)),
       ...(prevImg ? [refJpeg(prevImg, 1100)] : []),
     ]);
     // Up to 3 attempts: regenerate with the QA issues as fix notes until QA
     // passes — and keep the BEST attempt seen (pass > fewest issues), not
     // whichever happened to come last.
+    // DRAFT PASS: 1K art, one attempt, no art-direction expansion — a fast, cheap
+    // look at the whole book. QA still runs once so problems are visible, but a
+    // flagged draft page is not regenerated.
+    const size = draftMode ? "1K" : artImageSize;
     let notes = "";
     let best: { img: string; qa?: ArtQA; score: number } | undefined;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < (draftMode ? 1 : 3); attempt++) {
       // The image call itself can throw transiently (image API overload / rate-limit
       // bursts when many pages fire in a row). Retry it with backoff so one blip
       // doesn't blank the page — this is separate from the QA-fix loop below.
       let r: { image: string } | undefined;
       for (let tries = 0; tries < 4; tries++) {
-        try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, soloRefCount: castRefs.length, directorNote: directorNote || undefined, fixNotes: notes || undefined, editPrevious: !!prevImg, imageSize: artImageSize }); break; }
+        try { r = await art({ action: "page", recordId: selectedId || undefined, artPrompt: page.artPrompt, pageText: page.text, characterDescription: draft.characterDescription, cast: castText(draft), refs, soloRefCount: castRefsRef.current.length, directorNote: directorNote || undefined, fixNotes: notes || undefined, editPrevious: !!prevImg, imageSize: size, expand: draftMode ? false : undefined }); break; }
         catch (e) { if (tries === 3) throw e; await new Promise((res) => setTimeout(res, 4000 * (tries + 1))); }
       }
       const img = r!.image;
@@ -1005,14 +1144,42 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
     setArts((a) => ({ ...a, [n]: { img: best!.img, qa: best!.qa } }));
   }
 
-  async function genAllArt() {
+  /** Supplied sheets show only the hero, so other cast members (a parent, a
+   * friend) get a solo reference drawn from their locked description, in the
+   * sheet's art style. All-or-nothing, like the solos drawn off a master sheet. */
+  async function ensureSuppliedCastRefs(): Promise<string[]> {
+    if (!draft || !sheetSupplied || castRefs.length) return castRefs;
+    const members = castList(draft).map((m) => m.trim()).filter(Boolean).slice(0, 4);
+    if (!members.length) return castRefs;
+    try {
+      const sheetRef = await refJpeg(charRef, 1100);
+      const solos: string[] = [];
+      for (let i = 0; i < members.length; i++) {
+        setArtBusy(`Drawing a reference for cast member ${i + 1}/${members.length}…`);
+        solos.push((await art({ action: "soloFromText", recordId: selectedId || undefined, sheet: sheetRef, memberDesc: members[i], imageSize: "2K" })).image);
+      }
+      castRefsRef.current = solos;
+      setCastRefs(solos);
+      return solos;
+    } catch {
+      setSaved("Couldn't draw cast references — other characters will follow their written descriptions only (they may vary a little between pages).");
+      return [];
+    }
+  }
+
+  async function genAllArt(sampleOnly = false) {
     if (!draft || !charRef) return;
     // Don't burn a whole book of image calls against a sheet that failed the
     // photo check — every page inherits the sheet's mistakes.
     if (sheetQa && !sheetQa.pass && !window.confirm(`The character sheet FAILED the photo check (${sheetQa.issues.join("; ")}). Illustrating now bakes that into every page. Illustrate anyway?`)) return;
     setError(""); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
     const already = { ...arts }; // skip pages finished in a previous run
-    const targets = [0, ...draft.pages.map((p) => p.n)].filter((n) => !already[n]);
+    // Sample = cover + first, middle and last page: four images to judge the look.
+    const allNs = [0, ...draft.pages.map((p) => p.n)];
+    const sampleNs = [0, 1, Math.ceil(draft.pages.length / 2), draft.pages.length];
+    const targets = allNs.filter((n) => !already[n] && (!sampleOnly || sampleNs.includes(n)));
+    if (draftMode) setArtsAreDraft(true);
+    await ensureSuppliedCastRefs();
     const failed: number[] = [];
     for (const n of targets) {
       const label = n === 0 ? "the cover" : `page ${n} of ${draft.pages.length}`;
@@ -1325,6 +1492,16 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
         <button className="crt-btn crt-primary" disabled={!selectedId || !!busy} onClick={generate}>
           {busy || (draft ? "Regenerate from scratch" : "Generate story draft")}
         </button>
+        {selected && !draft && field(selected, "Story draft") && (
+          <>
+            {" "}
+            <button className="crt-btn" disabled={!!busy} onClick={loadSavedDraft}>Open the story saved on this order</button>
+          </>
+        )}
+        {selected && setRefs?.setName && (
+          <p className="hint">Book set: <b>{setRefs.setName}</b> — {setRefs.siblingIds.length} other book{setRefs.siblingIds.length === 1 ? "" : "s"} in this set.{" "}
+            {setRefs.sheetUrl ? "A shared character sheet is saved and will be reused." : "No shared character sheet yet — the first one you upload or approve here can be saved for the whole set."}</p>
+        )}
         {selected && pipelineState && field(selected, "Story draft") && (
           <>
             {" "}
@@ -1371,11 +1548,12 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
       {draft && (
         <div className="crt-card">
           <h2>3 · Illustrations</h2>
-          <input ref={photoInput} type="file" accept="image/jpeg,image/png" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const b64 = await fileToJpegB64(f); setPhotoB64(b64); setSheetQa(null); analyzePhoto(b64); } }} />
+          <input ref={photoInput} type="file" accept="image/jpeg,image/png" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { const b64 = await fileToJpegB64(f); setPhotoB64(b64); setSheetQa(null); analyzePhoto(b64); saveRef("photo", b64); } }} />
+          <input ref={sheetInput} type="file" accept="image/jpeg,image/png" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) adoptUploadedSheet(f); }} />
           {photoB64 ? (
             <>
               <p className="hint">✓ Reference photo attached — the character (and any pet in the photo) will be drawn from it, stylized, never photorealistic.{" "}
-                <button className="crt-btn tsmall" onClick={() => { setPhotoB64(""); setPhotoSubject(""); setSheetQa(null); setPhotoPeople([]); }}>Remove</button>{" "}
+                <button className="crt-btn tsmall" onClick={() => { if (selectedId) photoDismissed.current.add(selectedId); setPhotoB64(""); setPhotoSubject(""); setSheetQa(null); setPhotoPeople([]); }}>Remove</button>{" "}
                 <button className="crt-btn tsmall" disabled={analyzing} onClick={() => analyzePhoto(photoB64)}>{analyzing ? "Analyzing photo…" : "Re-analyze photo"}</button></p>
               <textarea className="crt-artnote" placeholder={analyzing ? "Analyzing the photo — the cast map fills in automatically…" : "Photo cast map — fills in automatically when you attach a photo. Fix anything it got wrong, or add a hint like 'Reeva is the one in the middle' and hit Re-analyze. Anyone not named is left out entirely, never replaced."} value={photoSubject} onChange={(e) => setPhotoSubject(e.target.value)} rows={3} />
             </>
@@ -1416,7 +1594,9 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
           {!charRef ? (
             <>
               <p className="hint">First, a character sheet locks {draft.childName}&rsquo;s look so every page matches.</p>
-              <button className="crt-btn crt-primary" disabled={!!artBusy} onClick={genCharacter}>{artBusy || "Draw character sheet"}</button>
+              <button className="crt-btn crt-primary" disabled={!!artBusy} onClick={genCharacter}>{artBusy || "Draw character sheet"}</button>{" "}
+              <button className="crt-btn" disabled={!!artBusy} onClick={() => sheetInput.current?.click()}>Upload my own character sheet</button>
+              <p className="hint">Already have a sheet you like (from another tool, or another book in the set)? Upload it and it is used as-is and saved for reuse.</p>
             </>
           ) : (
             <>
@@ -1424,16 +1604,37 @@ export default function CreateClient({ initialOrders, loadError }: { initialOrde
                 <img src={"data:image/png;base64," + charRef} alt="Character sheet" />
                 <div>
                   <p className="hint">{draft.characterDescription}</p>
+                  {sheetSupplied && (
+                    <p className="crt-saved">🔒 Supplied character sheet{setRefs?.setName ? ` — shared by the "${setRefs.setName}" set` : ""}. It is used as-is on every page{photoB64 ? ", and checked against the child's photo" : ""}.</p>
+                  )}
                   {sheetQa && !sheetQa.pass && (
-                    <p className="crt-error">Sheet doesn&rsquo;t match the photo: {sheetQa.issues.join("; ")} — redraw before illustrating (add a photo cast map above if you haven&rsquo;t).</p>
+                    <p className="crt-error">Sheet doesn&rsquo;t match the photo: {sheetQa.issues.join("; ")} — {sheetSupplied ? "check the sheet, or upload a corrected one." : "redraw before illustrating (add a photo cast map above if you haven\u2019t)."}</p>
                   )}
                   {sheetQa?.pass && <p className="crt-saved">✓ Sheet matches the reference photo (skin tone, hair, cast).</p>}
                   <div className="crt-actions" style={{ justifyContent: "flex-start" }}>
-                    <button className="crt-btn" disabled={!!artBusy} onClick={genCharacter}>Redraw character</button>
-                    <button className="crt-btn crt-primary" disabled={!!artBusy} onClick={genAllArt}>
-                      {artBusy || (Object.keys(arts).length ? "Regenerate all pages" : `Illustrate cover + ${draft.pages.length} pages`)}
+                    <button className="crt-btn" disabled={!!artBusy} onClick={() => {
+                      if ((sheetSupplied || setRefs?.sheetUrl) && !window.confirm(`This book uses a supplied character sheet${setRefs?.setName ? ` shared by the "${setRefs.setName}" set` : ""}. Drawing a new one changes ${draft.childName}'s look for THIS book only, so it may no longer match the others. Draw a new sheet anyway?`)) return;
+                      genCharacter();
+                    }}>Redraw character</button>
+                    <button className="crt-btn" disabled={!!artBusy} onClick={() => sheetInput.current?.click()}>Upload my own sheet</button>
+                    <button className="crt-btn crt-primary" disabled={!!artBusy} onClick={() => genAllArt()}>
+                      {artBusy || (Object.keys(arts).length ? "Illustrate remaining pages" : `Illustrate cover + ${draft.pages.length} pages${draftMode ? " (draft)" : ""}`)}
                     </button>
+                    {draftMode && Object.keys(arts).length === 0 && (
+                      <button className="crt-btn" disabled={!!artBusy} onClick={() => genAllArt(true)}>Quick sample (cover + 3 pages)</button>
+                    )}
                   </div>
+                  <label className="hint" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" checked={draftMode} disabled={!!artBusy} onChange={(e) => setDraftMode(e.target.checked)} style={{ width: "auto" }} />
+                    Draft pass — small 1K images, one try per page, no automatic fixes. Fast and cheap, for checking the story and look. Not print quality.
+                  </label>
+                  {artsAreDraft && Object.keys(arts).length > 0 && (
+                    <p className="hint">These illustrations are DRAFTS (not print quality).{" "}
+                      <button className="crt-btn tsmall" disabled={!!artBusy} onClick={() => {
+                        if (!window.confirm("Clear the draft art and switch to the full-quality pass? The story and the character sheet are kept.")) return;
+                        setArts({}); setArtsAreDraft(false); setDraftMode(false); setPdfUrl(""); setPrintUrls(null); setDelivered(null);
+                      }}>Start the final pass</button></p>
+                  )}
                 </div>
               </div>
               {Object.keys(arts).length > 0 && (

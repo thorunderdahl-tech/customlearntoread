@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateImage, visionAsk, listModels, openaiConfigured } from "@/lib/openai";
 import { llmText, llmConfigured } from "@/lib/llm";
 import { buildArtDirectionPrompt } from "@/lib/story";
-import { characterSheetPrompt, pagePrompt, qaPrompt, sheetQaPrompt, photoAnalysisPrompt, soloRefPrompt } from "@/lib/artPrompts";
+import { characterSheetPrompt, pagePrompt, qaPrompt, sheetQaPrompt, photoAnalysisPrompt, soloRefPrompt, soloFromTextPrompt } from "@/lib/artPrompts";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -43,6 +43,15 @@ export async function POST(req: NextRequest) {
       const position = Number(body.position) || 1; // 1-based, left-to-right beside the hero
       if (!sheet || !memberDesc) return NextResponse.json({ error: "Missing sheet or memberDesc" }, { status: 400 });
       const img = await generateImage(soloRefPrompt(memberDesc, position), [sheet], "2:3", body.imageSize);
+      return NextResponse.json({ image: img.data, mime: img.mime });
+    }
+
+    // Solo cast reference from a written description — for books using a SUPPLIED
+    // hero sheet that doesn't show the other cast. The sheet is style reference only.
+    if (action === "soloFromText") {
+      const { sheet, memberDesc } = body;
+      if (!sheet || !memberDesc) return NextResponse.json({ error: "Missing sheet or memberDesc" }, { status: 400 });
+      const img = await generateImage(soloFromTextPrompt(memberDesc), [sheet], "2:3", body.imageSize);
       return NextResponse.json({ image: img.data, mime: img.mime });
     }
 
@@ -101,7 +110,8 @@ export async function POST(req: NextRequest) {
       const castText = ((body.cast as string | undefined) ?? "")?.trim() || undefined;
       const photoSubject = (body.photoSubject as string | undefined)?.trim();
       if (!sheet || !photo) return NextResponse.json({ error: "Missing sheet or photo" }, { status: 400 });
-      const raw = await visionAsk(sheetQaPrompt(characterDescription, castText, photoSubject), [sheet, photo]);
+      const supplied = !!body.supplied; // uploaded sheet: hero only, layout pre-approved
+      const raw = await visionAsk(sheetQaPrompt(characterDescription, supplied ? undefined : castText, photoSubject, supplied), [sheet, photo]);
       try {
         const verdict = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
         return NextResponse.json({ verdict });
